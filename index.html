@@ -1,0 +1,1508 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Simulador de segmentación ARM</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@400;600&family=Source+Sans+3:wght@400;600;700&display=swap">
+<style>
+/* Layout: banco de laboratorio — barra de configuración, columna lateral (programa y estado) junto al camino de datos, diagrama multiciclo a todo el ancho */
+:root{
+  --paper:#f2f4f8; --panel:#ffffff; --sunk:#f7f8fb; --ink:#152033; --muted:#566377; --line:#d6dce5; --line-strong:#9aa6b8;
+  --accent:#2148c9; --accent-ink:#ffffff;
+  --fwd:#0a8273; --stall:#b47600; --flush:#c0392b; --struct:#7a3fc0; --wb:#2148c9;
+  --i0:#2563c4; --i1:#cf5f1c; --i2:#2c8a4d; --i3:#c02f80; --i4:#6a4bd0; --i5:#a67a0e; --i6:#11809a; --i7:#9c3b3b;
+  --f-display:"Barlow Condensed","Arial Narrow",sans-serif;
+  --f-body:"Source Sans 3","Segoe UI",system-ui,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --paper:#0e131b; --panel:#151c27; --sunk:#111821; --ink:#e2e8f1; --muted:#95a2b6; --line:#273244; --line-strong:#56637a;
+  --accent:#7d9fff; --accent-ink:#0b1224;
+  --fwd:#35c4b2; --stall:#f0b42a; --flush:#ff6e62; --struct:#b590ff; --wb:#7d9fff;
+  --i0:#6aa2ec; --i1:#f2935c; --i2:#5fc187; --i3:#ea72b8; --i4:#a38bf2; --i5:#e2b24b; --i6:#4dc1d2; --i7:#e47b7b;
+  color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --paper:#0e131b; --panel:#151c27; --sunk:#111821; --ink:#e2e8f1; --muted:#95a2b6; --line:#273244; --line-strong:#56637a;
+  --accent:#7d9fff; --accent-ink:#0b1224;
+  --fwd:#35c4b2; --stall:#f0b42a; --flush:#ff6e62; --struct:#b590ff; --wb:#7d9fff;
+  --i0:#6aa2ec; --i1:#f2935c; --i2:#5fc187; --i3:#ea72b8; --i4:#a38bf2; --i5:#e2b24b; --i6:#4dc1d2; --i7:#e47b7b;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--paper);color:var(--ink);font:15px/1.5 var(--f-body);-webkit-font-smoothing:antialiased}
+.wrap{max-width:1380px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0}
+h2{font-size:22px;font-weight:700;letter-spacing:.01em}
+h3{font-size:17px;font-weight:600}
+p{margin:0}
+code,.mono{font-family:var(--f-mono);font-size:.88em}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* Cabecera */
+.top{border-bottom:1px solid var(--line);background:var(--panel)}
+.top .wrap{padding-block:26px 20px;display:flex;flex-wrap:wrap;gap:20px 40px;align-items:flex-end;justify-content:space-between}
+.eyebrow{font:600 12.5px var(--f-display);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+h1{font-size:clamp(32px,4.4vw,50px);line-height:1;font-weight:700;margin-top:6px}
+.lede{margin-top:10px;max-width:66ch;color:var(--muted)}
+.lede i{font-style:italic;color:var(--ink)}
+.stair{display:grid;grid-template-columns:repeat(9,26px);gap:3px;font:600 11px var(--f-mono);flex-shrink:0}
+.stair span{height:20px;display:grid;place-items:center;border-radius:3px;background:color-mix(in srgb,var(--c) 18%,var(--panel));color:var(--c);border:1px solid color-mix(in srgb,var(--c) 40%,transparent)}
+@media (max-width:560px){.stair{display:none}}
+
+main.wrap{padding-block:18px 48px;display:flex;flex-direction:column;gap:16px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:16px;min-width:0}
+.ph{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.ph .sub{color:var(--muted);font-size:13.5px}
+
+/* Configuración */
+.config{display:flex;flex-wrap:wrap;gap:14px 26px;align-items:flex-end}
+.field{display:flex;flex-direction:column;align-items:flex-start;gap:6px;border:0;margin:0;padding:0;min-width:0}
+label.field,label.field select{align-items:stretch;width:100%}
+.field legend,.field .lab{font:600 12px var(--f-display);letter-spacing:.11em;text-transform:uppercase;color:var(--muted);padding:0;margin-bottom:6px}
+.seg{display:inline-flex;border:1px solid var(--line-strong);border-radius:5px;overflow:hidden;background:var(--sunk);flex-wrap:wrap}
+.seg input{position:absolute;opacity:0;pointer-events:none;width:1px;height:1px}
+.seg label{padding:6px 11px;cursor:pointer;font-weight:600;font-size:13.5px;border-right:1px solid var(--line);white-space:nowrap;user-select:none}
+.seg label small{font-weight:400;opacity:.8;margin-left:4px}
+.seg label:last-of-type{border-right:0}
+.seg label:hover{background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.seg input:checked+label{background:var(--accent);color:var(--accent-ink)}
+.seg input:focus-visible+label{outline:2px solid var(--accent);outline-offset:-3px}
+.seg.off{opacity:.45;pointer-events:none}
+.chk{display:flex;align-items:center;gap:8px;font-weight:600;font-size:13.5px;cursor:pointer;padding:6px 0}
+.chk input{width:16px;height:16px;accent-color:var(--accent)}
+.bookcfg{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px;font-size:13.5px;color:var(--muted)}
+.pill{font:700 11px var(--f-display);letter-spacing:.09em;text-transform:uppercase;padding:2px 7px;border-radius:3px;border:1px solid currentColor}
+.pill.ok{color:var(--fwd)} .pill.mod{color:var(--stall)}
+
+/* Rejilla principal */
+.layout{display:grid;grid-template-columns:minmax(0,350px) minmax(0,1fr);gap:16px;align-items:start}
+.side,.mainc{display:flex;flex-direction:column;gap:16px;min-width:0}
+@media (max-width:1100px){.layout{grid-template-columns:minmax(0,1fr)}}
+
+select{width:100%;padding:7px 9px;border:1px solid var(--line-strong);border-radius:5px;background:var(--sunk)}
+.exnote{margin-top:8px;color:var(--muted);font-size:13.5px}
+textarea{width:100%;height:330px;resize:vertical;margin-top:10px;padding:10px 12px;border:1px solid var(--line-strong);border-radius:5px;background:var(--sunk);font:13px/1.55 var(--f-mono);tab-size:4;white-space:pre;overflow:auto}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.btn{border:1px solid var(--line-strong);background:var(--panel);border-radius:5px;padding:6px 12px;font-weight:600;font-size:13.5px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{filter:brightness(1.08);color:var(--accent-ink)}
+.btn:disabled{opacity:.45;cursor:default}
+.err{margin-top:10px;padding:8px 10px;border-radius:5px;border:1px solid color-mix(in srgb,var(--flush) 50%,transparent);background:color-mix(in srgb,var(--flush) 9%,var(--panel));color:var(--ink);font-size:13.5px}
+.err:empty{display:none}
+details.syntax{margin-top:10px;font-size:13.5px;color:var(--muted)}
+details.syntax summary{cursor:pointer;font-weight:600;color:var(--ink)}
+details.syntax ul{margin:8px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:3px}
+
+/* Registros y memoria */
+.regs{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:6px}
+.reg,.mw{display:flex;justify-content:space-between;align-items:baseline;gap:6px;padding:5px 8px;border-radius:4px;background:var(--sunk);border:1px solid var(--line);font-family:var(--f-mono);font-size:12.5px;font-variant-numeric:tabular-nums;transition:background .25s}
+.reg .rn,.mw .ma{color:var(--muted)}
+.reg .rv,.mw .mv{font-weight:600}
+.reg.w,.mw.W{background:color-mix(in srgb,var(--wb) 16%,var(--panel));border-color:var(--wb)}
+.reg.f{border-color:var(--fwd);box-shadow:inset 3px 0 0 var(--fwd)}
+.mw.R{border-color:var(--fwd);background:color-mix(in srgb,var(--fwd) 12%,var(--panel))}
+.mems{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:6px}
+.empty{color:var(--muted);font-size:13.5px}
+
+/* Transporte */
+.transport{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;margin-bottom:14px}
+.transport .btns{display:flex;gap:6px;flex-wrap:wrap}
+.cyc{font:700 26px/1 var(--f-display);font-variant-numeric:tabular-nums;min-width:120px}
+.cyc small{font:500 14px var(--f-body);color:var(--muted)}
+.transport input[type=range]{flex:1 1 200px;min-width:0;accent-color:var(--accent)}
+.pcbadge{font-family:var(--f-mono);font-size:12.5px;padding:3px 8px;border:1px solid var(--line);border-radius:4px;background:var(--sunk)}
+
+/* Camino de datos */
+.dpwrap{overflow-x:auto;border:1px solid var(--line);border-radius:5px;background:var(--sunk)}
+#dp{display:block;width:100%;min-width:900px;height:auto}
+#dp text{font-family:var(--f-body);fill:var(--ink)}
+#dp .sh{font:700 15px var(--f-display);letter-spacing:.04em;fill:var(--muted)}
+#dp .si{font:600 12.5px var(--f-mono)}
+#dp .ct{font-size:11px;font-weight:600;text-anchor:middle}
+#dp .pl{font-size:9.5px;fill:var(--muted)}
+#dp .sl{font:600 9px var(--f-mono);fill:var(--muted);text-anchor:middle}
+#dp .sl.on{fill:var(--accent)}
+#dp .sl.on-stall{fill:var(--stall)}
+#dp .sl.on-br{fill:var(--flush)}
+#dp .lt{font:600 9.5px var(--f-mono);fill:var(--muted);text-anchor:middle}
+#dp .box{fill:var(--panel);stroke:var(--line-strong);stroke-width:1.3;transition:fill .2s,stroke .2s}
+#dp .mux{fill:var(--panel);stroke:var(--line-strong);stroke-width:1.3;transition:fill .2s,stroke .2s}
+#dp .latch{fill:color-mix(in srgb,var(--ink) 13%,var(--panel));stroke:var(--line-strong);stroke-width:1;transition:fill .2s}
+#dp .latch.on-stall{fill:var(--stall)}
+#dp .latch.on-br{fill:var(--flush)}
+#dp .w{fill:none;stroke:var(--line-strong);stroke-width:1.5}
+#dp .k{fill:none;stroke:var(--line-strong);stroke-width:1.1;stroke-dasharray:4 3}
+#dp .mk{fill:var(--line-strong)}
+#dp .mk-fwd{fill:var(--fwd)} #dp .mk-wb{fill:var(--wb)} #dp .mk-br{fill:var(--flush)}
+#dp .hatch-fill{fill:color-mix(in srgb,var(--stall) 30%,transparent)}
+#dp .hb{opacity:0;transition:opacity .2s} #dp .hb.show{opacity:1}
+#dp .sbg{transition:fill .25s}
+#dp .w.on-fwd{stroke:var(--fwd);stroke-width:3.4}
+#dp .w.on-wb{stroke:var(--wb);stroke-width:3.2}
+#dp .w.on-br{stroke:var(--flush);stroke-width:3.2}
+#dp .k.on-fwd{stroke:var(--fwd);stroke-width:2.2}
+#dp .box.on-act,#dp .mux.on-act{stroke:var(--accent);stroke-width:2.2}
+#dp .box.on-wb{stroke:var(--wb);stroke-width:2.4;fill:color-mix(in srgb,var(--wb) 10%,var(--panel))}
+#dp .box.on-fwd,#dp .mux.on-fwd{stroke:var(--fwd);stroke-width:2.4;fill:color-mix(in srgb,var(--fwd) 14%,var(--panel))}
+#dp .box.on-stall{stroke:var(--stall);stroke-width:2.4;fill:color-mix(in srgb,var(--stall) 16%,var(--panel))}
+#dp .box.on-struct{stroke:var(--struct);stroke-width:2.6;fill:color-mix(in srgb,var(--struct) 14%,var(--panel))}
+#dp .box.on-br,#dp .mux.on-br{stroke:var(--flush);stroke-width:2.4;fill:color-mix(in srgb,var(--flush) 12%,var(--panel))}
+#dp .gone{display:none}
+
+/* Señales de la Hazard Unit */
+.sigs{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;align-items:center}
+.sigs .lab{font:600 12px var(--f-display);letter-spacing:.11em;text-transform:uppercase;color:var(--muted);margin-right:4px}
+.sig{font:12px var(--f-mono);padding:3px 8px;border:1px solid var(--line);border-radius:4px;background:var(--sunk);color:var(--muted);white-space:nowrap}
+.sig b{font-weight:600;color:var(--ink);margin-left:6px}
+.sig.on{border-color:var(--sc);background:color-mix(in srgb,var(--sc) 15%,var(--panel));color:var(--ink)}
+.sig.on b{color:var(--sc)}
+
+/* Tarjetas de etapa */
+.stages{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-top:12px}
+@media (max-width:820px){.stages{grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}}
+.stg{border:1px solid var(--line);border-radius:5px;padding:9px 10px;background:var(--panel);min-width:0;border-top:3px solid var(--sc,var(--line))}
+.stg .sn{font:700 13px var(--f-display);letter-spacing:.1em;color:var(--muted);text-transform:uppercase}
+.stg .sx{font:600 12.5px var(--f-mono);margin-top:3px;color:var(--sc,var(--muted));overflow-wrap:anywhere}
+.stg .sd{font-size:13px;margin-top:4px;line-height:1.4}
+.stg.bub{background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--stall) 13%,var(--panel)) 0 6px,var(--panel) 6px 12px)}
+
+/* Eventos */
+.events{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.ev{padding:9px 12px 9px 14px;border-radius:5px;background:var(--sunk);border:1px solid var(--line);border-left:4px solid var(--ec,var(--line-strong));font-size:14px;line-height:1.45}
+.ev-data{--ec:var(--stall)} .ev-fwd{--ec:var(--fwd)} .ev-ctrl{--ec:var(--flush)} .ev-struct{--ec:var(--struct)} .ev-info{--ec:var(--accent)}
+.ev .kind{font:700 11.5px var(--f-display);letter-spacing:.1em;text-transform:uppercase;color:var(--ec);display:block;margin-bottom:2px}
+.ev code.s{font-weight:600;color:var(--ink);white-space:nowrap}
+code.ic{color:var(--ic);font-weight:600;white-space:nowrap}
+
+/* Estadísticas */
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:16px}
+.tile{padding:10px 12px;border-radius:5px;background:var(--sunk);border:1px solid var(--line);border-top:3px solid var(--tc,var(--line-strong))}
+.tile .tv{font:700 28px/1.05 var(--f-display);font-variant-numeric:tabular-nums}
+.tile .tl{font-size:12.5px;color:var(--muted);margin-top:2px}
+
+/* Diagrama multiciclo */
+.mcwrap{overflow-x:auto;border:1px solid var(--line);border-radius:5px}
+table.mc{border-collapse:separate;border-spacing:0;font-family:var(--f-mono);font-size:11.5px;min-width:100%}
+table.mc th,table.mc td{border-bottom:1px solid var(--line);border-right:1px solid color-mix(in srgb,var(--line) 60%,transparent);padding:0;height:30px}
+table.mc thead th{position:sticky;top:0;background:var(--sunk);font-weight:600;color:var(--muted);min-width:38px;cursor:pointer;z-index:1}
+table.mc thead th:hover{color:var(--accent)}
+table.mc .rowh{position:sticky;left:0;background:var(--panel);z-index:2;text-align:left;padding:0 10px 0 8px;white-space:nowrap;border-left:4px solid var(--ic,var(--line));font-weight:600;cursor:default}
+table.mc thead .rowh{z-index:3;border-left-color:transparent;background:var(--sunk)}
+.rowh .addr{color:var(--muted);margin-right:8px;font-weight:400}
+.rowh .itx{color:var(--ink)}
+tr.flushed .rowh .itx{text-decoration:line-through;color:var(--muted)}
+.tag-f{margin-left:8px;font:700 10px var(--f-display);letter-spacing:.08em;text-transform:uppercase;color:var(--flush);border:1px solid var(--flush);border-radius:3px;padding:0 4px}
+.tag-c{margin-left:8px;font:700 10px var(--f-display);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line-strong);border-radius:3px;padding:0 4px}
+td.cell{text-align:center;cursor:pointer;position:relative}
+td.cell span{display:block;line-height:29px;font-weight:600}
+td.k-n{background:color-mix(in srgb,var(--ic) 20%,var(--panel));color:color-mix(in srgb,var(--ic) 70%,var(--ink))}
+td.k-s{background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--stall) 34%,var(--panel)) 0 5px,color-mix(in srgb,var(--stall) 12%,var(--panel)) 5px 10px);color:var(--ink)}
+td.k-f{background:color-mix(in srgb,var(--flush) 12%,var(--panel));color:var(--flush)}
+td.k-f span{text-decoration:line-through}
+tr.flushed td.k-n{background:color-mix(in srgb,var(--ic) 9%,var(--panel));color:var(--muted)}
+td.k-wc{background:repeating-linear-gradient(90deg,color-mix(in srgb,var(--ic) 10%,var(--panel)) 0 3px,color-mix(in srgb,var(--flush) 24%,var(--panel)) 3px 5px);color:var(--ink)}
+td.k-ws{background:repeating-linear-gradient(90deg,color-mix(in srgb,var(--ic) 10%,var(--panel)) 0 3px,color-mix(in srgb,var(--struct) 28%,var(--panel)) 3px 5px);color:var(--ink)}
+td.k-x{background:color-mix(in srgb,var(--flush) 22%,var(--panel));color:var(--flush);box-shadow:inset 0 0 0 1.5px var(--flush)}
+td.cell .fw{position:absolute;top:2px;left:3px;width:0;height:0;border-top:5px solid transparent;border-bottom:5px solid transparent;border-left:7px solid var(--fwd)}
+tr.sep th,tr.sep td{height:26px;background:var(--sunk);font:700 11.5px var(--f-display);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+tr.sep .rowh{background:var(--sunk);border-left-color:transparent}
+tr.sigrow .rowh{font-weight:400;color:var(--muted);border-left-color:transparent;height:24px}
+tr.sigrow td{height:24px;text-align:center;color:var(--muted);cursor:pointer}
+tr.sigrow td.on{font-weight:600;color:var(--sc);background:color-mix(in srgb,var(--sc) 12%,var(--panel))}
+table.mc .cur{box-shadow:inset 2px 0 0 var(--accent),inset -2px 0 0 var(--accent)}
+table.mc thead th.cur{background:var(--accent);color:var(--accent-ink)}
+.legend{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:12px;font-size:13px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:22px;height:14px;border-radius:3px;border:1px solid var(--line);display:inline-block;position:relative}
+.sw.n{background:color-mix(in srgb,var(--i0) 20%,var(--panel))}
+.sw.s{background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--stall) 34%,var(--panel)) 0 4px,color-mix(in srgb,var(--stall) 12%,var(--panel)) 4px 8px)}
+.sw.f{background:color-mix(in srgb,var(--flush) 14%,var(--panel))}
+.sw.wc{background:repeating-linear-gradient(90deg,transparent 0 3px,color-mix(in srgb,var(--flush) 30%,transparent) 3px 5px)}
+.sw.ws{background:repeating-linear-gradient(90deg,transparent 0 3px,color-mix(in srgb,var(--struct) 34%,transparent) 3px 5px)}
+.sw.x{background:color-mix(in srgb,var(--flush) 22%,var(--panel));box-shadow:inset 0 0 0 1.5px var(--flush)}
+.sw.fw::after{content:"";position:absolute;top:1px;left:2px;border-top:5px solid transparent;border-bottom:5px solid transparent;border-left:7px solid var(--fwd)}
+.warn{margin-top:10px;color:var(--flush);font-size:13.5px}
+
+/* Comparativa */
+.cmpwrap{overflow-x:auto}
+table.cmp{border-collapse:collapse;width:100%;font-size:13.5px;font-variant-numeric:tabular-nums}
+table.cmp th,table.cmp td{padding:6px 10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+table.cmp th{font:600 12px var(--f-display);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+table.cmp td.num{text-align:right;font-family:var(--f-mono);font-size:12.5px}
+table.cmp tbody tr{cursor:pointer}
+table.cmp tbody tr:hover{background:var(--sunk)}
+table.cmp tr.on{background:color-mix(in srgb,var(--accent) 11%,var(--panel))}
+table.cmp tr.on td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
+table.cmp .pill{margin-left:6px}
+.bar{display:inline-block;height:8px;border-radius:2px;background:color-mix(in srgb,var(--accent) 55%,transparent);vertical-align:middle;margin-left:8px}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:1100px){.two{grid-template-columns:minmax(0,1fr)}}
+
+/* Guía */
+.guide{display:flex;flex-direction:column;gap:16px}
+.gc{border-top:3px solid var(--gc);padding-top:10px}
+.gc h3{color:var(--gc)}
+.gc p{margin-top:6px;font-size:14px;max-width:66ch}
+.eq{margin:8px 0 0;padding:8px 10px;background:var(--sunk);border:1px solid var(--line);border-radius:4px;font:12.5px/1.6 var(--f-mono);overflow-x:auto;white-space:pre}
+.foot{color:var(--muted);font-size:12.5px;text-align:center;padding-top:6px}
+.foot i{font-style:italic}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+
+<style>body{margin:0}[hidden]{display:none!important}</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <div>
+      <p class="eyebrow">Arquitectura de Computadores · Grado en Ingeniería Informática · UAL</p>
+      <h1>Segmentación ARM en 5 etapas</h1>
+      <p class="lede">El procesador segmentado de Harris y Harris, <i>Digital Design and Computer Architecture: ARM Edition</i>, capítulo 7.5. Elige un programa, avanza ciclo a ciclo y observa cómo la Hazard Unit anticipa, bloquea y vacía el cauce.</p>
+    </div>
+    <div class="stair" aria-hidden="true" id="stair"></div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="panel" aria-label="Configuración del procesador">
+    <div class="config">
+      <fieldset class="field">
+        <legend>Unidad de gestión de riesgos</legend>
+        <div class="seg">
+          <input type="radio" name="hu" id="hu-full" value="full"><label for="hu-full">Anticipación y bloqueos</label>
+          <input type="radio" name="hu" id="hu-stall" value="stall"><label for="hu-stall">Solo bloqueos</label>
+          <input type="radio" name="hu" id="hu-none" value="none"><label for="hu-none">Ninguna<small>NOPs del compilador</small></label>
+        </div>
+      </fieldset>
+      <fieldset class="field">
+        <legend>Etapa donde se decide el salto</legend>
+        <div class="seg">
+          <input type="radio" name="res" id="res-D" value="D"><label for="res-D">Decode<small>Ej. 7.36</small></label>
+          <input type="radio" name="res" id="res-E" value="E"><label for="res-E">Execute<small>Fig. 7.58</small></label>
+          <input type="radio" name="res" id="res-W" value="W"><label for="res-W">Writeback<small>Fig. 7.54</small></label>
+        </div>
+      </fieldset>
+      <fieldset class="field" id="strat-field">
+        <legend>Riesgos de control</legend>
+        <div class="seg">
+          <input type="radio" name="strat" id="strat-predict" value="predict"><label for="strat-predict">Predecir no tomado</label>
+          <input type="radio" name="strat" id="strat-stall" value="stall"><label for="strat-stall">Bloquear hasta decidir</label>
+        </div>
+      </fieldset>
+      <fieldset class="field">
+        <legend>Memoria</legend>
+        <div class="seg">
+          <input type="radio" name="memk" id="mem-split" value="split"><label for="mem-split">IM y DM separadas</label>
+          <input type="radio" name="memk" id="mem-uni" value="uni"><label for="mem-uni">Memoria única</label>
+        </div>
+      </fieldset>
+      <div class="field">
+        <span class="lab">Banco de registros</span>
+        <label class="chk"><input type="checkbox" id="split">Escribe en el flanco de bajada (1ª mitad del ciclo)</label>
+      </div>
+      <fieldset class="field">
+        <legend>Notación de etapas</legend>
+        <div class="seg">
+          <input type="radio" name="nota" id="nota-en" value="en"><label for="nota-en">F D E M W<small>libro</small></label>
+          <input type="radio" name="nota" id="nota-es" value="es"><label for="nota-es">BI LR E M ER<small>transparencias</small></label>
+        </div>
+      </fieldset>
+    </div>
+    <div class="bookcfg"><span id="cfgstate"></span><button class="btn" id="bookbtn" type="button">Volver al procesador del libro</button></div>
+  </section>
+
+  <div class="layout">
+    <aside class="side">
+      <section class="panel" aria-labelledby="h-prog">
+        <div class="ph"><h2 id="h-prog">Programa</h2><span class="sub" id="ninst"></span></div>
+        <label class="field"><span class="lab">Ejemplos</span>
+          <select id="ex"></select>
+        </label>
+        <p class="exnote" id="exnote"></p>
+        <textarea id="src" spellcheck="false" aria-label="Código ensamblador ARM"></textarea>
+        <div class="row">
+          <button class="btn primary" id="runbtn" type="button">Simular</button>
+          <button class="btn" id="resetbtn" type="button">Restaurar ejemplo</button>
+        </div>
+        <div class="err" id="err" role="alert"></div>
+        <details class="syntax">
+          <summary>Sintaxis admitida</summary>
+          <ul>
+            <li>ARM A32 con registros <code>R0–R15</code> (también <code>SP</code>, <code>LR</code>, <code>PC</code>). Leer <code>R15</code> devuelve PC + 8, como en el libro.</li>
+            <li>Instrucciones del capítulo 7: <code>ADD SUB AND ORR</code> con registro o <code>#inmediato</code>, <code>LDR</code> y <code>STR</code> con <code>[Rn, #desp]</code>, y <code>B</code>.</li>
+            <li>Ampliaciones de los ejercicios: <code>EOR RSB BIC MOV MVN CMP CMN TST LSL LSR ASR BL NOP</code>.</li>
+            <li>Sufijo <code>S</code> para actualizar NZCV y condiciones en cualquier instrucción: <code>ADDS</code>, <code>MOVGT</code>, <code>SUBSNE</code>, <code>BEQ</code>, <code>BLT</code>…</li>
+            <li>Directivas: <code>.org 0x20</code> fija la dirección de las instrucciones siguientes, <code>.reg R1 = 5</code> y <code>.mem 0x100: 5, 8, 13</code> dan valores iniciales (palabras de 4 bytes) y <code>.equ ARRAY, 0x100</code> define una constante.</li>
+            <li>Carga de constantes como en las transparencias: <code>ldr R6, =ARRAY</code>. Se comporta como un LDR que lee el literal pool.</li>
+            <li>Comentarios con <code>//</code>, <code>;</code>, <code>@</code> o <code># texto</code>. Puedes pegar el código de las transparencias tal cual, en minúsculas y con tabuladores.</li>
+          </ul>
+        </details>
+      </section>
+      <section class="panel" aria-labelledby="h-regs">
+        <div class="ph"><h2 id="h-regs">Registros</h2><span class="sub">al final del ciclo</span></div>
+        <div class="regs" id="regs"></div>
+      </section>
+      <section class="panel" aria-labelledby="h-mem">
+        <div class="ph"><h2 id="h-mem">Memoria de datos</h2></div>
+        <div class="mems" id="mems"></div>
+      </section>
+    </aside>
+
+    <div class="mainc">
+      <section class="panel" aria-labelledby="h-dp">
+        <div class="ph"><h2 id="h-dp">Camino de datos segmentado</h2><span class="sub">Usa ← y → para avanzar o retroceder</span></div>
+        <div class="transport">
+          <div class="cyc" id="cyc">Ciclo 1 <small>de 1</small></div>
+          <div class="btns">
+            <button class="btn" id="b-first" type="button" aria-label="Primer ciclo">⏮</button>
+            <button class="btn" id="b-prev" type="button" aria-label="Ciclo anterior">◀ Anterior</button>
+            <button class="btn primary" id="b-play" type="button">▶ Reproducir</button>
+            <button class="btn" id="b-next" type="button" aria-label="Ciclo siguiente">Siguiente ▶</button>
+            <button class="btn" id="b-last" type="button" aria-label="Último ciclo">⏭</button>
+          </div>
+          <input type="range" id="slider" min="1" max="1" value="1" aria-label="Ciclo">
+          <span class="pcbadge" id="pc">PC</span>
+        </div>
+        <div class="dpwrap">
+<svg id="dp" viewBox="0 0 1000 468" role="img" aria-label="Camino de datos segmentado de cinco etapas con Hazard Unit">
+  <defs>
+    <marker id="ar" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 L8 4 L0 8 z" class="mk"/></marker>
+    <marker id="ar-fwd" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L8 4 L0 8 z" class="mk-fwd"/></marker>
+    <marker id="ar-wb" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L8 4 L0 8 z" class="mk-wb"/></marker>
+    <marker id="ar-br" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L8 4 L0 8 z" class="mk-br"/></marker>
+    <pattern id="hatch" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="5" height="10" class="hatch-fill"/></pattern>
+  </defs>
+  <rect id="bg-F" class="sbg" x="0" y="0" width="190" height="468" fill="transparent"/>
+  <rect id="bg-D" class="sbg" x="202" y="0" width="228" height="468" fill="transparent"/>
+  <rect id="bg-E" class="sbg" x="442" y="0" width="258" height="468" fill="transparent"/>
+  <rect id="bg-M" class="sbg" x="712" y="0" width="148" height="468" fill="transparent"/>
+  <rect id="bg-W" class="sbg" x="872" y="0" width="128" height="468" fill="transparent"/>
+  <rect id="hb-F" class="hb" x="0" y="0" width="190" height="468" fill="url(#hatch)"/>
+  <rect id="hb-D" class="hb" x="202" y="0" width="228" height="468" fill="url(#hatch)"/>
+  <rect id="hb-E" class="hb" x="442" y="0" width="258" height="468" fill="url(#hatch)"/>
+  <rect id="hb-M" class="hb" x="712" y="0" width="148" height="468" fill="url(#hatch)"/>
+  <rect id="hb-W" class="hb" x="872" y="0" width="128" height="468" fill="url(#hatch)"/>
+  <text id="sh-F" class="sh" x="8" y="20">F · FETCH</text>
+  <text id="sh-D" class="sh" x="210" y="20">D · DECODE</text>
+  <text id="sh-E" class="sh" x="450" y="20">E · EXECUTE</text>
+  <text id="sh-M" class="sh" x="720" y="20">M · MEMORY</text>
+  <text id="sh-W" class="sh" x="880" y="20">W · WRITEBACK</text>
+  <text id="lb-F" class="si" x="8" y="40">—</text>
+  <text id="lb-D" class="si" x="210" y="40">—</text>
+  <text id="lb-E" class="si" x="450" y="40">—</text>
+  <text id="lb-M" class="si" x="720" y="40">—</text>
+  <text id="lb-W" class="si" x="880" y="40">—</text>
+
+  <!-- Fetch -->
+  <path class="w" d="M24 200 H29 V216 H34" marker-end="url(#ar)"/>
+  <path class="w" d="M50 200 H60" marker-end="url(#ar)"/>
+  <path class="w" d="M96 200 H112" marker-end="url(#ar)"/>
+  <path class="w" d="M104 200 V95 H118" marker-end="url(#ar)"/>
+  <path class="w" d="M158 95 H178 V128 H190"/>
+  <path class="w" d="M166 95 V66 H3 V184 H8" marker-end="url(#ar)"/>
+  <path class="w" d="M182 200 H190"/>
+  <!-- Decode -->
+  <path class="w" d="M202 200 H214"/>
+  <path class="w" d="M214 79 V362"/>
+  <path class="w" d="M214 79 H236" marker-end="url(#ar)"/>
+  <path class="w" d="M214 160 H262" marker-end="url(#ar)"/>
+  <path class="w" d="M214 215 H262" marker-end="url(#ar)"/>
+  <path class="w" d="M214 336 H272" marker-end="url(#ar)"/>
+  <path class="w" d="M214 362 H430"/>
+  <path class="w" d="M202 128 H348 V140" marker-end="url(#ar)"/>
+  <path class="w" d="M360 160 H430"/>
+  <path class="w" d="M360 215 H430"/>
+  <path class="w" d="M352 336 H430"/>
+  <path class="k" d="M336 79 H430"/>
+  <!-- Execute -->
+  <path class="k" d="M442 79 H455" marker-end="url(#ar)"/>
+  <path class="w" d="M442 160 H470" marker-end="url(#ar)"/>
+  <path class="w" d="M442 215 H470" marker-end="url(#ar)"/>
+  <path class="w" d="M486 171 H540" marker-end="url(#ar)"/>
+  <path class="w" d="M486 226 H508" marker-end="url(#ar)"/>
+  <path class="w" d="M442 336 H494 V248 H508" marker-end="url(#ar)"/>
+  <path class="w" d="M522 237 H540" marker-end="url(#ar)"/>
+  <path class="w" d="M499 226 V300 H700"/>
+  <path class="w" d="M600 210 H700"/>
+  <path class="w" d="M442 362 H700"/>
+  <path class="k" d="M575 158 V92" marker-end="url(#ar)"/>
+  <path class="k" d="M545 79 H555"/>
+  <!-- Memory -->
+  <path class="w" d="M712 210 H740" marker-end="url(#ar)"/>
+  <path class="w" d="M712 300 H728 V262 H740" marker-end="url(#ar)"/>
+  <path class="w" d="M830 210 H860"/>
+  <path class="w" d="M720 210 V330 H860"/>
+  <path class="w" d="M712 362 H860"/>
+  <!-- Writeback -->
+  <path class="w" d="M872 210 H920" marker-end="url(#ar)"/>
+  <path class="w" d="M872 330 H906 V236 H920" marker-end="url(#ar)"/>
+  <path class="w" d="M872 362 H896"/>
+
+  <!-- registros de segmentación -->
+  <rect id="l-FD" class="latch" x="190" y="58" width="12" height="322" rx="2"/>
+  <rect id="l-DE" class="latch" x="430" y="58" width="12" height="322" rx="2"/>
+  <rect id="l-EM" class="latch" x="700" y="58" width="12" height="322" rx="2"/>
+  <rect id="l-MW" class="latch" x="860" y="58" width="12" height="322" rx="2"/>
+  <text class="lt" x="196" y="392">F/D</text>
+  <text class="lt" x="436" y="392">D/E</text>
+  <text class="lt" x="706" y="392">E/M</text>
+  <text class="lt" x="866" y="392">M/W</text>
+
+  <!-- caminos resaltables -->
+  <path id="p-wb" class="w" d="M936 223 H975 V446 H248 V287 H262" marker-end="url(#ar)"/>
+  <path id="p-pcw" class="w" d="M936 223 H985 V458 H6 V216 H8" marker-end="url(#ar)"/>
+  <path id="p-fw-A" class="w" d="M936 223 H975 V374 H454 V172 H470" marker-end="url(#ar)"/>
+  <path id="p-fw-B" class="w" d="M936 223 H975 V374 H454 V227 H470" marker-end="url(#ar)"/>
+  <path id="p-fm-A" class="w" d="M712 210 H716 V352 H460 V184 H470" marker-end="url(#ar)"/>
+  <path id="p-fm-B" class="w" d="M712 210 H716 V352 H460 V239 H470" marker-end="url(#ar)"/>
+  <path id="p-brE" class="w" d="M600 210 H615 V50 H28 V184 H34" marker-end="url(#ar)"/>
+  <path id="p-brD" class="w" d="M380 100 V50 H28 V184 H34" marker-end="url(#ar)"/>
+  <path id="p-flgD" class="k" d="M455 74 H426 V112 H420" marker-end="url(#ar)"/>
+
+  <!-- Fetch: componentes -->
+  <rect id="c-pcmux" class="mux" x="8" y="168" width="16" height="64" rx="8"><title>Multiplexor PCSrcW: PCPlus4F o ResultW</title></rect>
+  <text id="s-PCSrcW" class="sl" x="16" y="246">PCSrcW</text>
+  <rect id="c-brmux" class="mux" x="34" y="168" width="16" height="64" rx="8"><title>Multiplexor del salto: elige el destino cuando se toma</title></rect>
+  <text id="s-BT" class="sl" x="44" y="260">BranchTakenE</text>
+  <rect id="c-pc" class="box" x="60" y="178" width="36" height="44" rx="3"><title>PC: se habilita con ¬StallF</title></rect>
+  <text class="ct" x="78" y="204">PC</text>
+  <text id="s-StallF" class="sl" x="78" y="236">StallF</text>
+  <rect id="c-imem" class="box" x="112" y="146" width="70" height="108" rx="3"><title>Memoria de instrucciones</title></rect>
+  <text class="ct" x="147" y="196">Memoria de</text>
+  <text class="ct" x="147" y="210">instrucciones</text>
+  <rect class="box" x="118" y="80" width="40" height="30" rx="3"><title>Sumador PC + 4</title></rect>
+  <text class="ct" x="138" y="99">+4</text>
+  <text class="pl" x="122" y="73">PCPlus4F</text>
+
+  <!-- Decode: componentes -->
+  <rect id="c-cu" class="box" x="236" y="62" width="100" height="34" rx="3"><title>Unidad de control: decodifica Op, Funct y Rd</title></rect>
+  <text class="ct" x="286" y="83">Unidad de control</text>
+  <rect id="c-brD" class="box" x="372" y="100" width="48" height="24" rx="3"><title>Decisión del salto en Decode (Ejercicio 7.36)</title></rect>
+  <text id="t-brD" class="ct" x="396" y="116">Salto</text>
+  <text class="pl" x="226" y="124">PCPlus8D</text>
+  <rect id="c-rf" class="box" x="262" y="140" width="98" height="160" rx="3"><title>Banco de registros: escribe en el flanco de bajada, lee en la segunda mitad del ciclo</title></rect>
+  <text class="ct" x="311" y="214">Banco de</text>
+  <text class="ct" x="311" y="228">registros</text>
+  <text class="pl" x="266" y="164">A1</text>
+  <text class="pl" x="266" y="219">A2</text>
+  <text class="pl" x="266" y="265">A3 ← WA3W</text>
+  <text class="pl" x="266" y="291">WD3</text>
+  <text class="pl" x="356" y="164" text-anchor="end">RD1</text>
+  <text class="pl" x="356" y="219" text-anchor="end">RD2</text>
+  <text class="pl" x="342" y="152" text-anchor="end">R15</text>
+  <ellipse class="box" cx="312" cy="336" rx="40" ry="15"><title>Extensión del inmediato (ImmSrcD)</title></ellipse>
+  <text class="ct" x="312" y="340">Extend</text>
+  <text class="pl" x="222" y="358">WA3D</text>
+
+  <!-- Execute: componentes -->
+  <rect id="c-cond" class="box" x="455" y="62" width="90" height="34" rx="3"><title>Conditional Logic: calcula CondExE y BranchTakenE</title></rect>
+  <text class="ct" x="500" y="83">Cond Unit</text>
+  <rect id="c-flags" class="box" x="555" y="66" width="45" height="26" rx="3"><title>Registro de estado NZCV</title></rect>
+  <text class="ct" x="577" y="83">Flags</text>
+  <text class="pl" x="581" y="130">ALUFlags</text>
+  <rect id="c-muxA" class="mux" x="470" y="146" width="16" height="50" rx="8"><title>ForwardAE: 00 RD1E · 01 ResultW · 10 ALUOutM</title></rect>
+  <text class="sl" x="478" y="140">ForwardAE</text>
+  <rect id="c-muxB" class="mux" x="470" y="201" width="16" height="50" rx="8"><title>ForwardBE: 00 RD2E · 01 ResultW · 10 ALUOutM</title></rect>
+  <rect class="mux" x="508" y="214" width="14" height="46" rx="7"><title>ALUSrcE: registro o inmediato</title></rect>
+  <polygon id="c-alu" class="box" points="540,140 600,170 600,250 540,280 540,222 552,210 540,198"><title>ALU</title></polygon>
+  <text class="ct" x="574" y="214">ALU</text>
+  <text class="pl" x="606" y="204">ALUResultE</text>
+  <text class="pl" x="560" y="296">WriteDataE</text>
+
+  <!-- Memory: componentes -->
+  <rect id="c-dmem" class="box" x="740" y="168" width="90" height="112" rx="3"><title>Memoria de datos</title></rect>
+  <text class="ct" x="785" y="218">Memoria</text>
+  <text class="ct" x="785" y="232">de datos</text>
+  <text class="pl" x="744" y="206">A</text>
+  <text class="pl" x="744" y="258">WD</text>
+  <text class="pl" x="826" y="206" text-anchor="end">RD</text>
+  <text class="pl" x="760" y="326">ALUOutM</text>
+
+  <!-- Writeback: componentes -->
+  <rect id="c-wbmux" class="mux" x="920" y="196" width="16" height="54" rx="8"><title>MemtoRegW: ReadDataW o ALUOutW</title></rect>
+  <text class="pl" x="942" y="214">ResultW</text>
+  <text class="pl" x="900" y="365">WA3W</text>
+
+  <!-- Hazard Unit -->
+  <rect id="c-hu" class="box" x="200" y="400" width="640" height="28" rx="3"><title>Hazard Unit: genera StallF, StallD, FlushD, FlushE, ForwardAE y ForwardBE</title></rect>
+  <text class="ct" x="520" y="418">Hazard Unit</text>
+</svg>
+        </div>
+        <div class="sigs" id="sigs" aria-label="Señales de la Hazard Unit"></div>
+        <div class="stages" id="stages"></div>
+      </section>
+
+      <section class="panel" aria-labelledby="h-ev">
+        <div class="ph"><h2 id="h-ev">Qué ocurre en este ciclo</h2></div>
+        <ul class="events" id="events"></ul>
+      </section>
+    </div>
+  </div>
+
+  <section class="panel" aria-labelledby="h-mc">
+    <div class="ph"><h2 id="h-mc">Diagrama multiciclo</h2><span class="sub">Pulsa una columna para ir a ese ciclo</span></div>
+    <div class="tiles" id="tiles"></div>
+    <div class="mcwrap"><div id="mc"></div></div>
+    <div class="legend">
+      <span><i class="sw n"></i>Etapa normal</span>
+      <span><i class="sw s"></i>Bloqueo por riesgo de datos (StallF, StallD)</span>
+      <span><i class="sw fw n"></i>Operando anticipado</span>
+      <span><i class="sw f"></i>Anulada por un salto o una escritura del PC</span>
+      <span><i class="sw wc"></i>Fetch en espera por control (StallF)</span>
+      <span><i class="sw ws"></i>Fetch en espera por la memoria única</span>
+      <span><i class="sw x"></i>Sin unidad de gestión: valor antiguo o instrucción que no debía ejecutarse</span>
+    </div>
+    <p class="warn" id="warn" hidden></p>
+  </section>
+
+  <div class="two">
+    <section class="panel" aria-labelledby="h-cmp">
+      <div class="ph"><h2 id="h-cmp">El mismo programa con otras configuraciones</h2><span class="sub">Pulsa una fila para aplicarla</span></div>
+      <div class="cmpwrap" id="cmp"></div>
+    </section>
+    <section class="panel" aria-labelledby="h-guide">
+      <div class="ph"><h2 id="h-guide">La Hazard Unit del libro</h2><span class="sub">Sección 7.5.3</span></div>
+      <div class="guide">
+        <div class="gc" style="--gc:var(--fwd)">
+          <h3>Anticipación</h3>
+          <p>Si la instrucción en Execute lee un registro que va a escribir otra en Memory o Writeback, el operando llega desde ALUOutM o ResultW. Memory tiene prioridad porque su instrucción es más reciente. ForwardBE es igual con RA2E.</p>
+<pre class="eq">if      (Match_1E_M · RegWriteM) ForwardAE = 10  // ALUOutM
+else if (Match_1E_W · RegWriteW) ForwardAE = 01  // ResultW
+else                              ForwardAE = 00  // RD1E</pre>
+        </div>
+        <div class="gc" style="--gc:var(--stall)">
+          <h3>Bloqueo por LDR</h3>
+          <p>LDR no tiene el dato hasta el final de Memory, así que la instrucción que lo usa justo después espera un ciclo en Decode y entra una burbuja en Execute.</p>
+<pre class="eq">Match_12D_E = (RA1D == WA3E) + (RA2D == WA3E)
+LDRstall    = Match_12D_E · MemtoRegE</pre>
+        </div>
+        <div class="gc" style="--gc:var(--flush)">
+          <h3>Saltos y escrituras del PC</h3>
+          <p>B se decide en Execute: si se toma, se anulan las 2 instrucciones buscadas detrás. Una escritura de R15 bloquea Fetch hasta que llega a Writeback.</p>
+<pre class="eq">PCWrPendingF = PCSrcD + PCSrcE + PCSrcM
+StallD = LDRstall
+StallF = LDRstall + PCWrPendingF
+FlushE = LDRstall + BranchTakenE
+FlushD = PCWrPendingF + PCSrcW + BranchTakenE</pre>
+        </div>
+        <div class="gc" style="--gc:var(--struct)">
+          <h3>Riesgos estructurales</h3>
+          <p>El libro separa la memoria de instrucciones y la de datos, así que no los tiene. Con la opción «Memoria única» puedes ver qué pasaría si Fetch y Memory compartieran una sola memoria.</p>
+        </div>
+      </div>
+    </section>
+  </div>
+  <p class="foot">Modelo docente del procesador segmentado de la figura 7.58 de Harris y Harris, <i>Digital Design and Computer Architecture: ARM Edition</i>. Datos de 32 bits con signo.</p>
+</main>
+
+<script>
+/* ===================== Motor de simulación ===================== */
+const STAGES=['F','D','E','M','W'];
+const ORD={F:0,D:1,E:2,M:3,W:4};
+const NOTATION={
+  en:{lbl:{F:'F',D:'D',E:'E',M:'M',W:'W'},name:{F:'Fetch',D:'Decode',E:'Execute',M:'Memory',W:'Writeback'}},
+  es:{lbl:{F:'BI',D:'LR',E:'E',M:'M',W:'ER'},name:{F:'Búsqueda',D:'Lectura de registros',E:'Ejecución',M:'Memoria',W:'Escritura en registros'}}
+};
+let SNAME=NOTATION.en.name, SLBL=NOTATION.en.lbl;
+function setNotation(n){const x=NOTATION[n]||NOTATION.en;SNAME=x.name;SLBL=x.lbl;}
+const FL=16, MAXC=400;
+const CONDS='(EQ|NE|CS|HS|CC|LO|MI|PL|VS|VC|HI|LS|GE|LT|GT|LE|AL)';
+const DP3=['ADD','SUB','RSB','AND','ORR','EOR','BIC'],SHF=['LSL','LSR','ASR'],MOVS=['MOV','MVN'],CMPS=['CMP','CMN','TST'],MEMS=['LDR','STR'];
+const SYM={ADD:'+',SUB:'−',RSB:'−',AND:'AND',ORR:'OR',EOR:'XOR',BIC:'AND NOT',LSL:'<<',LSR:'>>>',ASR:'>>',CMP:'−',CMN:'+',TST:'AND'};
+
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function hex(n){return '0x'+(n>>>0).toString(16).toUpperCase().padStart(2,'0');}
+function rname(r){return r===FL?'NZCV':'R'+r;}
+function fl(f){return [(f>>3)&1,(f>>2)&1,(f>>1)&1,f&1].join('');}
+function fmtv(r,v){return r===FL?fl(v||0):String(v);}
+function parseNum(s){
+  s=String(s).trim().replace(/^#\s*/,'');let neg=false;
+  if(s[0]==='-'){neg=true;s=s.slice(1);}else if(s[0]==='+')s=s.slice(1);
+  let v;
+  if(/^0x[0-9a-f]+$/i.test(s))v=parseInt(s,16);
+  else if(/^0b[01]+$/i.test(s))v=parseInt(s.slice(2),2);
+  else if(/^\d+$/.test(s))v=parseInt(s,10);
+  else return NaN;
+  return neg?-v:v;
+}
+function condTrue(c,f){
+  const N=(f>>3)&1,Z=(f>>2)&1,C=(f>>1)&1,V=f&1;
+  switch(c){
+    case 'EQ':return Z===1; case 'NE':return Z===0;
+    case 'CS':case 'HS':return C===1; case 'CC':case 'LO':return C===0;
+    case 'MI':return N===1; case 'PL':return N===0;
+    case 'VS':return V===1; case 'VC':return V===0;
+    case 'HI':return C===1&&Z===0; case 'LS':return C===0||Z===1;
+    case 'GE':return N===V; case 'LT':return N!==V;
+    case 'GT':return Z===0&&N===V; case 'LE':return Z===1||N!==V;
+    default:return true;
+  }
+}
+function aluOp(op,a,b,f){
+  let r,C=(f>>1)&1,V=f&1;
+  switch(op){
+    case 'ADD':case 'CMN':r=(a+b)|0;C=((a>>>0)+(b>>>0))>0xFFFFFFFF?1:0;V=((~(a^b))&(a^r))<0?1:0;break;
+    case 'SUB':case 'CMP':r=(a-b)|0;C=(a>>>0)>=(b>>>0)?1:0;V=((a^b)&(a^r))<0?1:0;break;
+    case 'RSB':r=(b-a)|0;C=(b>>>0)>=(a>>>0)?1:0;V=((b^a)&(b^r))<0?1:0;break;
+    case 'AND':case 'TST':r=a&b;break;
+    case 'ORR':r=a|b;break; case 'EOR':r=a^b;break; case 'BIC':r=a&~b;break;
+    case 'MOV':r=b|0;break; case 'MVN':r=~b;break;
+    case 'LSL':r=a<<(b&31);break; case 'LSR':r=(a>>>(b&31))|0;break; case 'ASR':r=a>>(b&31);break;
+    default:r=0;
+  }
+  const N=r<0?1:0,Z=r===0?1:0;
+  return {r,flags:(N<<3)|(Z<<2)|(C<<1)|V};
+}
+function splitMn(mn){
+  let m;
+  if((m=mn.match(new RegExp('^B'+CONDS+'?$'))))return {base:'B',cond:m[1]||'AL',s:false};
+  if((m=mn.match(new RegExp('^BL'+CONDS+'?$'))))return {base:'BL',cond:m[1]||'AL',s:false};
+  if(mn==='NOP')return {base:'NOP',cond:'AL',s:false};
+  for(const b of [...DP3,...SHF,...MOVS,...CMPS,...MEMS]){
+    if(!mn.startsWith(b))continue;
+    const rest=mn.slice(b.length);
+    if((m=rest.match(new RegExp('^(S?)'+CONDS+'?$'))))return {base:b,s:m[1]==='S',cond:m[2]||'AL'};
+    if((m=rest.match(new RegExp('^'+CONDS+'S$'))))return {base:b,s:true,cond:m[1]};
+  }
+  return null;
+}
+
+function parse(src){
+  const errors=[],items=[],labels={},dirs=[],consts={};let addr=0;
+  src.split(/\r?\n/).forEach((ln,i)=>{
+    let t=ln.replace(/[‒-―−]/g,'-').replace(/(\/\/|;|@).*$/,'').replace(/(^|\s)#\s+[A-Za-zÀ-ÿ(].*$/,'').trim();if(!t)return;
+    let m;
+    if((m=t.match(/^\.(?:equ|set)\s+([A-Za-z_]\w*)\s*[,=]\s*(\S+)\s*$/i))){
+      const v=parseNum(m[2]);
+      if(isNaN(v))errors.push(`Línea ${i+1}: «${m[2]}» no es un número válido`);else consts[m[1].toLowerCase()]=v|0;
+      return;
+    }
+    if((m=t.match(/^\.org\s+(\S+)\s*$/i))){
+      const v=parseNum(m[1]);
+      if(isNaN(v)||v<0||v%4)errors.push(`Línea ${i+1}: .org necesita una dirección múltiplo de 4`);
+      else if(v<addr)errors.push(`Línea ${i+1}: .org ${m[1]} está por debajo de la dirección actual (${hex(addr)})`);
+      else addr=v;
+      return;
+    }
+    if(t[0]==='.'){dirs.push({t,line:i+1});return;}
+    const addLabel=name=>{const k=name.toLowerCase();if(labels[k])errors.push(`Línea ${i+1}: la etiqueta «${name}» ya está definida`);labels[k]={addr,line:i+1};};
+    while((m=t.match(/^([A-Za-z_]\w*)\s*:\s*(.*)$/))){addLabel(m[1]);t=m[2].trim();}
+    if(t&&/^[A-Za-z_]\w*$/.test(t)&&!splitMn(t.toUpperCase())){addLabel(t);t='';}
+    if(t){items.push({t,line:i+1,addr});addr+=4;}
+  });
+  const fail=(line,msg)=>{throw {line,msg};};
+  function R(tok,line){
+    const u=String(tok||'').trim().toUpperCase();
+    if(u==='SP')return 13; if(u==='LR')return 14; if(u==='PC')return 15;
+    const m=u.match(/^R(\d{1,2})$/);
+    if(!m||+m[1]>15)fail(line,`«${String(tok||'').trim()}» no es un registro válido (R0–R15, SP, LR o PC)`);
+    return +m[1];
+  }
+  const isImm=t=>String(t).trim()[0]==='#';
+  function IMM(tok,line){
+    const s=String(tok).trim();if(s[0]!=='#')fail(line,`se esperaba un inmediato como «#4» y aparece «${s}»`);
+    const v=parseNum(s);if(isNaN(v))fail(line,`«${s}» no es un número válido`);return v|0;
+  }
+  function splitOps(s){
+    const out=[];let cur='',d=0;
+    for(const ch of s){if(ch==='[')d++;if(ch===']')d--;if(ch===','&&d===0){out.push(cur.trim());cur='';}else cur+=ch;}
+    if(cur.trim())out.push(cur.trim());return out;
+  }
+  function parseInst({t,line,addr},idx){
+    const sp=t.search(/\s/);
+    const raw=(sp<0?t:t.slice(0,sp)).toUpperCase();
+    const ops=splitOps(sp<0?'':t.slice(sp+1).trim());
+    const text=raw+(ops.length?' '+ops.join(', '):'');
+    const mn=splitMn(raw);
+    if(!mn)fail(line,`«${raw}» no es una instrucción reconocida`);
+    const b=mn.base;
+    const I={idx,addr,line,text,op:b,cond:mn.cond,s:mn.s,kind:null,rd:null,rn:null,rm:null,rt:null,imm:0,useImm:false,srcs:[],wreg:null,setsFlags:false,pcw:false,label:null,target:null};
+    const need=n=>{if(ops.length!==n)fail(line,`${b} necesita ${n} operando${n===1?'':'s'}`);};
+    const src2=tok=>{if(isImm(tok)){I.imm=IMM(tok,line);I.useImm=true;}else I.rm=R(tok,line);};
+    if(DP3.includes(b)){
+      if(ops.length===2)ops.splice(1,0,ops[0]);
+      need(3);I.kind='alu';I.rd=R(ops[0],line);I.rn=R(ops[1],line);src2(ops[2]);
+    }else if(SHF.includes(b)){
+      need(3);I.kind='alu';I.rd=R(ops[0],line);I.rn=R(ops[1],line);src2(ops[2]);
+    }else if(MOVS.includes(b)){
+      need(2);I.kind='alu';I.rd=R(ops[0],line);src2(ops[1]);
+    }else if(CMPS.includes(b)){
+      need(2);I.kind='alu';I.rn=R(ops[0],line);src2(ops[1]);I.setsFlags=true;
+      if(mn.s)fail(line,`${b} ya actualiza NZCV: escríbelo sin la S`);
+    }else if(MEMS.includes(b)){
+      need(2);I.kind=b==='LDR'?'load':'store';
+      if(mn.s)fail(line,`${b} no admite el sufijo S`);
+      if(b==='LDR')I.rd=R(ops[0],line);else I.rt=R(ops[0],line);
+      if(b==='LDR'&&ops[1][0]==='='){I.literal=ops[1].slice(1).trim();return finish(I,mn);}
+      const m=ops[1].match(/^\[\s*([^,\]]+?)\s*(?:,\s*([^\]]+?))?\s*\]$/);
+      if(!m)fail(line,`la dirección debe tener la forma [Rn, #desp] y aparece «${ops[1]}»`);
+      I.rn=R(m[1],line);
+      if(m[2]){if(!isImm(m[2]))fail(line,'el procesador del libro solo admite desplazamiento inmediato: [Rn, #desp]');I.imm=IMM(m[2],line);}
+    }else if(b==='B'||b==='BL'){
+      need(1);I.kind='branch';I.label=ops[0];
+    }else{need(0);I.kind='nop';}
+    return finish(I,mn);
+  }
+  function finish(I,mn){
+    const b=I.op;
+    if(mn.s)I.setsFlags=true;
+    const add=(r,port)=>{if(r!==null)I.srcs.push({r,port});};
+    if(I.kind==='alu'){if(b==='MOV'||b==='MVN')add(I.rm,'B');else{add(I.rn,'A');add(I.rm,'B');}}
+    else if(I.kind==='load'&&I.literal===undefined)add(I.rn,'A');
+    else if(I.kind==='store'){add(I.rn,'A');add(I.rt,'B');}
+    if(I.kind==='alu'&&!CMPS.includes(b))I.wreg=I.rd;
+    if(I.kind==='load')I.wreg=I.rd;
+    if(b==='BL')I.wreg=14;
+    I.pcw=I.wreg===15;
+    return I;
+  }
+  const insts=[];
+  for(const it of items){
+    try{insts.push(parseInst(it,insts.length));}
+    catch(e){if(e&&e.msg){errors.push(`Línea ${e.line}: ${e.msg}`);insts.push({idx:insts.length,addr:it.addr,line:it.line,text:it.t,op:'NOP',cond:'AL',kind:'nop',srcs:[],wreg:null,setsFlags:false,pcw:false});}else throw e;}
+  }
+  for(const I of insts){
+    if(I.kind==='branch'){
+      const L=labels[String(I.label).toLowerCase()];
+      if(!L)errors.push(`Línea ${I.line}: la etiqueta «${I.label}» no existe`);else I.target=L.addr;
+    }
+    if(I.literal!==undefined){
+      const k=I.literal.toLowerCase(),n=parseNum(I.literal);
+      if(!isNaN(n))I.litVal=n|0;
+      else if(k in consts)I.litVal=consts[k];
+      else if(labels[k])I.litVal=labels[k].addr;
+      else{errors.push(`Línea ${I.line}: «${I.literal}» no está definido. Defínelo con .equ ${I.literal}, 0x100`);I.litVal=0;}
+    }
+  }
+  const init={regs:{},mem:[]};
+  for(const d of dirs){
+    try{
+      let m;
+      if((m=d.t.match(/^\.reg\s+([^\s=,]+)\s*[=,]?\s*(\S+)\s*$/i))){
+        const r=R(m[1],d.line);const v=parseNum(m[2]);
+        if(isNaN(v))fail(d.line,`«${m[2]}» no es un número válido`);
+        if(r===15)fail(d.line,'R15 es el PC: no se puede inicializar con .reg');
+        init.regs[r]=v|0;
+      }else if((m=d.t.match(/^\.(?:mem|word)\s+([^\s:=,]+)\s*[:=,]\s*(.+)$/i))){
+        const base=parseNum(m[1]);if(isNaN(base))fail(d.line,`«${m[1]}» no es una dirección válida`);
+        m[2].split(',').forEach((s,k)=>{const v=parseNum(s);if(isNaN(v))fail(d.line,`«${s.trim()}» no es un número válido`);init.mem.push([base+k*4,v|0]);});
+      }else fail(d.line,`directiva no reconocida: «${d.t}». Usa .org, .equ, .reg o .mem`);
+    }catch(e){if(e&&e.msg)errors.push(`Línea ${e.line}: ${e.msg}`);else throw e;}
+  }
+  return {insts,labels,init,errors};
+}
+
+function simulate(P,cfg){
+  const K=cfg.resolve;
+  const HU=cfg.hu||'full', FWD=HU==='full', INTER=HU!=='none';
+  const byAddr=new Map(P.insts.map(I=>[I.addr,I]));
+  const maxAddr=P.insts.length?Math.max(...P.insts.map(I=>I.addr)):-1;
+  const regs=new Array(17).fill(0);
+  for(const k in P.init.regs)regs[k]=P.init.regs[k];
+  const mem=new Map(P.init.mem);
+  const dyns=[],snaps=[];let seq=0;
+  const stats={data:0,ctrl:0,struct:0,flushed:0,retired:0,fwd:0,bad:0,slot:0};
+  const isI=x=>!!x&&!x.bubble;
+  const BUB=reason=>({bubble:true,reason});
+  const code=d=>`<code class="ic" style="--ic:var(--i${d.inst.idx%8})">${esc(d.inst.text)}</code>`;
+  const sg=s=>`<code class="s">${s}</code>`;
+  const fetchAt=a=>{const I=byAddr.get(a);if(!I)return null;const d={seq:seq++,inst:I,cells:{},opv:{},flushed:null,retired:null};dyns.push(d);return d;};
+  const BTN=K==='D'?'BranchTakenD':K==='E'?'BranchTakenE':'PCSrcW';
+  let pcAddr=P.insts.length?P.insts[0].addr:0;
+  let S={F:fetchAt(pcAddr),D:null,E:null,M:null,W:null};
+  let truncated=false;
+  for(let c=1;;c++){
+    const live=STAGES.some(s=>isI(S[s]));
+    if(!live&&pcAddr>=maxAddr)break;
+    if(c>MAXC){truncated=true;break;}
+    const sn={c,st:{},ev:[],fwd:[],desc:{},wb:null,mem:null,flagsW:false,condE:null,brTaken:null,
+      sig:{LDRstall:0,StallF:0,StallD:0,FlushD:0,FlushE:0,ForwardAE:'00',ForwardBE:'00',BranchTaken:0,PCWrPendingF:0,PCSrcW:0},pcF:pcAddr};
+    for(const s of STAGES){
+      const x=S[s];
+      sn.st[s]=x?(x.bubble?{bubble:true,reason:x.reason}:{seq:x.seq,idx:x.inst.idx}):null;
+      if(isI(x))x.cells[c]={stage:s,kind:'n'};
+    }
+    const before=regs.slice();
+    const readReg=(r,d)=>r===15?d.inst.addr+8:(cfg.split?regs[r]:before[r]);
+    let redirect=null,flushSeq=null,brDyn=null,brWhere=null,brKind=null;
+    const younger=x=>isI(x)&&flushSeq!==null&&x.seq>flushSeq;
+    const doRedirect=(d,where,target,kind)=>{redirect=target;flushSeq=INTER?d.seq:null;brDyn=d;brWhere=where;brKind=kind;};
+
+    /* Writeback */
+    const w=S.W;
+    if(isI(w)){
+      const I=w.inst;const parts=[];
+      if(w.condFail)parts.push('No escribe: su condición no se cumplió (RegWriteW = 0)');
+      else if(I.wreg!==null){
+        if(I.wreg===15){sn.sig.PCSrcW=1;doRedirect(w,'W',w.result>>>0,'pcw');parts.push(`PCSrcW = 1: el PC carga ResultW = ${hex(w.result)}`);}
+        else{regs[I.wreg]=w.result;sn.wb={r:I.wreg};parts.push(`Escribe ResultW = ${w.result} en ${rname(I.wreg)}`);}
+      }else parts.push('No escribe en el banco de registros (RegWriteW = 0)');
+      if(I.kind==='branch'&&K==='W'&&w.taken){sn.sig.PCSrcW=1;doRedirect(w,'W',I.target,'br');parts.push(`el PC carga el destino ${hex(I.target)}`);}
+      sn.desc.W=parts.join(' · ');
+      w.retired=c;stats.retired++;
+    }
+    /* Memory */
+    const m=S.M;
+    if(isI(m)&&!younger(m)){
+      const I=m.inst;
+      if(m.condFail&&(I.kind==='load'||I.kind==='store'))sn.desc.M='Sin acceso: la condición no se cumplió (MemWriteM = 0)';
+      else if(I.kind==='load'&&I.literal!==undefined){m.result=I.litVal;sn.desc.M=`Lee la constante ${I.literal} = ${hex(I.litVal)} del literal pool`;}
+      else if(I.kind==='load'){m.result=mem.has(m.addr)?mem.get(m.addr):0;sn.mem={t:'R',a:m.addr};sn.desc.M=`Lee la memoria de datos: [${hex(m.addr)}] = ${m.result}`;}
+      else if(I.kind==='store'){mem.set(m.addr,m.sval);sn.mem={t:'W',a:m.addr};sn.desc.M=`Escribe [${hex(m.addr)}] ← ${m.sval} (MemWriteM = 1)`;}
+      else sn.desc.M='No accede a la memoria de datos';
+    }
+    /* Execute */
+    const e=S.E;
+    if(isI(e)&&!younger(e)){
+      const I=e.inst,v={},notes=[];
+      for(const s of I.srcs){
+        if(s.r===15){v[15]=I.addr+8;continue;}
+        let val=e.opv[s.r],cd='00',p=null;
+        if(FWD){
+          if(isI(S.M)&&!S.M.condFail&&S.M.inst.wreg===s.r){p=S.M;cd='10';}
+          else if(isI(S.W)&&!S.W.condFail&&S.W.inst.wreg===s.r){p=S.W;cd='01';}
+        }
+        if(p){
+          val=p.result;
+          const nm='Forward'+s.port+'E',src=cd==='10'?'ALUOutM':'ResultW',stg=cd==='10'?'Memory':'Writeback';
+          sn.sig[nm]=cd;sn.fwd.push({from:cd==='10'?'M':'W',port:s.port,r:s.r,v:val});stats.fwd++;
+          (e.cells[c].fwd=e.cells[c].fwd||[]).push(`${rname(s.r)} desde ${src}`);
+          notes.push(`${rname(s.r)} desde ${src}`);
+          sn.ev.push({t:'fwd',k:`Anticipación · ${nm} = ${cd}`,h:`${code(e)} recibe ${rname(s.r)} = ${val} desde ${sg(src)}: lo ha calculado ${code(p)}, que está en ${stg} y todavía no lo ha escrito en el banco de registros.`});
+        }
+        v[s.r]=val;
+      }
+      const g=r=>r===null?0:v[r];
+      const fIn=regs[FL];
+      let d='';
+      if(I.kind==='branch'&&K==='D'){
+        e.condFail=!e.taken;
+        if(e.taken&&I.op==='BL')e.result=I.addr+4;
+        d=e.taken?`Salto ya tomado en Decode${I.op==='BL'?` · LR ← ${hex(I.addr+4)}`:''}`:'Salto ya descartado en Decode';
+      }else{
+        const ce=condTrue(I.cond,fIn);
+        if(I.cond!=='AL')sn.condE={ok:ce};
+        if(!ce){
+          e.condFail=true;
+          if(I.kind==='branch'){
+            e.taken=false;sn.brTaken=false;
+            d=`CondExE = 0 (${I.cond} con NZCV = ${fl(fIn)}): no se salta`;
+            if(K==='E'||K==='W')sn.ev.push({t:'ctrl',k:'Salto no tomado',h:`${code(e)} no cumple ${I.cond} con NZCV = ${fl(fIn)}. ${!INTER?'Fetch sigue con las instrucciones siguientes.':cfg.strat==='predict'?'La predicción «no tomado» acierta y no se pierde ningún ciclo.':K==='E'?'Con la estrategia de bloqueo, Fetch reanuda la búsqueda en el ciclo siguiente.':'Con la estrategia de bloqueo, Fetch sigue esperando a que el salto llegue a Writeback.'}`});
+          }else{
+            d=`CondExE = 0: ${I.cond} no se cumple con NZCV = ${fl(fIn)}`;
+            sn.ev.push({t:'info',k:'Ejecución condicional · CondExE = 0',h:`${code(e)} no cumple ${I.cond} con NZCV = ${fl(fIn)}. La Conditional Logic anula RegWrite, MemWrite y FlagWrite, así que sigue por el cauce sin efecto, como una NOP.`});
+          }
+        }else if(I.kind==='alu'){
+          const a=(I.op==='MOV'||I.op==='MVN')?0:g(I.rn),b=I.useImm?I.imm:g(I.rm);
+          const o=aluOp(I.op,a,b,fIn);e.result=o.r;
+          if(I.op==='MOV')d=`Pasa ${b} a ALUResultE`;
+          else if(I.op==='MVN')d=`ALU: NOT ${b} = ${o.r}`;
+          else if(CMPS.includes(I.op))d=`ALU: ${a} ${SYM[I.op]} ${b} (solo actualiza NZCV)`;
+          else d=`ALU: ${a} ${SYM[I.op]} ${b} = ${o.r}`;
+          if(I.setsFlags){regs[FL]=o.flags;sn.flagsW=true;d+=` · Flags ← ${fl(o.flags)}`;}
+          if(I.pcw)d+=' · escribirá el PC en Writeback';
+        }else if(I.kind==='load'&&I.literal!==undefined){
+          d=`ALU: dirección del literal pool (relativa a R15) para ${I.literal}`;
+        }else if(I.kind==='load'||I.kind==='store'){
+          e.addr=(g(I.rn)+I.imm)|0;if(I.kind==='store')e.sval=g(I.rt);
+          d=`ALU: dirección ${g(I.rn)} + ${I.imm} = ${hex(e.addr)}`+(I.kind==='store'?` · WriteDataE = ${e.sval}`:'');
+        }else if(I.kind==='branch'){
+          e.taken=true;sn.brTaken=true;if(I.op==='BL')e.result=I.addr+4;
+          d=`ALU: PC + 8 + desplazamiento = ${hex(I.target)}`+(I.op==='BL'?` · LR ← ${hex(I.addr+4)}`:'');
+          if(K==='E'){sn.sig.BranchTaken=1;doRedirect(e,'E',I.target,'br');}
+          else d+=' · el PC se actualizará en Writeback';
+        }else d='Sin operación';
+      }
+      if(notes.length)d+=` · ${notes.join(', ')}`;
+      sn.desc.E=d;
+    }
+    /* Decode */
+    const dd=S.D;let stall=false;
+    if(isI(dd)&&!younger(dd)){
+      const I=dd.inst;let hz=null;const splitNotes=[],stale=[];
+      for(const s of I.srcs){
+        if(s.r===15)continue;
+        for(const st of ['E','M','W']){
+          const p=S[st];
+          if(!isI(p)||younger(p)||p.inst.wreg!==s.r)continue;
+          if(st!=='E'&&p.condFail)continue;
+          let need;
+          if(FWD)need=(st==='E'&&p.inst.kind==='load')||(st==='W'&&!cfg.split);
+          else need=st!=='W'||!cfg.split;
+          if(need&&!INTER)stale.push({r:s.r,p,st});
+          else if(need){if(!hz)hz={r:s.r,p,st};}
+          else if(st==='W')splitNotes.push({r:s.r,p});
+          break;
+        }
+      }
+      for(const s of I.srcs)dd.opv[s.r]=readReg(s.r,dd);
+      for(const x of stale){
+        stats.bad++;
+        dd.cells[c].kind='x';dd.cells[c].why=`Lee un valor antiguo de ${rname(x.r)}: ${x.p.inst.text} todavía no lo ha escrito`;
+        sn.ev.push({t:'data',k:'Riesgo RAW sin resolver',h:`${code(dd)} lee ${rname(x.r)} = ${dd.opv[x.r]} del banco de registros, pero ${code(x.p)} (en ${SNAME[x.st]}) todavía no ha escrito el valor nuevo. Sin unidad de gestión de riesgos nadie lo detecta: el resultado será erróneo. El compilador debería haber separado estas instrucciones con NOPs.`});
+      }
+      if(hz){
+        stall=true;stats.data++;
+        const Rn=rname(hz.r),pc_=code(hz.p),dc=code(dd);
+        if(FWD&&hz.st==='E'){
+          sn.sig.LDRstall=1;
+          sn.ev.push({t:'data',k:'Riesgo de datos con LDR · LDRstall = 1',h:`${dc} necesita ${Rn}, pero ${pc_} no tendrá el dato hasta el final de Memory: no se puede anticipar a tiempo. La Hazard Unit activa ${sg('StallF')} y ${sg('StallD')} (Fetch y Decode repiten) y ${sg('FlushE')} (entra una burbuja en Execute).`});
+        }else{
+          const why=hz.st==='W'?`${pc_} escribe ${Rn} en Writeback en este ciclo, pero sin escritura en el flanco de bajada no se puede leer en el mismo ciclo`:`sin anticipación, ${dc} tiene que esperar a que ${pc_} (ahora en ${SNAME[hz.st]}) escriba ${Rn} en el banco de registros`;
+          sn.ev.push({t:'data',k:'Riesgo de datos (RAW) · bloqueo',h:`${dc} depende de ${Rn}: ${why}. Se activan ${sg('StallF')}, ${sg('StallD')} y ${sg('FlushE')}.`});
+        }
+        dd.cells[c].kind='s';dd.cells[c].why=`Bloqueada en Decode: espera ${Rn} de ${hz.p.inst.text}`;
+        sn.desc.D=`Bloqueada (StallD): espera ${Rn} de ${hz.p.inst.text}`;
+      }else{
+        for(const n of splitNotes)sn.ev.push({t:'info',k:'Banco de registros',h:`${code(n.p)} escribe ${rname(n.r)} en la primera mitad del ciclo (flanco de bajada) y ${code(dd)} lo lee en la segunda: no hace falta anticipar.`});
+        const vals=I.srcs.map(s=>{
+          if(s.r===15)return `R15 = PC + 8 = ${hex(dd.opv[15])}`;
+          const inflight=['E','M'].some(st=>isI(S[st])&&!younger(S[st])&&S[st].inst.wreg===s.r);
+          return `${rname(s.r)} = ${dd.opv[s.r]}${inflight?(INTER?' (valor antiguo, llegará por anticipación)':' (valor antiguo)'):''}`;
+        });
+        let d=vals.length?`Lee ${vals.join(', ')}`:'Decodifica (no lee registros)';
+        if(I.kind==='branch'){
+          if(K==='D'){
+            const fD=regs[FL];
+            dd.taken=condTrue(I.cond,fD);
+            if(sn.flagsW&&I.cond!=='AL')sn.ev.push({t:'fwd',k:'Flags anticipados a Decode',h:`${code(dd)} decide con ALUFlagsE, los flags que ${code(S.E)} está calculando en Execute en este mismo ciclo (NZCV = ${fl(fD)}).`});
+            d=I.cond==='AL'?`Salto incondicional a ${hex(I.target)}`:`Evalúa ${I.cond} con NZCV = ${fl(fD)}: ${dd.taken?'se salta':'no se salta'}`;
+            if(dd.taken){sn.sig.BranchTaken=1;sn.brTaken=true;doRedirect(dd,'D',I.target,'br');}
+            else{sn.brTaken=false;sn.ev.push({t:'ctrl',k:'Salto no tomado',h:`${code(dd)} no cumple ${I.cond}: Fetch sigue con la instrucción siguiente sin perder ningún ciclo.`});}
+          }else d+=`${vals.length?' · ':''}El destino se calculará en la ALU`;
+        }
+        if(I.pcw)d+=' · PCSrcD = 1 (escribe R15)';
+        sn.desc.D=d;
+      }
+    }
+    /* Señales de la Hazard Unit */
+    const ok=x=>isI(x)&&!younger(x);
+    let pcwBy=null;
+    if(INTER){
+      if(ok(S.D)&&S.D.inst.pcw)pcwBy={d:S.D,st:'D'};
+      else if(ok(S.E)&&S.E.inst.pcw)pcwBy={d:S.E,st:'E'};
+      else if(ok(S.M)&&S.M.inst.pcw&&!S.M.condFail)pcwBy={d:S.M,st:'M'};
+    }
+    let brBy=null;
+    if(INTER&&cfg.strat==='stall'&&redirect===null){
+      const pend=STAGES.slice(1,ORD[K]+1);
+      for(const st of pend){const x=S[st];if(ok(x)&&x.inst.kind==='branch'){brBy={d:x,st};break;}}
+    }
+    const structBy=cfg.unified&&ok(S.M)&&(S.M.inst.kind==='load'||S.M.inst.kind==='store')&&!S.M.condFail?S.M:null;
+    const sig=sn.sig;
+    sig.PCWrPendingF=pcwBy?1:0;
+    sig.StallD=stall?1:0;
+    sig.StallF=(stall||pcwBy||brBy||structBy)?1:0;
+    sig.FlushE=(stall||(INTER&&redirect!==null&&(brWhere==='E'||brWhere==='W')))?1:0;
+    sig.FlushD=(pcwBy||brBy||structBy||(INTER&&redirect!==null))?1:0;
+    if(pcwBy&&!stall){
+      sn.ev.push({t:'ctrl',k:'Escritura del PC pendiente · PCWrPendingF = 1',h:`${code(pcwBy.d)} (en ${SNAME[pcwBy.st]}) escribirá R15 en Writeback. Hasta entonces no se sabe qué instrucción buscar: ${sg('StallF')} mantiene Fetch y ${sg('FlushD')} mete una burbuja en Decode.`});
+    }
+    if(brBy&&!stall){
+      sn.ev.push({t:'ctrl',k:'Salto sin decidir · bloqueo',h:brBy.st===K
+        ?`${code(brBy.d)} se decide en este ciclo, en ${SNAME[K]}, y no se salta. Con la estrategia de bloqueo, Fetch no ha buscado nada útil todavía: ${sg('StallF')} y ${sg('FlushD')} siguen activas y la búsqueda se reanuda en el ciclo siguiente.`
+        :`${code(brBy.d)} está en ${SNAME[brBy.st]} y no se decide hasta ${SNAME[K]}. Con la estrategia de bloqueo, ${sg('StallF')} mantiene Fetch y ${sg('FlushD')} mete una burbuja en Decode.`});
+    }
+    if(structBy&&!stall){
+      sn.ev.push({t:'struct',k:'Riesgo estructural',h:`${code(structBy)} usa la memoria en Memory y solo hay una memoria para instrucciones y datos: Fetch no puede leer la instrucción en este ciclo (${sg('StallF')} y ${sg('FlushD')}).`});
+    }
+    /* Sin unidad de gestión: nada se anula */
+    if(redirect!==null&&!INTER){
+      const cont=['F','D','E','M'].map(st=>S[st]).filter(x=>isI(x)&&x.seq>brDyn.seq);
+      const harm=cont.filter(x=>x.inst.kind!=='nop');
+      stats.slot+=harm.length;
+      for(const x of harm){x.cells[c].kind='x';x.cells[c].why='Se buscó por el camino equivocado y nadie la anula';x.wrongPath=true;}
+      const what=brKind==='pcw'?`${code(brDyn)} escribe el PC en Writeback (${hex(brDyn.result)})`:`${code(brDyn)} salta a ${hex(brDyn.inst.target)} desde ${SNAME[brWhere]}`;
+      const nN=ORD[brWhere];
+      let tail;
+      if(!cont.length)tail='no había instrucciones detrás.';
+      else if(!harm.length)tail=`las NOPs que puso el compilador ocupan esos huecos, así que no pasa nada.`;
+      else tail=`${harm.map(code).join(', ')}${harm.length===1?' se ejecuta':' se ejecutan'} igualmente aunque no debería${harm.length===1?'':'n'}. El compilador debe poner ${nN} NOP${nN===1?'':'s'} detrás de cada salto.`;
+      sn.ev.push({t:harm.length?'ctrl':'info',k:'Salto sin unidad de gestión de riesgos',h:`${what}, pero no se vacía el cauce: ${tail}`});
+    }
+    /* Vaciado tras salto o escritura del PC */
+    if(flushSeq!==null){
+      let n=0;
+      for(const st of ['F','D','E','M']){
+        const x=S[st];
+        if(younger(x)){x.flushed=c;x.cells[c].kind='f';x.cells[c].why='Anulada: se buscó por un camino equivocado';n++;sn.desc[st]='Se anula: se buscó por un camino equivocado';}
+      }
+      stats.flushed+=n;stats.ctrl+=n;
+      const I=brDyn.inst;
+      let regsTxt;
+      if(brWhere==='D')regsTxt=`${sg('FlushD')} anula la instrucción que había en Fetch`;
+      else if(brWhere==='E')regsTxt=`${sg('FlushD')} y ${sg('FlushE')} anulan las instrucciones de Fetch y Decode`;
+      else regsTxt=brKind==='pcw'?`${sg('FlushD')} anula la instrucción que esperaba en Fetch`:`se vacían los registros de Fetch, Decode, Execute y Memory`;
+      if(brKind==='pcw')sn.ev.push({t:'ctrl',k:'Escritura del PC · PCSrcW = 1',h:`${code(brDyn)} llega a Writeback y el PC carga ResultW = ${hex(brDyn.result)}; ${regsTxt}. En el ciclo siguiente se busca la instrucción de ${hex(brDyn.result)}.`});
+      else sn.ev.push({t:'ctrl',k:`Salto tomado · ${BTN} = 1`,h:`${code(brDyn)} se decide en ${SNAME[brWhere]}: el PC carga el destino ${hex(I.target)}${brWhere==='E'?' desde ALUResultE':''} y ${regsTxt}. ${n?`Se pierde${n===1?'':'n'} ${n} ciclo${n===1?'':'s'}.`:'No había instrucciones que anular.'}`});
+    }
+    /* Estado siguiente */
+    const keep=x=>younger(x)?BUB('anulada'):x;
+    const Nx={W:keep(S.M),M:keep(S.E)};
+    Nx.E=stall?BUB('datos'):keep(S.D);
+    let lostD=false;
+    if(stall)Nx.D=S.D;
+    else if(younger(S.F))Nx.D=BUB('anulada');
+    else if(pcwBy){Nx.D=BUB('pc');lostD=true;}
+    else if(brBy){Nx.D=BUB('control');lostD=true;}
+    else if(structBy){Nx.D=BUB('estructural');stats.struct++;}
+    else Nx.D=S.F;
+    if(lostD)stats.ctrl++;
+    if(redirect!==null){pcAddr=redirect;Nx.F=fetchAt(pcAddr);}
+    else if(sig.StallF){
+      Nx.F=S.F;
+      if(isI(S.F)&&!stall){S.F.cells[c].kind=structBy&&!pcwBy&&!brBy?'ws':'wc';S.F.cells[c].why=structBy&&!pcwBy&&!brBy?'Fetch en espera: la memoria la usa Memory':'Fetch en espera (StallF): el PC todavía no se conoce';}
+      if(isI(S.F)&&stall){S.F.cells[c].kind='s';S.F.cells[c].why='Fetch bloqueado (StallF)';}
+    }else{pcAddr+=4;Nx.F=fetchAt(pcAddr);}
+    if(isI(S.F)&&!sn.desc.F)sn.desc.F=sig.StallF&&redirect===null?`Lee ${hex(S.F.inst.addr)} pero queda retenida (StallF)`:`Lee la instrucción de ${hex(S.F.inst.addr)}`;
+    sn.regs=regs.slice();sn.memv=new Map(mem);sn.pcNext=pcAddr;
+    snaps.push(sn);S=Nx;
+  }
+  return {snaps,dyns,stats,truncated,T:snaps.length,N:P.insts.length,BTN};
+}
+if(typeof module!=='undefined')module.exports={parse,simulate};
+</script>
+<script>
+/* ===================== Interfaz ===================== */
+(function(){
+if(typeof document==='undefined')return;
+const BOOK={hu:'full',resolve:'E',strat:'predict',split:true,unified:false};
+const HUNAME={full:'Anticipación y bloqueos',stall:'Solo bloqueos',none:'Ninguna'};
+const EXAMPLES=[
+ {id:'f743',name:'Fig. 7.43 · Cauce sin riesgos',unified:false,
+  note:'El programa de la figura 7.43: ninguna instrucción depende de otra, así que entra una por ciclo. LDR usa la memoria de datos en el ciclo 4 y STR en el 8.',
+  code:`// Figura 7.43: seis instrucciones independientes
+.reg R0 = 0x100
+.reg R1 = 0x200
+.reg R5 = 3
+.reg R6 = 99
+.reg R9 = 7
+.reg R10 = 5
+.reg R11 = 0x10
+.reg R12 = 0xF0
+.reg R13 = 0x3C
+.mem 0x128: 42          // R0 + 40
+
+LDR R2, [R0, #40]
+ADD R3, R9, R10
+SUB R4, R1, R5
+AND R5, R12, R13
+STR R6, [R1, #20]
+ORR R7, R11, #42`},
+ {id:'f750',name:'Figs. 7.48–7.51 · Anticipación',unified:false,
+  note:'ADD produce R1 y las tres instrucciones siguientes lo leen. AND lo recibe desde Memory (ForwardAE = 10), ORR desde Writeback (ForwardBE = 01) y SUB lo lee del banco de registros. Desactiva la anticipación para ver la diferencia.',
+  code:`// Figuras 7.48 a 7.51: R1 se usa justo después de calcularse
+.reg R3 = 12
+.reg R4 = 5
+.reg R5 = 3
+.reg R6 = 1
+.reg R7 = 2
+
+ADD R1, R4, R5
+AND R8, R1, R3
+ORR R9, R6, R1
+SUB R10, R1, R7`},
+ {id:'f753',name:'Figs. 7.52–7.54 · Bloqueo por LDR',unified:false,
+  note:'El dato de LDR no existe hasta el final de Memory: AND espera un ciclo en Decode (LDRstall) y luego recibe R1 desde Writeback.',
+  code:`// Figuras 7.52 a 7.54: riesgo de datos con LDR
+.reg R3 = 12
+.reg R4 = 0x100
+.reg R6 = 1
+.reg R7 = 2
+.mem 0x128: 10          // R4 + 40
+
+LDR R1, [R4, #40]
+AND R8, R1, R3
+ORR R9, R6, R1
+SUB R10, R1, R7`},
+ {id:'f755',name:'Figs. 7.55–7.56 · Salto tomado',unified:false,
+  note:'El salto de 0x20 a 0x64 de las figuras 7.55 y 7.56. Decidido en Execute se anulan 2 instrucciones; elige «Writeback» para ver las 4 de la figura 7.55.',
+  code:`// Figuras 7.55 y 7.56: salto de 0x20 a 0x64
+.reg R1 = 9
+.reg R3 = 4
+.reg R4 = 6
+.reg R6 = 1
+.reg R7 = 2
+.reg R8 = 3
+
+.org 0x20
+B   destino
+AND R8, R1, R3
+ORR R9, R6, R1
+SUB R10, R1, R7
+SUB R11, R1, R8
+
+.org 0x64
+destino:
+ADD R12, R3, R4`},
+ {id:'loop',name:'Bucle: suma de un vector',unified:false,
+  note:'Cada iteración tiene un bloqueo por LDR y un BNE que se toma dos veces de tres. SUBS actualiza los flags en Execute justo a tiempo para BNE. El resultado (26) se guarda en 0x10C.',
+  code:`// Suma de un vector de 3 elementos
+.reg R0 = 0x100         // puntero
+.reg R1 = 3             // contador
+.mem 0x100: 5, 8, 13
+
+        MOV  R2, #0
+bucle:  LDR  R3, [R0, #0]
+        ADD  R2, R2, R3     // usa R3 justo después del LDR
+        ADD  R0, R0, #4
+        SUBS R1, R1, #1     // actualiza NZCV
+        BNE  bucle
+        STR  R2, [R0, #0]`},
+ {id:'call',name:'Llamada y retorno: BL y MOV PC, LR',unified:false,
+  note:'MOV PC, LR escribe R15: la Hazard Unit activa PCWrPendingF y bloquea Fetch hasta que la escritura llega a Writeback (PCSrcW). Cuesta 4 ciclos.',
+  code:`// Escritura del PC: retorno de subrutina
+.reg R0 = 6
+.reg R1 = 7
+
+        BL   suma           // LR = 0x04
+        ADD  R4, R2, #1
+        B    fin
+suma:   ADD  R2, R0, R1
+        MOV  PC, LR         // escribe R15 en Writeback
+fin:    SUB  R5, R4, R0`},
+ {id:'cond',name:'Ejecución condicional sin saltos',unified:false,
+  note:'max(R1, R2) sin saltos: MOVGT y MOVLE se evalúan en Execute con los flags de CMP. La que no cumple su condición sigue por el cauce sin efecto y no hay riesgo de control.',
+  code:`// R3 = max(R1, R2) con ejecución condicional
+.reg R1 = 4
+.reg R2 = 9
+
+CMP   R1, R2            // NZCV para la comparación
+MOVGT R3, R1            // no se ejecuta
+MOVLE R3, R2            // R3 = 9
+ADD   R4, R3, #1        // R3 llega por anticipación`},
+ {id:'tema3',name:'Tema 3 · Diapositivas 92–99, con unidad de gestión',
+  note:'El ejemplo resuelto del tema 3: 25 ciclos. La diapositiva 99 da 27 porque suma 2 paradas detrás del último BNE, pero ahí no hay ninguna instrucción a la que retrasar. Además, con «Predecir no tomado» ese BNE no se toma y no cuesta nada.',
+  code:`// Tema 3, diapositivas 92 a 99
+.equ ARRAY, 0x100
+.reg R1 = 10
+.mem 0x100: 5, 8
+
+	mov 	R5,#2
+	ldr	R6, =ARRAY
+loop: 	ldr	R8, [R6]
+	add 	R8, R8, R1
+	str 	R8, [R6]
+	add 	R5, R5,# -1
+	add	R6, R6,# 4
+	cmp	R5,#0
+	bne 	loop`},
+ {id:'tema3nop',name:'Tema 3 · Diapositivas 95–96, sin unidad de gestión',cfg:{hu:'none'},
+  note:'El mismo programa con las NOPs que pone el compilador cuando no hay unidad de gestión de riesgos (diapositiva 95). Salen los 36 ciclos de la diapositiva 96. Quita alguna NOP para ver el valor erróneo que se lee.',
+  code:`// Tema 3, diapositivas 95 y 96: NOPs del compilador
+.equ ARRAY, 0x100
+.reg R1 = 10
+.mem 0x100: 5, 8
+
+	mov 	R5,#2
+	ldr	R6, =ARRAY
+	nop
+	nop
+loop: 	ldr	R8, [R6]
+	nop
+	nop
+	add 	R8, R8, R1
+	nop
+	nop
+	str 	R8, [R6]
+	add 	R5, R5,# -1
+	nop
+	add	R6, R6,# 4
+	cmp	R5,#0
+	bne 	loop
+	nop
+	nop`},
+ {id:'struct',name:'Riesgo estructural con memoria única',cfg:{unified:true},
+  note:'Fuera del libro: este ejemplo activa la memoria única. Cada LDR o STR en Memory impide que Fetch lea una instrucción en ese ciclo.',
+  code:`// Con una sola memoria, Fetch y Memory no pueden acceder a la vez
+.reg R1 = 0x100
+.reg R4 = 6
+.reg R5 = 3
+.mem 0x100: 11, 22
+
+LDR R2, [R1, #0]
+ADD R3, R4, R5
+LDR R6, [R1, #4]
+ORR R7, R4, R5
+SUB R8, R4, R5
+STR R3, [R1, #8]
+AND R9, R4, R5
+EOR R10, R4, R5`}
+];
+
+const $=s=>document.querySelector(s);
+const cfg={...BOOK,nota:'en'};
+let exId='f743',P=null,SIM=null,cur=1,timer=null,regList=[],memList=[];
+const KEY='segarm.hh.v1';
+let saved=null;try{saved=JSON.parse(localStorage.getItem(KEY)||'null');}catch(_){}
+if(saved&&saved.cfg){
+  if('fwd' in saved.cfg&&!saved.cfg.hu)saved.cfg.hu=saved.cfg.fwd?'full':'stall';
+  delete saved.cfg.fwd;Object.assign(cfg,saved.cfg);
+}
+if(!['D','E','W'].includes(cfg.resolve))cfg.resolve='E';
+if(!HUNAME[cfg.hu])cfg.hu='full';
+if(!NOTATION[cfg.nota])cfg.nota='en';
+if(saved&&saved.ex&&EXAMPLES.some(e=>e.id===saved.ex))exId=saved.ex;
+function save(){try{localStorage.setItem(KEY,JSON.stringify({cfg,ex:exId,src:$('#src').value}));}catch(_){}}
+
+function drawStair(){const st=$('#stair');let h='';
+  for(let r=0;r<5;r++)for(let c=0;c<9;c++){const k=c-r;h+=k>=0&&k<5?`<span style="--c:var(--i${r})">${SLBL[STAGES[k]]}</span>`:'<i></i>';}
+  st.innerHTML=h;}
+
+$('#ex').innerHTML=EXAMPLES.map(e=>`<option value="${e.id}">${esc(e.name)}</option>`).join('');
+$('#ex').value=exId;
+const curEx=()=>EXAMPLES.find(e=>e.id===exId);
+$('#src').value=(saved&&typeof saved.src==='string'&&saved.src.trim())?saved.src:curEx().code;
+$('#exnote').textContent=curEx().note;
+
+const isBook=c=>Object.keys(BOOK).every(k=>c[k]===BOOK[k]);
+function syncControls(){
+  $('#hu-'+cfg.hu).checked=true;
+  $('#nota-'+cfg.nota).checked=true;
+  $('#strat-field .seg').classList.toggle('off',cfg.hu==='none');
+  $('#res-'+cfg.resolve).checked=true;
+  $('#strat-'+cfg.strat).checked=true;
+  $(cfg.unified?'#mem-uni':'#mem-split').checked=true;
+  $('#split').checked=cfg.split;
+  const b=isBook(cfg);
+  $('#cfgstate').innerHTML=b?'<span class="pill ok">Procesador del libro</span> Figura 7.58 con todas sus opciones':'<span class="pill mod">Modificado</span> Algunas opciones difieren de la figura 7.58';
+  $('#bookbtn').hidden=b;
+}
+syncControls();
+document.querySelectorAll('input[name=hu]').forEach(el=>el.addEventListener('change',()=>{cfg.hu=el.value;syncControls();run(true);}));
+document.querySelectorAll('input[name=nota]').forEach(el=>el.addEventListener('change',()=>{cfg.nota=el.value;syncControls();run(true);}));
+document.querySelectorAll('input[name=res]').forEach(el=>el.addEventListener('change',()=>{cfg.resolve=el.value;syncControls();run(true);}));
+document.querySelectorAll('input[name=strat]').forEach(el=>el.addEventListener('change',()=>{cfg.strat=el.value;syncControls();run(true);}));
+document.querySelectorAll('input[name=memk]').forEach(el=>el.addEventListener('change',()=>{cfg.unified=el.value==='uni';syncControls();run(true);}));
+$('#split').addEventListener('change',e=>{cfg.split=e.target.checked;syncControls();run(true);});
+$('#bookbtn').addEventListener('click',()=>{Object.assign(cfg,BOOK);syncControls();run(true);});
+$('#ex').addEventListener('change',e=>{
+  exId=e.target.value;const x=curEx();$('#src').value=x.code;$('#exnote').textContent=x.note;
+  const f=x.cfg||{};cfg.unified=!!f.unified;
+  if(f.hu)cfg.hu=f.hu;else if(cfg.hu==='none')cfg.hu='full';
+  syncControls();run(false);
+});
+$('#resetbtn').addEventListener('click',()=>{const x=curEx();$('#src').value=x.code;run(false);});
+$('#runbtn').addEventListener('click',()=>run(false));
+$('#src').addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();run(false);}});
+
+$('#b-first').addEventListener('click',()=>{stop();setCycle(1);});
+$('#b-last').addEventListener('click',()=>{stop();setCycle(SIM?SIM.T:1);});
+$('#b-prev').addEventListener('click',()=>{stop();setCycle(cur-1);});
+$('#b-next').addEventListener('click',()=>{stop();setCycle(cur+1);});
+$('#b-play').addEventListener('click',()=>{if(timer)stop();else play();});
+$('#slider').addEventListener('input',e=>{stop();setCycle(+e.target.value);});
+document.addEventListener('keydown',e=>{
+  const t=e.target.tagName;
+  if(t==='TEXTAREA'||t==='SELECT'||(t==='INPUT'&&e.target.type!=='radio'&&e.target.type!=='checkbox'))return;
+  if(e.key==='ArrowRight'){e.preventDefault();stop();setCycle(cur+1);}
+  if(e.key==='ArrowLeft'){e.preventDefault();stop();setCycle(cur-1);}
+});
+function play(){if(!SIM||!SIM.T)return;if(cur>=SIM.T)setCycle(1);$('#b-play').textContent='❚❚ Pausa';timer=setInterval(()=>{if(cur>=SIM.T){stop();return;}setCycle(cur+1);},1100);}
+function stop(){if(timer){clearInterval(timer);timer=null;}$('#b-play').textContent='▶ Reproducir';}
+
+function run(keep){
+  stop();
+  setNotation(cfg.nota);drawStair();
+  const SHORT=cfg.nota==='es'?{F:'BÚSQUEDA',D:'LECTURA REG.',E:'EJECUCIÓN',M:'MEMORIA',W:'ESCRITURA'}:null;
+  for(const s of STAGES)$('#sh-'+s).textContent=`${SLBL[s]} · ${SHORT?SHORT[s]:SNAME[s].toUpperCase()}`;
+  P=parse($('#src').value);
+  $('#err').innerHTML=P.errors.map(esc).join('<br>');
+  SIM=simulate(P,cfg);
+  const rs=new Set();let usesF=false;
+  for(const I of P.insts){
+    for(const r of [I.rd,I.rn,I.rm,I.rt,I.wreg])if(r!==null&&r!==undefined&&r!==15)rs.add(r);
+    if(I.setsFlags||(I.cond&&I.cond!=='AL'))usesF=true;
+  }
+  for(const k in P.init.regs)rs.add(+k);
+  regList=[...rs].sort((a,b)=>a-b);if(usesF)regList.push(FL);
+  const ms=new Set(P.init.mem.map(x=>x[0]));
+  if(SIM.T)for(const k of SIM.snaps[SIM.T-1].memv.keys())ms.add(k);
+  memList=[...ms].sort((a,b)=>a-b);
+  $('#ninst').textContent=`${P.insts.length} instrucci${P.insts.length===1?'ón':'ones'}`;
+  const svg=$('#dp');
+  svg.querySelector('#p-brE').classList.toggle('gone',cfg.resolve!=='E');
+  svg.querySelector('#p-brD').classList.toggle('gone',cfg.resolve!=='D');
+  svg.querySelector('#p-flgD').classList.toggle('gone',cfg.resolve!=='D');
+  svg.querySelector('#c-brD').classList.toggle('gone',cfg.resolve!=='D');
+  svg.querySelector('#t-brD').classList.toggle('gone',cfg.resolve!=='D');
+  svg.querySelector('#s-BT').textContent=cfg.resolve==='W'?'':SIM.BTN;
+  renderDiagram();renderTiles();renderCompare();
+  cur=keep?Math.min(Math.max(cur,1),Math.max(SIM.T,1)):1;
+  setCycle(cur,true);
+  save();
+}
+
+function renderTiles(){
+  const s=SIM.stats,T=SIM.T,n=s.retired;
+  const cpi=n?(T/n):0,cpiS=n?((T-4)/n):0,lost=Math.max(0,T-(n+4));
+  const t=[
+    {v:T,l:'ciclos en total',c:'var(--accent)'},
+    {v:n,l:'instrucciones completadas',c:'var(--accent)'},
+    {v:cpi.toFixed(2),l:`CPI · ${cpiS.toFixed(2)} sin los 4 ciclos de llenado`,c:'var(--accent)'},
+    {v:lost,l:'ciclos perdidos frente al ideal (N + 4)',c:'var(--ink)'},
+    ...(cfg.hu==='none'?[
+      {v:s.bad,l:'lecturas de valores antiguos (resultado erróneo)',c:'var(--flush)'},
+      {v:s.slot,l:'instrucciones ejecutadas tras un salto sin anularse',c:'var(--flush)'}
+    ]:[
+      {v:s.data,l:cfg.hu==='full'?'bloqueos por LDR':'bloqueos por datos',c:'var(--stall)'},
+      {v:s.ctrl,l:'ciclos perdidos por saltos y escrituras del PC',c:'var(--flush)'}
+    ]),
+    {v:s.struct,l:'bloqueos estructurales',c:'var(--struct)'},
+    {v:s.fwd,l:'anticipaciones',c:'var(--fwd)'}
+  ];
+  $('#tiles').innerHTML=t.map(x=>`<div class="tile" style="--tc:${x.c}"><div class="tv">${x.v}</div><div class="tl">${x.l}</div></div>`).join('');
+  const w=$('#warn');w.hidden=!SIM.truncated;if(SIM.truncated)w.textContent=`La simulación se detuvo en ${MAXC} ciclos. Revisa si el programa tiene un bucle infinito.`;
+}
+
+const SIGROWS=()=>[
+  {k:'StallF',c:'var(--stall)'},{k:'StallD',c:'var(--stall)'},{k:'FlushD',c:'var(--flush)'},{k:'FlushE',c:'var(--flush)'},
+  {k:'ForwardAE',c:'var(--fwd)'},{k:'ForwardBE',c:'var(--fwd)'},
+  ...(cfg.resolve==='W'?[]:[{k:'BranchTaken',label:SIM.BTN,c:'var(--flush)'}]),
+  {k:'PCWrPendingF',c:'var(--flush)'},{k:'PCSrcW',c:'var(--flush)'}
+];
+const sigOn=v=>v!==0&&v!=='00';
+function renderDiagram(){
+  const {dyns,T,snaps}=SIM;
+  if(!T){$('#mc').innerHTML='<p class="empty" style="padding:14px">No hay instrucciones que simular.</p>';return;}
+  let h='<table class="mc"><thead><tr><th class="rowh">Instrucción</th>';
+  for(let c=1;c<=T;c++)h+=`<th data-c="${c}">${c}</th>`;
+  h+='</tr></thead><tbody>';
+  for(const d of dyns){
+    const k=d.inst.idx%8;
+    h+=`<tr class="${d.flushed?'flushed':''}" style="--ic:var(--i${k})"><th class="rowh" scope="row"><span class="addr">${hex(d.inst.addr)}</span><span class="itx">${esc(d.inst.text)}</span>${d.flushed?'<span class="tag-f">anulada</span>':d.wrongPath?'<span class="tag-f">no debía ejecutarse</span>':d.condFail&&d.inst.kind!=='branch'?'<span class="tag-c">sin efecto</span>':''}</th>`;
+    for(let c=1;c<=T;c++){
+      const x=d.cells[c];
+      if(!x){h+=`<td data-c="${c}"></td>`;continue;}
+      let inner=esc(SLBL[x.stage]),title=x.why||'';
+      if(x.fwd){inner+='<i class="fw"></i>';title=(title?title+' · ':'')+'Anticipado: '+x.fwd.join(', ');}
+      h+=`<td data-c="${c}" class="cell k-${x.kind}"${title?` title="${esc(title)}"`:''}><span>${inner}</span></td>`;
+    }
+    h+='</tr>';
+  }
+  h+=`<tr class="sep"><th class="rowh" scope="row">Hazard Unit</th>${'<td></td>'.repeat(T)}</tr>`;
+  for(const r of SIGROWS()){
+    h+=`<tr class="sigrow" style="--sc:${r.c}"><th class="rowh" scope="row">${r.label||r.k}</th>`;
+    for(let c=1;c<=T;c++){const v=snaps[c-1].sig[r.k];h+=`<td data-c="${c}" class="${sigOn(v)?'on':''}">${sigOn(v)?v:''}</td>`;}
+    h+='</tr>';
+  }
+  h+='</tbody></table>';
+  $('#mc').innerHTML=h;
+  $('#mc').querySelectorAll('[data-c]').forEach(el=>el.addEventListener('click',()=>{stop();setCycle(+el.dataset.c);}));
+}
+
+function renderCompare(){
+  const rows=[];
+  for(const hu of ['full','stall','none'])for(const resolve of ['D','E','W'])for(const strat of (hu==='none'?[null]:['predict','stall'])){
+    const s=simulate(P,{...cfg,hu,resolve,strat:strat||cfg.strat});
+    rows.push({hu,resolve,strat,T:s.T,cpi:s.stats.retired?s.T/s.stats.retired:0,wrong:s.stats.bad+s.stats.slot>0});
+  }
+  const max=Math.max(1,...rows.map(r=>r.T));
+  let h='<table class="cmp"><thead><tr><th>Gestión de riesgos</th><th>Salto en</th><th>Estrategia</th><th style="text-align:right">Ciclos</th><th style="text-align:right">CPI</th></tr></thead><tbody>';
+  rows.forEach((r,i)=>{
+    const on=r.hu===cfg.hu&&r.resolve===cfg.resolve&&(r.hu==='none'||r.strat===cfg.strat);
+    const book=r.hu==='full'&&r.resolve==='E'&&r.strat==='predict';
+    h+=`<tr data-i="${i}" class="${on?'on':''}" tabindex="0"><td>${HUNAME[r.hu]}${book?'<span class="pill ok">libro</span>':''}${r.wrong?'<span class="pill mod" title="El programa no da el resultado correcto en esta configuración">resultado erróneo</span>':''}</td><td>${SNAME[r.resolve]}</td><td>${r.strat===null?'—':r.strat==='predict'?'Predecir no tomado':'Bloquear'}</td><td class="num">${r.T}<span class="bar" style="width:${Math.round(60*r.T/max)}px"></span></td><td class="num">${r.cpi.toFixed(2)}</td></tr>`;
+  });
+  h+='</tbody></table>';
+  $('#cmp').innerHTML=h;
+  $('#cmp').querySelectorAll('tbody tr').forEach(tr=>{
+    const go=()=>{const r=rows[+tr.dataset.i];cfg.hu=r.hu;cfg.resolve=r.resolve;if(r.strat)cfg.strat=r.strat;syncControls();run(true);};
+    tr.addEventListener('click',go);tr.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});
+  });
+}
+
+const BUBTXT={datos:'Burbuja: FlushE la introdujo durante un bloqueo por datos',anulada:'Burbuja: instrucción anulada por un salto o una escritura del PC',pc:'Burbuja: FlushD mientras hay una escritura del PC pendiente',control:'Burbuja: FlushD mientras el salto no se decide',estructural:'Burbuja: Fetch no pudo leer porque la memoria la usaba Memory'};
+function setCycle(c,force){
+  if(!SIM)return;
+  const T=SIM.T;
+  if(!T){$('#cyc').innerHTML='Ciclo — <small>sin programa</small>';['#events','#stages','#regs','#mems','#sigs'].forEach(s=>$(s).innerHTML='');return;}
+  c=Math.min(Math.max(c,1),T);
+  if(c===cur&&!force&&document.querySelector('#mc .cur'))return;
+  cur=c;
+  const sn=SIM.snaps[c-1],sig=sn.sig;
+  $('#cyc').innerHTML=`Ciclo ${c} <small>de ${T}</small>`;
+  $('#slider').max=T;$('#slider').value=c;
+  $('#pc').textContent=`PC en Fetch = ${hex(sn.pcF)} · siguiente = ${hex(sn.pcNext)}`;
+  $('#b-prev').disabled=c<=1;$('#b-first').disabled=c<=1;$('#b-next').disabled=c>=T;$('#b-last').disabled=c>=T;
+  const svg=$('#dp');
+  svg.querySelectorAll('.on-fwd,.on-wb,.on-br,.on-stall,.on-struct,.on-act,.on').forEach(el=>el.classList.remove('on-fwd','on-wb','on-br','on-stall','on-struct','on-act','on'));
+  svg.querySelectorAll('path[id^="p-"]').forEach(p=>p.setAttribute('marker-end','url(#ar)'));
+  const on=(id,cls,mk)=>{const el=svg.querySelector('#'+id);if(!el)return;el.classList.add(cls);if(mk)el.setAttribute('marker-end',`url(#${mk})`);};
+  let cards='';
+  for(const s of STAGES){
+    const o=sn.st[s],lb=svg.querySelector('#lb-'+s),bg=svg.querySelector('#bg-'+s),hb=svg.querySelector('#hb-'+s);
+    let cls='',sc='',sx,sd;
+    if(o&&!o.bubble){
+      const d=SIM.dyns[o.seq],k=o.idx%8;
+      lb.textContent=d.inst.text;lb.style.fill=`var(--i${k})`;
+      bg.style.fill=`color-mix(in srgb, var(--i${k}) 13%, transparent)`;hb.classList.remove('show');
+      sc=`var(--i${k})`;sx=esc(d.inst.text);sd=esc(sn.desc[s]||'');
+    }else if(o&&o.bubble){
+      lb.textContent=o.reason==='anulada'?'burbuja (anulada)':'burbuja';lb.style.fill='var(--muted)';
+      bg.style.fill='transparent';hb.classList.add('show');
+      cls='bub';sx='burbuja';sd=BUBTXT[o.reason]||'Burbuja';sc='var(--stall)';
+    }else{
+      lb.textContent='—';lb.style.fill='var(--muted)';bg.style.fill='transparent';hb.classList.remove('show');
+      sx='—';sd='Etapa vacía';
+    }
+    cards+=`<div class="stg ${cls}" style="${sc?`--sc:${sc}`:''}"><div class="sn">${SLBL[s]} · ${SNAME[s]}</div><div class="sx">${sx}</div><div class="sd">${sd}</div></div>`;
+  }
+  $('#stages').innerHTML=cards;
+  if(sn.st.F&&!sn.st.F.bubble)on('c-imem','on-act');
+  if(sn.st.E&&!sn.st.E.bubble)on('c-alu','on-act');
+  if(sn.mem)on('c-dmem','on-act');
+  if(sn.condE||sn.brTaken!==null)on('c-cond',sn.brTaken?'on-br':'on-act');
+  if(sn.flagsW)on('c-flags','on-act');
+  for(const f of sn.fwd){on(`p-${f.from==='M'?'fm':'fw'}-${f.port}`,'on-fwd','ar-fwd');on(f.port==='B'?'c-muxB':'c-muxA','on-fwd');}
+  if(sn.fwd.length)on('c-hu','on-fwd');
+  if(sn.wb){on('p-wb','on-wb','ar-wb');on('c-rf','on-wb');}
+  if(sig.StallF){on('c-pc','on-stall');on('s-StallF','on-stall');}
+  if(sig.StallD)on('l-FD','on-stall');else if(sig.FlushD)on('l-FD','on-br');
+  if(sig.FlushE)on('l-DE',sig.StallD?'on-stall':'on-br');
+  if(sig.StallD||sig.FlushD||sig.FlushE||sig.StallF)on('c-hu',sig.StallD?'on-stall':'on-br');
+  if(sig.BranchTaken){
+    on('c-brmux','on-br');on('s-BT','on-br');
+    if(cfg.resolve==='E')on('p-brE','on-br','ar-br');
+    if(cfg.resolve==='D'){on('p-brD','on-br','ar-br');on('c-brD','on-br');}
+  }
+  if(cfg.resolve==='D'&&sn.st.D&&!sn.st.D.bubble&&SIM.dyns[sn.st.D.seq].inst.kind==='branch'){on('c-brD',sig.BranchTaken?'on-br':'on-act');if(sn.flagsW)on('p-flgD','on-fwd','ar-fwd');}
+  if(sig.PCSrcW){on('p-pcw','on-br','ar-br');on('c-pcmux','on-br');on('s-PCSrcW','on-br');}
+  if(cfg.unified&&sn.st.M&&!sn.st.M.bubble){const I=SIM.dyns[sn.st.M.seq].inst;if((I.kind==='load'||I.kind==='store')&&sig.StallF&&!sig.StallD){on('c-imem','on-struct');on('c-dmem','on-struct');}}
+  // chips de señales
+  const chips=[
+    ['LDRstall',sig.LDRstall,'var(--stall)'],['StallF',sig.StallF,'var(--stall)'],['StallD',sig.StallD,'var(--stall)'],
+    ['FlushD',sig.FlushD,'var(--flush)'],['FlushE',sig.FlushE,'var(--flush)'],
+    ['ForwardAE',sig.ForwardAE,'var(--fwd)'],['ForwardBE',sig.ForwardBE,'var(--fwd)'],
+    ...(cfg.resolve==='W'?[]:[[SIM.BTN,sig.BranchTaken,'var(--flush)']]),
+    ['PCWrPendingF',sig.PCWrPendingF,'var(--flush)'],['PCSrcW',sig.PCSrcW,'var(--flush)']
+  ];
+  $('#sigs').innerHTML='<span class="lab">Hazard Unit</span>'+chips.map(([n,v,c])=>`<span class="sig ${sigOn(v)?'on':''}" style="--sc:${c}">${n}<b>${v}</b></span>`).join('');
+  const ev=sn.ev.length?sn.ev:[{t:'info',k:'Sin riesgos',h:'Cada instrucción avanza una etapa. La Hazard Unit no anticipa, no bloquea y no vacía nada en este ciclo.'}];
+  $('#events').innerHTML=ev.map(e=>`<li class="ev ev-${e.t}"><span class="kind">${esc(e.k||'')}</span>${e.h}</li>`).join('');
+  $('#regs').innerHTML=regList.length?regList.map(r=>{
+    const w=(sn.wb&&sn.wb.r===r)||(r===FL&&sn.flagsW),f=sn.fwd.some(x=>x.r===r);
+    return `<div class="reg ${w?'w':''} ${f?'f':''}" title="${w?'Escrito en este ciclo':f?'Anticipado en este ciclo':''}"><span class="rn">${rname(r)}</span><span class="rv">${fmtv(r,sn.regs[r])}</span></div>`;
+  }).join(''):'<p class="empty">El programa no usa registros.</p>';
+  $('#mems').innerHTML=memList.length?memList.map(a=>{
+    const acc=sn.mem&&sn.mem.a===a?sn.mem.t:'';const v=sn.memv.has(a)?sn.memv.get(a):0;
+    return `<div class="mw ${acc}" title="${acc==='R'?'Leída en este ciclo':acc==='W'?'Escrita en este ciclo':''}"><span class="ma">[${hex(a)}]</span><span class="mv">${v}</span></div>`;
+  }).join(''):'<p class="empty">El programa no accede a memoria.</p>';
+  document.querySelectorAll('#mc .cur').forEach(el=>el.classList.remove('cur'));
+  document.querySelectorAll(`#mc [data-c="${c}"]`).forEach(el=>el.classList.add('cur'));
+  const th=document.querySelector(`#mc thead [data-c="${c}"]`),wrap=document.querySelector('.mcwrap');
+  if(th&&wrap){const l=th.offsetLeft,wv=wrap.clientWidth;if(l<wrap.scrollLeft+260||l>wrap.scrollLeft+wv-60)wrap.scrollLeft=Math.max(0,l-wv/2);}
+}
+
+run(false);
+})();
+</script>
+
+</body>
+</html>
