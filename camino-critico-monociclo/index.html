@@ -1,0 +1,793 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Camino crítico del monociclo</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@400;600&family=Source+Sans+3:wght@400;600;700&display=swap">
+<style>
+/* Layout: banco de pruebas — selector de instrucción y ruta de datos animada arriba, cronograma del camino crítico debajo; luego paso a paso + retardos, comparación de todas las instrucciones frente al reloj y un ejercicio para practicar */
+:root{
+  --paper:#f2f4f8; --panel:#ffffff; --sunk:#f7f8fb; --ink:#152033; --muted:#566377; --line:#d6dce5; --line-strong:#9aa6b8;
+  --accent:#2148c9; --accent-ink:#ffffff;
+  --ok:#0a8273; --over:#b47600; --bad:#c0392b;
+  --f-display:"Barlow Condensed","Arial Narrow",sans-serif;
+  --f-body:"Source Sans 3","Segoe UI",system-ui,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --paper:#0e131b; --panel:#151c27; --sunk:#111821; --ink:#e2e8f1; --muted:#95a2b6; --line:#273244; --line-strong:#56637a;
+  --accent:#7d9fff; --accent-ink:#0b1224;
+  --ok:#35c4b2; --over:#f0b42a; --bad:#ff6e62;
+  color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --paper:#0e131b; --panel:#151c27; --sunk:#111821; --ink:#e2e8f1; --muted:#95a2b6; --line:#273244; --line-strong:#56637a;
+  --accent:#7d9fff; --accent-ink:#0b1224;
+  --ok:#35c4b2; --over:#f0b42a; --bad:#ff6e62;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--paper);color:var(--ink);font:15px/1.5 var(--f-body);-webkit-font-smoothing:antialiased}
+.wrap{max-width:1380px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0}
+h2{font-size:22px;font-weight:700;letter-spacing:.01em}
+h3{font-size:18px;font-weight:700;letter-spacing:.01em}
+p{margin:0}
+code,.mono{font-family:var(--f-mono);font-size:.88em}
+sub{font-size:.72em}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* Cabecera */
+.top{border-bottom:1px solid var(--line);background:var(--panel)}
+.top .wrap{padding-block:26px 20px;display:flex;flex-wrap:wrap;gap:20px 40px;align-items:flex-end;justify-content:space-between}
+.top .intro{min-width:0;flex:1 1 520px}
+.eyebrow{font:600 12.5px var(--f-display);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+h1{font-size:clamp(32px,4.4vw,50px);line-height:1;font-weight:700;margin-top:6px}
+.lede{margin-top:10px;max-width:70ch;color:var(--muted)}
+.lede i{font-style:italic;color:var(--ink)}
+.hstat{margin:0;flex:0 1 330px;min-width:0;display:grid;grid-template-columns:auto auto;gap:2px 22px;align-items:end}
+.hstat figcaption{grid-column:1/-1;font:600 11.5px var(--f-display);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:4px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.hstat .big{font:700 46px/1 var(--f-display);font-variant-numeric:tabular-nums}
+.hstat .big small{font-size:22px;color:var(--muted);font-weight:600}
+.hstat .side{display:flex;flex-direction:column;gap:2px;font-size:14px;color:var(--muted);padding-bottom:4px}
+.hstat .side b{color:var(--ink);font-weight:600}
+
+main.wrap{padding-block:18px 48px;display:flex;flex-direction:column;gap:16px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:16px;min-width:0}
+.ph{display:flex;align-items:baseline;justify-content:space-between;gap:6px 14px;flex-wrap:wrap;margin-bottom:12px}
+.ph .sub{color:var(--muted);font-size:13.5px}
+.lab{font:600 12px var(--f-display);letter-spacing:.11em;text-transform:uppercase;color:var(--muted)}
+.pill{font:700 11px var(--f-display);letter-spacing:.09em;text-transform:uppercase;padding:2px 7px;border-radius:3px;border:1px solid currentColor;white-space:nowrap}
+.pill.ok{color:var(--ok)} .pill.mod{color:var(--over)} .pill.acc{color:var(--accent)}
+
+/* Selector de instrucción */
+.pick{display:flex;flex-wrap:wrap;gap:10px 22px;align-items:flex-end;margin-bottom:14px}
+.seg{display:inline-flex;border:1px solid var(--line-strong);border-radius:5px;overflow:hidden;background:var(--sunk);flex-wrap:wrap}
+.seg input{position:absolute;opacity:0;pointer-events:none;width:1px;height:1px}
+.seg label{padding:6px 12px;cursor:pointer;font-weight:600;font-size:14px;border-right:1px solid var(--line);white-space:nowrap;user-select:none}
+.seg label:last-of-type{border-right:0}
+.seg label:hover{background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.seg input:checked+label{background:var(--accent);color:var(--accent-ink)}
+.seg input:focus-visible+label{outline:2px solid var(--accent);outline-offset:-3px}
+.seg.sm label{padding:5px 10px;font-size:13px}
+.insinfo{display:flex;flex-direction:column;gap:2px;min-width:0}
+.insinfo .asm{font:600 16px var(--f-mono);color:var(--accent)}
+.insinfo .kind{font-size:13.5px;color:var(--muted)}
+
+/* Transporte */
+.transport{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;margin-bottom:12px}
+.btn{border:1px solid var(--line-strong);background:var(--panel);border-radius:5px;padding:6px 12px;font-weight:600;font-size:13.5px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{filter:brightness(1.08);color:var(--accent-ink)}
+.btn svg{width:14px;height:14px;fill:currentColor}
+.clock{font:700 28px/1 var(--f-display);font-variant-numeric:tabular-nums;min-width:120px}
+.clock small{font:500 13px var(--f-body);color:var(--muted);display:block;margin-top:2px}
+#scrub{flex:1 1 220px;min-width:0;accent-color:var(--accent)}
+.opts{display:flex;gap:8px;align-items:center}
+.now{margin-bottom:12px;padding:9px 12px;border-radius:5px;background:var(--sunk);border:1px solid var(--line);border-left:4px solid var(--accent);font-size:14.5px;min-height:3.2em}
+.now .when{font:600 12.5px var(--f-mono);color:var(--accent);margin-right:6px;font-variant-numeric:tabular-nums}
+.now b{font-weight:700}
+
+/* Ruta de datos */
+.dpbox{overflow-x:auto;border:1px solid var(--line);border-radius:5px;background:var(--sunk)}
+.dpsvg{display:block;width:100%;min-width:760px;height:auto}
+.dpsvg .w{fill:none;stroke:var(--muted);stroke-width:1.6;stroke-linejoin:round;stroke-linecap:round;transition:stroke .2s,opacity .2s}
+.dpsvg .w.ctl{stroke-dasharray:4 3}
+.dpsvg .w.off{stroke:var(--line-strong);opacity:.35}
+.dpsvg .w.used{stroke:var(--muted);opacity:.9}
+.dpsvg .w.crit{stroke:color-mix(in srgb,var(--accent) 35%,var(--sunk));stroke-width:2.6}
+.dpsvg .w.crit.lit{stroke:var(--accent);stroke-width:3.4}
+.dpsvg .w.crit.flow{stroke-dasharray:9 6;animation:flow .55s linear infinite}
+@keyframes flow{to{stroke-dashoffset:-15}}
+.dpsvg .blk rect,.dpsvg .blk polygon{fill:var(--panel);stroke:var(--line-strong);stroke-width:1.4;transition:fill .2s,stroke .2s}
+.dpsvg .blk text{fill:var(--ink);font:600 12.5px var(--f-display);text-anchor:middle;letter-spacing:.02em}
+.dpsvg .blk .pt{fill:var(--muted);font:500 9px var(--f-mono);letter-spacing:0}
+.dpsvg .blk .pt.e{text-anchor:end} .dpsvg .blk .pt.s{text-anchor:start}
+.dpsvg .blk.off{opacity:.38}
+.dpsvg .blk.used rect,.dpsvg .blk.used polygon{stroke:var(--muted)}
+.dpsvg .blk.crit rect,.dpsvg .blk.crit polygon{stroke:color-mix(in srgb,var(--accent) 50%,var(--sunk));stroke-width:2}
+.dpsvg .blk.crit.lit rect,.dpsvg .blk.crit.lit polygon{fill:color-mix(in srgb,var(--accent) 13%,var(--panel));stroke:var(--accent);stroke-width:2.4}
+.dpsvg .blk.crit.act rect,.dpsvg .blk.crit.act polygon{fill:color-mix(in srgb,var(--accent) 32%,var(--panel));stroke:var(--accent);stroke-width:3}
+.dpsvg .blk.crit.act{animation:pulse .9s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.72}}
+.dpsvg .wl{fill:var(--muted);font:500 9.5px var(--f-mono)}
+.dpsvg .cl{fill:var(--muted);font:600 10px var(--f-display);letter-spacing:.06em;text-transform:uppercase;text-anchor:middle}
+.dpsvg .tm{fill:var(--accent);font:600 10px var(--f-mono);text-anchor:middle;paint-order:stroke;stroke:var(--sunk);stroke-width:3px;transition:opacity .2s}
+.dpsvg .tm.hid{opacity:0}
+.dpsvg.idle .w.crit{stroke:var(--muted);stroke-width:1.6;opacity:.9}
+.dpsvg.idle .blk.crit rect,.dpsvg.idle .blk.crit polygon{stroke:var(--muted);stroke-width:1.4;fill:var(--panel)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:10px;font-size:13px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.legend i{display:inline-block;width:24px;height:0;border-top:3px solid}
+.lg-c{border-color:var(--accent)!important}
+.lg-u{border-color:var(--muted)!important;border-top-width:2px!important}
+.lg-o{border-color:var(--line-strong)!important;opacity:.45;border-top-width:2px!important}
+.lg-k{border-top:2px dashed var(--muted)!important}
+
+/* Cronograma */
+.gantt{margin-top:16px}
+.gh{display:flex;justify-content:space-between;align-items:baseline;gap:6px 14px;flex-wrap:wrap;margin-bottom:6px}
+.gplot{position:relative;margin:0 4px}
+.gaxis{position:relative;height:20px;border-bottom:1px solid var(--line)}
+.tick{position:absolute;top:0;height:100%;border-left:1px solid var(--line);font:10px/19px var(--f-mono);color:var(--muted);padding-left:3px;white-space:nowrap}
+.gtrack{position:relative;height:50px;margin-top:6px;background:var(--sunk);border:1px solid var(--line);border-radius:4px}
+.gs{position:absolute;top:5px;bottom:5px;border-radius:2px;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;line-height:1.1;white-space:nowrap;cursor:default;box-shadow:inset -1px 0 0 var(--sunk);transition:opacity .2s}
+.gs.lg{background:color-mix(in srgb,var(--accent) 26%,var(--panel));color:color-mix(in srgb,var(--accent) 70%,var(--ink))}
+.gs.ov{background:color-mix(in srgb,var(--over) 32%,var(--panel));color:color-mix(in srgb,var(--over) 55%,var(--ink))}
+.gs .p{font:600 11px var(--f-mono)}
+.gs .v{font:500 10px var(--f-mono);opacity:.85}
+.gs.pend{opacity:.3}
+.gs.act{outline:2px solid var(--accent);outline-offset:-1px;z-index:2}
+.gslack{position:absolute;top:5px;bottom:5px;border-radius:2px;background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--muted) 22%,var(--panel)) 0 4px,transparent 4px 8px);display:flex;align-items:center;justify-content:center;font:600 10.5px var(--f-mono);color:var(--muted);overflow:hidden;white-space:nowrap}
+.gtc{position:absolute;top:-8px;bottom:-8px;border-left:2px solid var(--ink);z-index:3;pointer-events:none}
+.gtc span{position:absolute;bottom:100%;left:-1px;transform:translateX(-50%);font:600 10.5px var(--f-mono);white-space:nowrap;background:var(--panel);padding:0 4px;color:var(--ink)}
+.gcur{position:absolute;top:-6px;bottom:-6px;width:2px;margin-left:-1px;background:var(--accent);z-index:4;pointer-events:none}
+.gcur::before{content:"";position:absolute;top:-1px;left:-5px;border:6px solid transparent;border-top-color:var(--accent)}
+.gkey{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:10px;font-size:12.5px;color:var(--muted)}
+.gkey span{display:inline-flex;align-items:center;gap:6px}
+.gkey i{display:inline-block;width:18px;height:10px;border-radius:2px}
+.k-lg{background:color-mix(in srgb,var(--accent) 30%,var(--panel))}
+.k-ov{background:color-mix(in srgb,var(--over) 36%,var(--panel))}
+.k-sl{background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--muted) 30%,var(--panel)) 0 3px,var(--panel) 3px 6px);border:1px solid var(--line)}
+.k-tc{width:2px!important;height:14px!important;background:var(--ink)}
+.formula{margin-top:12px;padding:10px 12px;border-radius:5px;background:var(--sunk);border:1px solid var(--line);font:13px/1.7 var(--f-mono);overflow-x:auto}
+.formula .r{white-space:nowrap}
+.formula .res{color:var(--accent);font-weight:600}
+
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,380px);gap:16px;align-items:start}
+@media (max-width:1050px){.two{grid-template-columns:minmax(0,1fr)}}
+
+/* Paso a paso */
+ol.steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;counter-reset:st}
+ol.steps li{counter-increment:st;display:grid;grid-template-columns:28px 112px minmax(0,1fr);gap:4px 12px;padding:8px 6px;border-top:1px solid var(--line);align-items:baseline;border-radius:4px;transition:background .15s}
+ol.steps li:first-child{border-top:0}
+ol.steps li::before{content:counter(st);font:700 13px var(--f-display);color:var(--muted);text-align:center;width:22px;height:22px;line-height:22px;border-radius:50%;border:1px solid var(--line-strong);align-self:start}
+ol.steps .tt{font:600 12px var(--f-mono);color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+ol.steps .tt b{display:block;color:var(--ink);font-weight:600}
+ol.steps .nm{font-weight:700}
+ol.steps .nm .pp{font:500 12px var(--f-mono);color:var(--muted);margin-left:6px}
+ol.steps .ds{font-size:14px;color:var(--muted);margin-top:2px}
+ol.steps li.ov .nm{color:color-mix(in srgb,var(--over) 70%,var(--ink))}
+ol.steps li.done::before{background:color-mix(in srgb,var(--accent) 15%,var(--panel));border-color:var(--accent);color:var(--accent)}
+ol.steps li.act{background:color-mix(in srgb,var(--accent) 9%,var(--panel))}
+ol.steps li.act::before{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+@media (max-width:560px){ol.steps li{grid-template-columns:28px minmax(0,1fr)} ol.steps .tt{grid-column:2}}
+.par{margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
+.par ul{margin:6px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:5px;font-size:14px;color:var(--muted)}
+.par ul b{color:var(--ink);font-weight:600}
+
+/* Retardos */
+.dl{display:flex;flex-direction:column;gap:6px}
+.dr{display:grid;grid-template-columns:minmax(0,1fr) 72px 86px;gap:8px;align-items:center;font-size:14px}
+.dr .p{font:12.5px var(--f-mono);color:var(--muted)}
+.dr input{width:100%;padding:4px 6px;border:1px solid var(--line-strong);border-radius:4px;background:var(--sunk);font:600 13px var(--f-mono);text-align:right;font-variant-numeric:tabular-nums}
+.dr input.chg{border-color:var(--over);background:color-mix(in srgb,var(--over) 10%,var(--panel))}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.exps{display:flex;flex-direction:column;gap:6px;margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+.exps .btn{justify-content:flex-start;white-space:normal;text-align:left}
+.expnote{font-size:13.5px;color:var(--muted);margin-top:4px}
+.expnote b{color:var(--ink)}
+
+/* Comparación */
+.cmp{display:flex;flex-direction:column;gap:4px}
+.cr{display:grid;grid-template-columns:190px minmax(0,1fr) 190px;gap:12px;align-items:center;padding:6px 8px;border-radius:5px;border:1px solid transparent;cursor:pointer;background:none;text-align:left;width:100%}
+.cr:hover{border-color:var(--line)}
+.cr.sel{background:color-mix(in srgb,var(--accent) 7%,var(--panel));border-color:color-mix(in srgb,var(--accent) 40%,var(--line))}
+.cr .n{display:flex;flex-direction:column;min-width:0}
+.cr .n b{font:700 16px var(--f-display);letter-spacing:.02em}
+.cr .n code{color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cr .tr{position:relative;height:22px;background:var(--sunk);border:1px solid var(--line);border-radius:3px}
+.cr .tr .s{position:absolute;top:0;bottom:0;box-shadow:inset -1px 0 0 var(--sunk)}
+.cr .tr .s.lg{background:color-mix(in srgb,var(--accent) 34%,var(--panel))}
+.cr .tr .s.ov{background:color-mix(in srgb,var(--over) 40%,var(--panel))}
+.cr .tr .sl{position:absolute;top:0;bottom:0;background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--muted) 24%,var(--panel)) 0 3px,transparent 3px 6px)}
+.cr .tr .tc{position:absolute;top:-4px;bottom:-4px;border-left:2px solid var(--ink)}
+.cr .v{font:600 13px var(--f-mono);font-variant-numeric:tabular-nums;display:flex;flex-direction:column;gap:1px}
+.cr .v small{font:500 12px var(--f-body);color:var(--muted)}
+.cr .v .pill{align-self:flex-start;margin-top:2px}
+@media (max-width:720px){.cr{grid-template-columns:minmax(0,1fr)} }
+.insight{margin-top:14px;padding:11px 14px;border-radius:5px;background:var(--sunk);border:1px solid var(--line);border-left:4px solid var(--accent);font-size:14.5px;line-height:1.55;max-width:115ch}
+.insight p+p{margin-top:6px}
+.insight b{font-weight:700}
+
+/* Ejercicio */
+.ex{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,420px);gap:16px 28px;align-items:start}
+@media (max-width:900px){.ex{grid-template-columns:minmax(0,1fr)}}
+.exq{font-size:15px}
+.exq .asm{font:600 15px var(--f-mono);color:var(--accent)}
+.chipsd{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:10px}
+@media (max-width:560px){.chipsd{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.cd{border:1px solid var(--line);border-radius:4px;padding:6px 8px;background:var(--sunk);min-width:0}
+.cd span{display:block;font:500 11px var(--f-mono);color:var(--muted)}
+.cd b{font:600 15px var(--f-mono);font-variant-numeric:tabular-nums}
+.cd.chg{border-color:var(--over)}
+.exf{display:flex;flex-direction:column;gap:10px}
+.exf label{display:flex;flex-direction:column;gap:4px;font-size:14px}
+.exf .in{display:flex;gap:8px;align-items:center}
+.exf input{width:130px;padding:6px 8px;border:1px solid var(--line-strong);border-radius:5px;background:var(--sunk);font:600 14px var(--f-mono);text-align:right}
+.exf .u{font:13px var(--f-mono);color:var(--muted)}
+.mark{font:700 12px var(--f-display);letter-spacing:.08em;text-transform:uppercase}
+.mark.ok{color:var(--ok)} .mark.bad{color:var(--bad)}
+.fb{margin-top:12px;padding:10px 12px;border-radius:5px;border:1px solid var(--line);background:var(--sunk);font-size:14px}
+.fb:empty{display:none}
+.fb .formula{margin-top:8px;background:var(--panel)}
+
+footer.wrap{padding-block:0 40px;color:var(--muted);font-size:13px}
+footer p{max-width:115ch}
+footer p+p{margin-top:6px}
+@media (prefers-reduced-motion: reduce){.dpsvg .w.crit.flow,.dpsvg .blk.crit.act{animation:none} .dpsvg *{transition:none!important}}
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <div class="intro">
+      <p class="eyebrow">Arquitectura de Computadores · Grado en Ingeniería Informática · UAL</p>
+      <h1>Camino crítico del monociclo</h1>
+      <p class="lede">En el procesador ARM monociclo del capítulo 7 de Harris y Harris, <i>Digital Design and Computer Architecture: ARM Edition</i>, todas las instrucciones duran un ciclo, pero no todas necesitan lo mismo. Elige una instrucción, pulsa reproducir y sigue la señal por la ruta de datos hasta que se estabiliza antes del siguiente flanco.</p>
+    </div>
+    <figure class="hstat" aria-live="polite">
+      <figcaption><span>Periodo de reloj</span><span class="pill ok" id="hpill">Tabla 7.5</span></figcaption>
+      <div class="big"><span id="htc">840</span> <small>ps</small></div>
+      <div class="side"><span><b id="hf">1,19 GHz</b></span><span>Lo fija <b id="hcrit">LDR</b></span></div>
+    </figure>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section class="panel" aria-labelledby="h-dp">
+    <div class="ph">
+      <h2 id="h-dp">La señal recorre la ruta de datos</h2>
+      <p class="sub">Todo arranca en el flanco de subida del PC y debe estar estable antes del siguiente</p>
+    </div>
+
+    <div class="pick">
+      <div class="seg" role="radiogroup" aria-label="Instrucción" id="tabs"></div>
+      <div class="insinfo"><span class="asm" id="iasm"></span><span class="kind" id="ikind"></span></div>
+    </div>
+
+    <div class="transport">
+      <div class="clock"><span id="tnow">t = 0 ps</span><small id="tof">de 840 ps</small></div>
+      <button class="btn" id="b-reset" type="button" title="Volver al flanco de subida, t = 0 (tecla R)"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 2h2v12H3zM14 2v12L6 8z"/></svg>Reiniciar</button>
+      <button class="btn primary" id="b-play" type="button" title="Reproducir o pausar (espacio)"><svg viewBox="0 0 16 16" id="playico" aria-hidden="true"><path d="M4 2v12l10-6z"/></svg><span id="playtxt">Reproducir</span></button>
+      <button class="btn" id="b-step" type="button" title="Saltar al siguiente elemento del camino">Siguiente paso</button>
+      <input type="range" id="scrub" min="0" max="840" step="1" value="840" aria-label="Instante dentro del ciclo, en picosegundos">
+      <div class="opts"><span class="lab">Velocidad</span>
+        <div class="seg sm" role="radiogroup" aria-label="Velocidad">
+          <input type="radio" name="spd" id="spd1" value="60"><label for="spd1">Lenta</label>
+          <input type="radio" name="spd" id="spd2" value="150" checked><label for="spd2">Normal</label>
+          <input type="radio" name="spd" id="spd3" value="420"><label for="spd3">Rápida</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="now" id="now"></div>
+
+    <div class="dpbox">
+      <svg class="dpsvg" viewBox="0 0 900 448" role="img" aria-labelledby="dpt">
+        <title id="dpt">Ruta de datos del procesador ARM monociclo con el camino crítico de la instrucción elegida resaltado</title>
+        <g id="wires">
+          <path class="w" data-w="w_pcmux_pc" d="M44 235H66"/>
+          <path class="w" data-w="w_pc_im" d="M100 235H130"/>
+          <path class="w" data-w="w_pc_add" d="M112 235V338H120"/>
+          <path class="w" data-w="w_add_pcmux" d="M158 350H172V400H18V215H28"/>
+          <path class="w" data-w="w_add_add8" d="M172 350H190"/>
+          <path class="w" data-w="w_add8_r15" d="M228 350H246V412H470V300"/>
+          <path class="w" data-w="w_im_cu" d="M240 235H262V63H300"/>
+          <path class="w" data-w="w_im_ra1" d="M240 235H262V162H300"/>
+          <path class="w" data-w="w_15" d="M284 184H300"/>
+          <path class="w" data-w="w_im_ra2a" d="M240 235H262V222H300"/>
+          <path class="w" data-w="w_im_ra2b" d="M240 235H262V244H300"/>
+          <path class="w" data-w="w_im_a3" d="M240 235H262V270H345"/>
+          <path class="w" data-w="w_im_ext" d="M240 235H262V347H355"/>
+          <path class="w ctl" data-w="w_cu_mux" d="M318 98V138H308V150M308 196V210"/>
+          <path class="w ctl" data-w="c_pcsrc" d="M300 40H36V203"/>
+          <path class="w ctl" data-w="c_memtoreg" d="M470 34H838V204"/>
+          <path class="w ctl" data-w="c_memwrite" d="M470 46H760V170"/>
+          <path class="w ctl" data-w="c_aluctl" d="M470 58H572V157"/>
+          <path class="w ctl" data-w="c_alusrc" d="M470 70H523V236"/>
+          <path class="w ctl" data-w="c_immsrc" d="M338 98V316H372V330"/>
+          <path class="w ctl" data-w="c_regwrite" d="M450 98V150"/>
+          <path class="w" data-w="w_ra1_rf" d="M316 173H345"/>
+          <path class="w" data-w="w_ra2_rf" d="M316 233H345"/>
+          <path class="w" data-w="w_ext_src" d="M445 347H502V264H515"/>
+          <path class="w" data-w="w_rd1_alu" d="M485 180H560"/>
+          <path class="w" data-w="w_rd2_src" d="M485 245H515"/>
+          <path class="w" data-w="w_rd2_wd" d="M495 245V320H652V262H670"/>
+          <path class="w" data-w="w_src_alu" d="M531 255H545V262H560"/>
+          <path class="w" data-w="w_alu_flags" d="M605 176V84H458"/>
+          <path class="w" data-w="w_alu_dm" d="M620 220H670"/>
+          <path class="w" data-w="w_alu_res" d="M640 220V304H815V250H830"/>
+          <path class="w" data-w="w_dm_res" d="M790 220H830"/>
+          <path class="w" data-w="w_res_rf" d="M846 235H880V432H325V288H347"/>
+          <path class="w" data-w="w_res_pc" d="M880 432H8V255H28"/>
+        </g>
+        <g id="blocks">
+          <g class="blk" data-el="PCMUX"><polygon points="28,198 44,208 44,262 28,272"/><text class="pt" x="36" y="218">0</text><text class="pt" x="36" y="258">1</text></g>
+          <g class="blk" data-el="PC"><rect x="66" y="210" width="34" height="50" rx="3"/><text x="83" y="239">PC</text></g>
+          <g class="blk" data-el="ADD4"><rect x="120" y="326" width="38" height="48" rx="4"/><text x="139" y="355">+</text></g>
+          <g class="blk" data-el="ADD8"><rect x="190" y="326" width="38" height="48" rx="4"/><text x="209" y="355">+</text></g>
+          <g class="blk" data-el="IM"><rect x="130" y="180" width="110" height="110" rx="3"/><text x="185" y="230">Memoria de</text><text x="185" y="246">instrucciones</text><text class="pt s" x="135" y="232">A</text><text class="pt e" x="235" y="232">RD</text></g>
+          <g class="blk" data-el="CU"><rect x="300" y="28" width="170" height="70" rx="6"/><text x="352" y="60">Unidad de</text><text x="352" y="75">control</text></g>
+          <g class="blk" data-el="FLAGS"><rect x="408" y="50" width="50" height="40" rx="3"/><text x="433" y="74">Flags</text></g>
+          <g class="blk" data-el="RAM1"><polygon points="300,150 316,158 316,188 300,196"/><text class="pt" x="308" y="165">0</text><text class="pt" x="308" y="187">1</text></g>
+          <g class="blk" data-el="RAM2"><polygon points="300,210 316,218 316,248 300,256"/><text class="pt" x="308" y="225">0</text><text class="pt" x="308" y="247">1</text></g>
+          <g class="blk" data-el="RF"><rect x="345" y="150" width="140" height="150" rx="3"/><text x="420" y="222">Banco de</text><text x="420" y="238">registros</text><text class="pt s" x="350" y="176">A1</text><text class="pt s" x="350" y="236">A2</text><text class="pt s" x="350" y="273">A3</text><text class="pt e" x="480" y="183">RD1</text><text class="pt e" x="480" y="248">RD2</text><text class="pt" x="470" y="294">R15</text><text class="pt" x="450" y="162">WE3</text></g>
+          <g class="blk" data-el="RFW"><rect x="347" y="280" width="34" height="16" rx="2"/><text class="pt" x="364" y="291">WD3</text></g>
+          <g class="blk" data-el="EXT"><rect x="355" y="330" width="90" height="34" rx="3"/><text x="400" y="351">Extend</text></g>
+          <g class="blk" data-el="SRCMUX"><polygon points="515,232 531,240 531,270 515,278"/><text class="pt" x="523" y="248">0</text><text class="pt" x="523" y="268">1</text></g>
+          <g class="blk" data-el="ALU"><polygon points="560,150 620,184 620,256 560,290 560,232 574,220 560,208"/><text x="598" y="224">ALU</text></g>
+          <g class="blk" data-el="DM"><rect x="670" y="170" width="120" height="120" rx="3"/><text x="730" y="226">Memoria</text><text x="730" y="242">de datos</text><text class="pt s" x="675" y="224">A</text><text class="pt s" x="675" y="266">WD</text><text class="pt e" x="785" y="224">RD</text><text class="pt" x="760" y="182">WE</text></g>
+          <g class="blk" data-el="RESMUX"><polygon points="830,200 846,208 846,262 830,270"/><text class="pt" x="838" y="224">1</text><text class="pt" x="838" y="254">0</text></g>
+        </g>
+        <g id="labels" aria-hidden="true">
+          <text class="cl" x="62" y="35">PCSrc</text>
+          <text class="cl" x="500" y="31">MemtoReg</text>
+          <text class="cl" x="500" y="43">MemWrite</text>
+          <text class="cl" x="502" y="55">ALUControl</text>
+          <text class="cl" x="494" y="67">ALUSrc</text>
+          <text class="cl" x="296" y="124">RegSrc</text>
+          <text class="cl" x="414" y="325">ImmSrc</text>
+          <text class="cl" x="428" y="128">RegWrite</text>
+          <text class="wl" x="244" y="228">Instr</text>
+          <text class="wl" x="267" y="158">19:16</text>
+          <text class="wl" x="280" y="188" text-anchor="end">15</text>
+          <text class="wl" x="267" y="219">3:0</text>
+          <text class="wl" x="267" y="241">15:12</text>
+          <text class="wl" x="296" y="267">15:12</text>
+          <text class="wl" x="296" y="343">23:0</text>
+          <text class="wl" x="268" y="58">31:12</text>
+          <text class="wl" x="102" y="366" text-anchor="end">4</text>
+          <path class="w used" d="M104 362H120"/>
+          <path class="w used" d="M209 392V374"/>
+          <text class="wl" x="209" y="404" text-anchor="middle">4</text>
+          <text class="wl" x="176" y="345">PC+4</text>
+          <text class="wl" x="300" y="407">PC+8</text>
+          <text class="wl" x="450" y="342">ExtImm</text>
+          <text class="wl" x="490" y="176">SrcA</text>
+          <text class="wl" x="536" y="286">SrcB</text>
+          <text class="wl" x="555" y="316">WriteData</text>
+          <text class="wl" x="624" y="213">ALUResult</text>
+          <text class="wl" x="610" y="132">ALUFlags</text>
+          <text class="wl" x="793" y="213">ReadData</text>
+          <text class="wl" x="872" y="425" text-anchor="end">Result</text>
+        </g>
+        <g id="times" aria-hidden="true"></g>
+      </svg>
+    </div>
+    <div class="legend">
+      <span><i class="lg-c"></i>Camino crítico</span>
+      <span><i class="lg-u"></i>Usado, pero termina antes</span>
+      <span><i class="lg-o"></i>No lo usa esta instrucción</span>
+      <span><i class="lg-k"></i>Señal de control (discontinua)</span>
+    </div>
+
+    <div class="gantt">
+      <div class="gh"><h3>Cronograma del camino crítico</h3><span class="sub" style="color:var(--muted);font-size:13.5px">Escala en picosegundos. Pasa el ratón por un tramo para ver su retardo.</span></div>
+      <div class="gplot" id="gplot"></div>
+      <div class="gkey">
+        <span><i class="k-lg"></i>Lógica y memorias</span>
+        <span><i class="k-ov"></i>Registros: t<sub>pcq</sub>, t<sub>setup</sub>, t<sub>RFsetup</sub></span>
+        <span><i class="k-sl"></i>Holgura: el ciclo sigue, pero esta instrucción ya terminó</span>
+        <span><i class="k-tc"></i>Periodo de reloj T<sub>c</sub></span>
+      </div>
+      <div class="formula" id="formula"></div>
+    </div>
+  </section>
+
+  <div class="two">
+    <section class="panel" aria-labelledby="h-steps">
+      <div class="ph"><h2 id="h-steps">Paso a paso</h2><span class="sub" id="stepsub"></span></div>
+      <ol class="steps" id="steps"></ol>
+      <div class="par">
+        <span class="lab">Lo que va en paralelo y no suma</span>
+        <ul id="par"></ul>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="h-del">
+      <div class="ph"><h2 id="h-del">Retardos</h2><span class="pill ok" id="dpill">Tabla 7.5</span></div>
+      <div class="dl" id="dl"></div>
+      <div class="row"><button class="btn" id="b-book" type="button">Volver a los valores del libro</button></div>
+      <div class="exps">
+        <span class="lab">Experimentos</span>
+        <button class="btn" type="button" data-exp="alu">ALU lenta: t<sub>ALU</sub> = 300 ps</button>
+        <button class="btn" type="button" data-exp="mem">Memoria el doble de rápida: t<sub>mem</sub> = 100 ps</button>
+        <button class="btn" type="button" data-exp="tiny">Memorias casi ideales: t<sub>mem</sub> = 20 ps</button>
+        <button class="btn" type="button" data-exp="ideal">Registros ideales: t<sub>pcq</sub> = t<sub>setup</sub> = t<sub>RFsetup</sub> = 0</button>
+        <p class="expnote" id="expnote"></p>
+      </div>
+    </section>
+  </div>
+
+  <section class="panel" aria-labelledby="h-cmp">
+    <div class="ph">
+      <h2 id="h-cmp">Todas las instrucciones frente al reloj</h2>
+      <p class="sub">Mismo eje para todas. Pulsa una fila para verla en la ruta de datos.</p>
+    </div>
+    <div class="cmp" id="cmp"></div>
+    <div class="insight" id="insight"></div>
+  </section>
+
+  <section class="panel" aria-labelledby="h-ex">
+    <div class="ph">
+      <h2 id="h-ex">Calcula tú</h2>
+      <p class="sub">Retardos aleatorios. Resuélvelo en papel y comprueba.</p>
+    </div>
+    <div class="ex">
+      <div>
+        <p class="exq" id="exq"></p>
+        <div class="chipsd" id="exd"></div>
+      </div>
+      <form class="exf" id="exf" autocomplete="off">
+        <label for="ex-path"><span>Retardo del camino crítico de esta instrucción</span>
+          <span class="in"><input type="number" id="ex-path" inputmode="numeric" min="0" step="1"><span class="u">ps</span><span class="mark" id="m-path"></span></span>
+        </label>
+        <label for="ex-tc"><span>Periodo de reloj T<sub>c</sub> del procesador con estos retardos</span>
+          <span class="in"><input type="number" id="ex-tc" inputmode="numeric" min="0" step="1"><span class="u">ps</span><span class="mark" id="m-tc"></span></span>
+        </label>
+        <div class="row" style="margin-top:2px">
+          <button class="btn primary" type="submit">Comprobar</button>
+          <button class="btn" type="button" id="ex-sol">Ver la solución</button>
+          <button class="btn" type="button" id="ex-new">Otro ejercicio</button>
+        </div>
+      </form>
+    </div>
+    <div class="fb" id="exfb" aria-live="polite"></div>
+  </section>
+</main>
+
+<footer class="wrap">
+  <p>Modelo: ruta de datos y señales de control de la figura 7.13, con los caminos de la sección 7.3.4. El libro solo desarrolla el camino crítico de LDR (ecuaciones 7.2 y 7.3, Ejemplo 7.4: 840 ps). Los demás caminos siguen el mismo razonamiento con los retardos de la Tabla 7.5.</p>
+  <p>Supuestos, los mismos del libro: t<sub>ext</sub> + t<sub>mux</sub> ≤ t<sub>mux</sub> + t<sub>RFread</sub>, de modo que la rama del inmediato nunca es crítica (la Tabla 7.5 no da t<sub>ext</sub>); los sumadores PC + 4 y PC + 8 son más rápidos que la memoria de instrucciones; la escritura en la memoria de datos necesita como mucho t<sub>mem</sub>, por lo que el valor de STR es una cota superior. CMP corresponde a la ampliación del Ejemplo 7.2. Las señales de control que la Tabla 7.2 marca con X para una instrucción aparecen apagadas.</p>
+</footer>
+
+<script>
+(function(){
+"use strict";
+const $=s=>document.querySelector(s);
+const fmt=(v,d=0)=>Number(v).toLocaleString('es-ES',{minimumFractionDigits:d,maximumFractionDigits:d});
+
+/* ---------- Retardos (Tabla 7.5) ---------- */
+const BOOK={tpcq:40,tsetup:50,tmux:25,tALU:120,tdec:70,tmem:200,tRFread:100,tRFsetup:60};
+const DMETA=[['tpcq','Registro, clk-to-Q'],['tsetup','Registro, setup'],['tmux','Multiplexor'],['tALU','ALU'],['tdec','Decodificador'],['tmem','Lectura de memoria'],['tRFread','Lectura del banco de registros'],['tRFsetup','Setup del banco de registros']];
+const PN={tpcq:'t<sub>pcq</sub>',tsetup:'t<sub>setup</sub>',tmux:'t<sub>mux</sub>',tALU:'t<sub>ALU</sub>',tdec:'t<sub>dec</sub>',tmem:'t<sub>mem</sub>',tRFread:'t<sub>RFread</sub>',tRFsetup:'t<sub>RFsetup</sub>'};
+const PS={tpcq:'pcq',tsetup:'setup',tmux:'mux',tALU:'ALU',tdec:'dec',tmem:'mem',tRFread:'RFread',tRFsetup:'RFsetup'};
+const OVER=new Set(['tpcq','tsetup','tRFsetup']);
+let D={...BOOK};
+
+/* ---------- Instrucciones y sus caminos ---------- */
+const S=(k,p,el,w)=>({k,p,el,w:w||[]});
+const PRE=[S('pcq','tpcq','PC'),S('im','tmem','IM',['w_pc_im']),S('dec','tdec','CU',['w_im_cu'])];
+const RA1=S('ra1','tmux','RAM1',['w_cu_mux','w_im_ra1']), RF1=S('rf','tRFread','RF',['w_ra1_rf']);
+const RA2=S('ra2','tmux','RAM2',['w_cu_mux','w_im_ra2a']), RF2=S('rf','tRFread','RF',['w_ra2_rf']);
+const ALU1=S('alu','tALU','ALU',['w_rd1_alu']), ALU2=S('alu','tALU','ALU',['w_src_alu']);
+const SRC=S('src','tmux','SRCMUX',['w_rd2_src']);
+const RESA=S('res','tmux','RESMUX',['w_alu_res']);
+const RFW=S('rfw','tRFsetup','RFW',['w_res_rf']);
+const PCN=['ADD4','PCMUX','FLAGS','w_pc_add','w_add_pcmux','w_pcmux_pc'];
+const IMM=['EXT','SRCMUX','w_im_ext','w_ext_src','w_src_alu'];
+const INS={
+  LDR:{tab:'LDR',name:'LDR',asm:'LDR R1, [R2, #8]',kind:'Carga: Rd ← Mem[Rn + desplazamiento]',
+    segs:[...PRE,RA1,RF1,ALU1,S('dm','tmem','DM',['w_alu_dm']),S('res','tmux','RESMUX',['w_dm_res']),RFW],
+    used:[...IMM,'w_im_a3',...PCN]},
+  STR:{tab:'STR',name:'STR',asm:'STR R1, [R2, #8]',kind:'Almacenamiento: Mem[Rn + desplazamiento] ← Rd',
+    segs:[...PRE,RA1,RF1,ALU1,S('dmw','tmem','DM',['w_alu_dm'])],
+    used:[...IMM,'RAM2','w_im_ra2b','w_ra2_rf','w_rd2_wd',...PCN]},
+  DPR:{tab:'Datos · registro',name:'Proc. datos, registro',asm:'ADD R1, R2, R3',kind:'ADD, SUB, AND u ORR con el segundo operando en un registro',
+    segs:[...PRE,RA2,RF2,SRC,ALU2,RESA,RFW],
+    used:['RAM1','w_im_ra1','w_ra1_rf','w_rd1_alu','w_im_a3',...PCN]},
+  DPI:{tab:'Datos · inmediato',name:'Proc. datos, inmediato',asm:'ADD R1, R2, #5',kind:'ADD, SUB, AND u ORR con un inmediato',
+    segs:[...PRE,RA1,RF1,ALU1,RESA,RFW],
+    used:[...IMM,'w_im_a3',...PCN]},
+  B:{tab:'B',name:'B',asm:'B destino',kind:'Salto: PC ← (PC + 8) + desplazamiento',
+    segs:[...PRE,S('ra1','tmux','RAM1',['w_cu_mux','w_15']),RF1,ALU1,RESA,S('pcm','tmux','PCMUX',['w_res_pc']),S('pcs','tsetup','PC',['w_pcmux_pc'])],
+    used:[...IMM,'ADD4','ADD8','FLAGS','w_pc_add','w_add_add8','w_add8_r15']},
+  CMP:{tab:'CMP',name:'CMP',asm:'CMP R2, R3',kind:'Compara: solo actualiza los flags NZCV (ampliación del Ejemplo 7.2)',
+    segs:[...PRE,RA2,RF2,SRC,ALU2,S('flg','tsetup','FLAGS',['w_alu_flags'])],
+    used:['RAM1','w_im_ra1','w_ra1_rf','w_rd1_alu','ADD4','PCMUX','w_pc_add','w_add_pcmux','w_pcmux_pc']}
+};
+const ORDER=['LDR','STR','DPR','DPI','B','CMP'];
+const CTL={LDR:['c_pcsrc','c_memtoreg','c_memwrite','c_aluctl','c_alusrc','c_immsrc','c_regwrite'],
+  STR:['c_pcsrc','c_memwrite','c_aluctl','c_alusrc','c_immsrc','c_regwrite'],
+  DPR:['c_pcsrc','c_memtoreg','c_memwrite','c_aluctl','c_alusrc','c_regwrite'],
+  DPI:['c_pcsrc','c_memtoreg','c_memwrite','c_aluctl','c_alusrc','c_immsrc','c_regwrite'],
+  B:['c_pcsrc','c_memtoreg','c_memwrite','c_aluctl','c_alusrc','c_immsrc','c_regwrite'],
+  CMP:['c_pcsrc','c_memtoreg','c_memwrite','c_aluctl','c_alusrc','c_regwrite']};
+ORDER.forEach(k=>INS[k].used.push(...CTL[k]));
+const SEGNAME={pcq:'Registro PC',im:'Memoria de instrucciones',dec:'Decodificador principal',ra1:'Multiplexor RA1',ra2:'Multiplexor RA2',rf:'Banco de registros (lectura)',src:'Multiplexor ALUSrc',alu:'ALU',dm:'Memoria de datos (lectura)',dmw:'Memoria de datos (escritura)',res:'Multiplexor MemtoReg',rfw:'Banco de registros (setup)',pcm:'Multiplexor PCSrc',pcs:'Registro PC (setup)',flg:'Registro de flags (setup)'};
+
+function desc(ik,k){
+  switch(k){
+    case 'pcq': return 'Flanco de subida: el registro PC presenta la dirección de la nueva instrucción.';
+    case 'im': return 'La memoria de instrucciones lee la instrucción guardada en esa dirección.';
+    case 'dec': return 'El decodificador principal genera RegSrc. Hasta que llega, el multiplexor no sabe qué registro elegir.';
+    case 'ra1': return ik==='B'?'RegSrc0 = 1: elige 15 como RA1, porque el salto parte de R15 (PC + 8).':'RegSrc0 = 0: elige Instr<sub>19:16</sub> (Rn) como RA1.';
+    case 'ra2': return 'RegSrc1 = 0: elige Instr<sub>3:0</sub> (Rm) como RA2.';
+    case 'rf': return (ik==='DPR'||ik==='CMP')?'Lee Rm, que sale por RD2.':ik==='B'?'Entrega R15 = PC + 8 por RD1 como SrcA.':'Lee Rn, que sale por RD1 como SrcA.';
+    case 'src': return 'ALUSrc = 0: deja pasar RD2 como SrcB. Es el tramo que alarga este camino frente a la versión con inmediato.';
+    case 'alu': return {LDR:'Suma Rn + desplazamiento: la dirección efectiva.',STR:'Suma Rn + desplazamiento: la dirección efectiva.',DPR:'Opera Rn y Rm (suma, resta, AND u ORR).',DPI:'Opera Rn y el inmediato extendido.',B:'Suma PC + 8 y el desplazamiento: la dirección de destino.',CMP:'Resta Rn − Rm y genera los flags NZCV.'}[ik];
+    case 'dm': return 'Lee la palabra de esa dirección (ReadData). Es el segundo acceso a memoria del ciclo.';
+    case 'dmw': return 'Escribe Rd en esa dirección. Se supone que necesita como mucho t<sub>mem</sub>.';
+    case 'res': return ik==='LDR'?'MemtoReg = 1: elige ReadData como Result.':ik==='B'?'MemtoReg = 0: la dirección de destino sale de la ALU como Result.':'MemtoReg = 0: elige ALUResult como Result.';
+    case 'rfw': return 'Result debe estar estable en WD3 t<sub>RFsetup</sub> antes del flanco para escribirse en Rd.';
+    case 'pcm': return 'PCSrc = 1: elige Result como PC′.';
+    case 'pcs': return 'PC′ debe estar estable t<sub>setup</sub> antes del flanco para cargarse en el PC.';
+    case 'flg': return 'Los flags deben estar estables t<sub>setup</sub> antes del flanco. CMP no escribe en el banco de registros.';
+  }
+  return '';
+}
+function parallel(ik,d){
+  const A=d.tpcq+d.tmem+d.tdec+d.tmux+d.tRFread, Bi=d.tpcq+d.tmem+d.tdec+d.tmux, out=[];
+  if(ik==='DPR'||ik==='CMP'){
+    out.push(`<b>SrcA (Rn)</b> llega a la ALU a los ${fmt(A)} ps. <b>SrcB (Rm)</b> llega a los ${fmt(A+d.tmux)} ps porque además cruza el multiplexor ALUSrc, así que el camino crítico sigue a Rm.`);
+  } else {
+    out.push(`<b>El inmediato</b> pasa por Extend y el multiplexor ALUSrc y está listo hacia los ${fmt(Bi)} ps, ${fmt(A-Bi)} ps antes que SrcA (${fmt(A)} ps).`);
+  }
+  if(ik==='STR') out.push(`<b>WriteData</b> (Rd, por RD2) está listo a los ${fmt(A)} ps, mucho antes de que la memoria termine de escribir.`);
+  if(ik==='LDR'||ik==='DPR'||ik==='DPI') out.push('<b>A3</b> (Instr<sub>15:12</sub>, el registro destino) llega al banco de registros nada más leer la instrucción.');
+  if(ik==='B') out.push('<b>R15 = PC + 8</b> sale de dos sumadores que trabajan mientras se lee la instrucción.');
+  else out.push('<b>PC + 4</b> se calcula en paralelo y llega al multiplexor PCSrc mucho antes que cualquier otra señal.');
+  out.push(`<b>El resto de señales de control</b> (ImmSrc, ALUSrc, ALUControl, MemWrite, MemtoReg, PCSrc y RegWrite) salen del decodificador a los ${fmt(d.tpcq+d.tmem+d.tdec)} ps, antes de que los datos lleguen a esos bloques. Solo RegSrc está en el camino crítico, porque decide qué registro se lee.`);
+  return out;
+}
+
+function path(ik,d){ let t=0; const segs=INS[ik].segs.map(s=>{const a=t; t+=d[s.p]; return {...s,a,b:t};}); return {segs,end:t}; }
+function allPaths(d){ const r={}; ORDER.forEach(k=>r[k]=path(k,d)); return r; }
+function clockOf(d){ const P=allPaths(d); let best=ORDER[0]; ORDER.forEach(k=>{if(P[k].end>P[best].end) best=k;}); return {P,Tc:P[best].end,crit:best}; }
+
+/* ---------- Estado ---------- */
+let cur='LDR', t=0, playing=false, speed=150, last=0, CL=null, P=null, run=0;
+
+/* ---------- Pestañas ---------- */
+const tabs=$('#tabs');
+tabs.innerHTML=ORDER.map(k=>`<input type="radio" name="ins" id="in-${k}" value="${k}"${k===cur?' checked':''}><label for="in-${k}">${INS[k].tab}</label>`).join('');
+tabs.addEventListener('change',e=>{ if(e.target.name==='ins') select(e.target.value,true); });
+
+/* ---------- Ruta de datos ---------- */
+const svg=document.querySelector('.dpsvg');
+const wiresG=$('#wires');
+const blocks=[...svg.querySelectorAll('#blocks [data-el]')];
+const wires=[...svg.querySelectorAll('#wires [data-w]')];
+function applyStates(){
+  const ins=INS[cur]; const crit=new Set(), used=new Set(ins.used);
+  ins.segs.forEach(s=>{crit.add(s.el); s.w.forEach(w=>crit.add(w));});
+  blocks.forEach(g=>{const id=g.dataset.el; g.classList.remove('crit','used','off','lit','act'); g.classList.add(crit.has(id)?'crit':used.has(id)?'used':'off');});
+  wires.forEach(p=>{const id=p.dataset.w; p.classList.remove('crit','used','off','lit','flow'); p.classList.add(crit.has(id)?'crit':used.has(id)?'used':'off');});
+  wires.filter(p=>p.classList.contains('used')).forEach(p=>wiresG.appendChild(p));
+  wires.filter(p=>p.classList.contains('crit')).forEach(p=>wiresG.appendChild(p));
+}
+/* Marcas de tiempo de llegada junto a cada bloque crítico */
+const ANCH={PC:[83,204],IM:[185,174],CU:[352,22],RAM1:[290,142],RAM2:[292,206],RF:[415,144],SRCMUX:[523,292],ALU:[590,300],DM:[730,164],RESMUX:[838,284],RFW:[364,312],PCMUX:[36,286],FLAGS:[433,46]};
+function renderTimes(){
+  const seen=new Set(); let h='';
+  P[cur].segs.forEach(s=>{
+    let key=s.el; if(s.k==='pcs') key='PCs';
+    if(seen.has(key)) return; seen.add(key);
+    let [x,y]=ANCH[s.el]||[0,0]; if(s.k==='pcs') y=278;
+    h+=`<text class="tm hid" data-b="${s.b}" x="${x}" y="${y}">${fmt(s.b)} ps</text>`;
+  });
+  $('#times').innerHTML=h;
+}
+
+/* ---------- Cronograma ---------- */
+function niceMax(v){ const st=v>1500?200:v>700?100:50; return Math.ceil(v*1.03/st)*st; }
+let scaleMax=900;
+function renderGantt(){
+  const p=P[cur], Tc=CL.Tc; scaleMax=niceMax(Tc);
+  const pct=v=>(v/scaleMax*100).toFixed(3)+'%';
+  const step=scaleMax>1500?200:scaleMax>700?100:50;
+  let ax='';
+  for(let v=0;v<=scaleMax;v+=step) ax+=`<span class="tick" style="left:${pct(v)}">${fmt(v)}</span>`;
+  let tr='';
+  p.segs.forEach((s,i)=>{
+    const w=(s.b-s.a)/scaleMax;
+    const inner=w>0.065?`<span class="p">${PS[s.p]}</span><span class="v">${fmt(s.b-s.a)}</span>`:w>0.03?`<span class="v">${fmt(s.b-s.a)}</span>`:'';
+    tr+=`<div class="gs ${OVER.has(s.p)?'ov':'lg'}" data-i="${i}" style="left:${pct(s.a)};width:${pct(s.b-s.a)}" title="${SEGNAME[s.k]}: ${PS[s.p]} = ${s.b-s.a} ps (de ${s.a} a ${s.b} ps)">${inner}</div>`;
+  });
+  if(Tc>p.end){ const w=(Tc-p.end)/scaleMax; tr+=`<div class="gslack" style="left:${pct(p.end)};width:${pct(Tc-p.end)}">${w>0.09?'sobran '+fmt(Tc-p.end)+' ps':w>0.04?fmt(Tc-p.end):''}</div>`; }
+  tr+=`<div class="gtc" style="left:${pct(Tc)}"><span>T<sub>c</sub> = ${fmt(Tc)} ps</span></div>`;
+  tr+=`<div class="gcur" id="gcur" style="left:0"></div>`;
+  $('#gplot').innerHTML=`<div class="gaxis">${ax}</div><div class="gtrack" id="gtrack">${tr}</div>`;
+  // fórmula
+  const ins=INS[cur];
+  const seq=p.segs.map(s=>PN[s.p]).join(' + ');
+  const nums=p.segs.map(s=>fmt(D[s.p])).join(' + ');
+  const grp=[]; p.segs.forEach(s=>{const g=grp.find(x=>x.p===s.p); if(g) g.n++; else grp.push({p:s.p,n:1});});
+  const gtxt=grp.map(g=>(g.n>1?g.n:'')+PN[g.p]).join(' + ');
+  const sym=cur==='LDR'?'T<sub>c1</sub> (ec. 7.3)':`T<sub>${ins.name.replace(/ /g,'&nbsp;')}</sub>`;
+  $('#formula').innerHTML=`<div class="r">${sym} = ${seq}</div>`+(grp.length<p.segs.length?`<div class="r">${'&nbsp;'.repeat(4)}= ${gtxt}</div>`:'')+`<div class="r">${'&nbsp;'.repeat(4)}= ${nums} = <span class="res">${fmt(p.end)} ps</span></div>`;
+}
+
+/* ---------- Paso a paso ---------- */
+function renderSteps(){
+  const p=P[cur];
+  $('#steps').innerHTML=p.segs.map((s,i)=>`<li data-i="${i}" class="${OVER.has(s.p)?'ov':''}"><span class="tt"><b>${fmt(s.a)} → ${fmt(s.b)} ps</b>${PN[s.p]} = ${fmt(s.b-s.a)}</span><div><span class="nm">${SEGNAME[s.k]}</span><p class="ds">${desc(cur,s.k)}</p></div></li>`).join('');
+  $('#stepsub').textContent=`${INS[cur].asm} · ${p.segs.length} elementos en serie`;
+  $('#par').innerHTML=parallel(cur,D).map(x=>`<li>${x}</li>`).join('');
+}
+
+/* ---------- Tiempo ---------- */
+function setTime(v){
+  const Tc=CL.Tc; t=Math.max(0,Math.min(Tc,v));
+  const p=P[cur];
+  // ruta de datos
+  const lit=new Set(), act=new Set(), wl=new Set(), wf=new Set();
+  const started=t>0||playing;
+  svg.classList.toggle('idle',!started);
+  document.querySelectorAll('#times .tm').forEach(el=>el.classList.toggle('hid',!(started&&t>=+el.dataset.b)));
+  p.segs.forEach(s=>{ if(!started) return; if(t>=s.a){ lit.add(s.el); s.w.forEach(w=>wl.add(w)); }
+    if(t>=s.a&&t<s.b){ act.add(s.el); s.w.forEach(w=>wf.add(w)); } });
+  blocks.forEach(g=>{ if(!g.classList.contains('crit')) return; g.classList.toggle('lit',lit.has(g.dataset.el)); g.classList.toggle('act',act.has(g.dataset.el)); });
+  wires.forEach(w=>{ if(!w.classList.contains('crit')) return; w.classList.toggle('lit',wl.has(w.dataset.w)); w.classList.toggle('flow',wf.has(w.dataset.w)&&playing); });
+  // cronograma
+  const cu=$('#gcur'); if(cu) cu.style.left=(t/scaleMax*100).toFixed(3)+'%';
+  document.querySelectorAll('#gtrack .gs').forEach(el=>{ const s=p.segs[+el.dataset.i]; el.classList.toggle('pend',!started||t<s.a); el.classList.toggle('act',started&&t>=s.a&&t<s.b); });
+  // pasos
+  document.querySelectorAll('#steps li').forEach(li=>{ const s=p.segs[+li.dataset.i]; li.classList.toggle('done',started&&t>=s.b); li.classList.toggle('act',started&&t>=s.a&&t<s.b); });
+  // lectura
+  $('#tnow').textContent=`t = ${fmt(Math.round(t))} ps`;
+  $('#tof').textContent=`de ${fmt(Tc)} ps (T_c)`.replace('T_c','Tc');
+  const sc=$('#scrub'); sc.max=Tc; sc.value=Math.round(t);
+  const a=started?p.segs.find(s=>t>=s.a&&t<s.b):null;
+  let html;
+  if(!started) html=`<span class="when">t = 0 ps</span><b>Preparado para ${INS[cur].asm}.</b> El reloj está a punto de subir. Pulsa reproducir o avanza con «Siguiente paso».`;
+  else if(a) html=`<span class="when">${fmt(a.a)} → ${fmt(a.b)} ps</span><b>${SEGNAME[a.k]}.</b> ${desc(cur,a.k)}`;
+  else if(t>=p.end&&p.end<Tc) html=`<span class="when">${fmt(p.end)} → ${fmt(Tc)} ps</span><b>${INS[cur].name} ya ha terminado.</b> El resultado está estable a los ${fmt(p.end)} ps, pero el reloj no sube hasta los ${fmt(Tc)} ps: se pierden ${fmt(Tc-p.end)} ps (${fmt((Tc-p.end)/Tc*100,0)} % del ciclo).`;
+  else if(t>=p.end) html=`<span class="when">${fmt(p.end)} ps</span><b>${INS[cur].name} es la instrucción más lenta.</b> Su resultado se estabiliza justo a tiempo para el siguiente flanco: ella fija T<sub>c</sub> = ${fmt(Tc)} ps.`;
+  else html='';
+  $('#now').innerHTML=html;
+}
+
+/* ---------- Reproducción ---------- */
+function setPlaying(on){
+  playing=on; run++;
+  $('#playtxt').textContent=on?'Pausa':'Reproducir';
+  $('#playico').innerHTML=on?'<path d="M3 2h4v12H3zM9 2h4v12H9z"/>':'<path d="M4 2v12l10-6z"/>';
+  if(on){ if(t>=CL.Tc) t=0; last=performance.now(); const id=run; requestAnimationFrame(n=>tick(n,id)); }
+  setTime(t);
+}
+function tick(now,id){
+  if(!playing||id!==run) return;
+  const dt=Math.min(0.1,(now-last)/1000); last=now;
+  let nt=t+dt*speed;
+  if(nt>=CL.Tc){ nt=CL.Tc; setTime(nt); setPlaying(false); return; }
+  setTime(nt); requestAnimationFrame(n=>tick(n,id));
+}
+function reset(){ setPlaying(false); setTime(0); }
+$('#b-reset').addEventListener('click',reset);
+$('#b-play').addEventListener('click',()=>setPlaying(!playing));
+$('#b-step').addEventListener('click',()=>{
+  setPlaying(false);
+  const p=P[cur]; const started=t>0;
+  const targets=[...new Set([...p.segs.map(s=>s.a+0.01),p.end+0.01,CL.Tc])].filter(v=>v<=CL.Tc).sort((x,y)=>x-y);
+  const nx=started?targets.find(v=>v>t+0.005):targets[0];
+  setTime(nx===undefined?0:nx);
+});
+$('#scrub').addEventListener('input',e=>{ setPlaying(false); setTime(+e.target.value); });
+document.querySelectorAll('input[name=spd]').forEach(r=>r.addEventListener('change',()=>{speed=+r.value;}));
+document.addEventListener('keydown',e=>{
+  if(e.code!=='Space'&&e.key!=='r'&&e.key!=='R') return;
+  const tg=e.target; if(tg&&(tg.tagName==='INPUT'&&tg.type!=='radio'&&tg.type!=='range'||tg.tagName==='BUTTON'||tg.tagName==='TEXTAREA')) return;
+  e.preventDefault(); if(e.code==='Space') setPlaying(!playing); else reset();
+});
+
+/* ---------- Comparación ---------- */
+function renderCompare(){
+  const Tc=CL.Tc, mx=niceMax(Tc), pct=v=>(v/mx*100).toFixed(3)+'%';
+  $('#cmp').innerHTML=ORDER.map(k=>{
+    const p=P[k]; let bars='';
+    p.segs.forEach(s=>{ bars+=`<span class="s ${OVER.has(s.p)?'ov':'lg'}" style="left:${pct(s.a)};width:${pct(s.b-s.a)}"></span>`; });
+    if(Tc>p.end) bars+=`<span class="sl" style="left:${pct(p.end)};width:${pct(Tc-p.end)}"></span>`;
+    bars+=`<span class="tc" style="left:${pct(Tc)}"></span>`;
+    const crit=k===CL.crit;
+    const v=crit?`${fmt(p.end)} ps<span class="pill acc">Fija T<sub>c</sub></span>`:`${fmt(p.end)} ps<small>sobran ${fmt(Tc-p.end)} ps (${fmt((Tc-p.end)/Tc*100,0)} %)</small>`;
+    return `<button type="button" class="cr${k===cur?' sel':''}" data-k="${k}" aria-pressed="${k===cur}"><span class="n"><b>${INS[k].name}</b><code>${INS[k].asm}</code></span><span class="tr">${bars}</span><span class="v">${v}</span></button>`;
+  }).join('');
+  // insight
+  const mix={LDR:.25,STR:.10,B:.13,DPR:.52};
+  const avg=Object.entries(mix).reduce((a,[k,f])=>a+f*P[k].end,0);
+  const tc2=D.tpcq+2*D.tmux+Math.max(D.tALU+D.tmux,D.tmem)+D.tsetup;
+  const multi=4.12*tc2;
+  $('#insight').innerHTML=`<p>En diseño síncrono el reloj es único, así que <b>todas las instrucciones duran ${fmt(Tc)} ps</b>, lo que necesita la más lenta (${INS[CL.crit].name}).</p>
+  <p>Con la mezcla SPECINT2000 del Ejemplo 7.5 (25 % LDR, 10 % STR, 13 % saltos y 52 % procesamiento de datos, contados con la versión de registro), si cada instrucción pudiera durar solo lo que necesita, el tiempo medio sería <b>${fmt(avg,0)} ps</b>, un ${fmt((Tc-avg)/Tc*100,0)} % menos. El multiciclo intenta aprovechar esa diferencia partiendo las instrucciones en pasos, pero paga t<sub>pcq</sub> + t<sub>setup</sub> en cada uno: 4,12 ciclos × ${fmt(tc2)} ps = <b>${fmt(multi,0)} ps</b> por instrucción (Ejemplo 7.6), peor que el monociclo.</p>`;
+}
+$('#cmp').addEventListener('click',e=>{ const b=e.target.closest('.cr'); if(b) select(b.dataset.k,true); });
+
+/* ---------- Retardos ---------- */
+const dl=$('#dl');
+dl.innerHTML=DMETA.map(([k,n])=>`<label class="dr" for="d-${k}"><span>${n}</span><span class="p">${PN[k]}</span><input type="number" id="d-${k}" min="0" max="2000" step="5" value="${D[k]}" inputmode="numeric" aria-label="${n} en picosegundos"></label>`).join('');
+dl.addEventListener('input',e=>{ const k=e.target.id.slice(2); const v=Math.max(0,Math.min(2000,Math.round(+e.target.value||0))); D[k]=v; recompute(false); });
+function syncInputs(){ DMETA.forEach(([k])=>{ const el=$('#d-'+k); if(+el.value!==D[k]) el.value=D[k]; el.classList.toggle('chg',D[k]!==BOOK[k]); }); }
+$('#b-book').addEventListener('click',()=>{ D={...BOOK}; $('#expnote').innerHTML=''; recompute(true); });
+const EXP={
+  alu:{set:{tALU:300},note:'Todos los caminos pasan por la ALU, así que todos crecen 180 ps. LDR sigue mandando.'},
+  mem:{set:{tmem:100},note:'LDR tiene dos accesos a memoria y gana 200 ps; las instrucciones sin memoria de datos solo ganan 100. La diferencia entre instrucciones se reduce.'},
+  tiny:{set:{tmem:20},note:'Con t<sub>mem</sub> menor que t<sub>mux</sub>, el multiplexor ALUSrc pesa más que la memoria de datos: <b>ahora el procesamiento de datos con registro fija el reloj</b>, no LDR.'},
+  ideal:{set:{tpcq:0,tsetup:0,tRFsetup:0},note:'Sin sobrecoste de registros, el ciclo solo depende de la lógica y las memorias. En el monociclo ese sobrecoste se paga una vez por instrucción; en el multiciclo, en cada paso.'}
+};
+document.querySelectorAll('[data-exp]').forEach(b=>b.addEventListener('click',()=>{ const x=EXP[b.dataset.exp]; D={...BOOK,...x.set}; $('#expnote').innerHTML=x.note; recompute(true); }));
+
+/* ---------- Recalcular y seleccionar ---------- */
+function recompute(resetT){
+  CL=clockOf(D); P=CL.P;
+  syncInputs();
+  const mod=ORDER.length&&Object.keys(BOOK).some(k=>D[k]!==BOOK[k]);
+  [$('#dpill'),$('#hpill')].forEach(el=>{ el.textContent=mod?'Modificados':'Tabla 7.5'; el.className='pill '+(mod?'mod':'ok'); });
+  $('#htc').textContent=fmt(CL.Tc);
+  $('#hf').textContent=CL.Tc>0?fmt(1000/CL.Tc,2)+' GHz':'—';
+  $('#hcrit').textContent=INS[CL.crit].name;
+  renderGantt(); renderSteps(); renderTimes(); renderCompare();
+  setTime(resetT?CL.Tc:Math.min(t,CL.Tc));
+}
+function select(k,fromUser){
+  cur=k; setPlaying(false);
+  const r=$('#in-'+k); if(r) r.checked=true;
+  $('#iasm').textContent=INS[k].asm; $('#ikind').textContent=INS[k].kind;
+  applyStates(); renderGantt(); renderSteps(); renderTimes(); renderCompare();
+  setTime(fromUser?0:CL.Tc);
+}
+
+/* ---------- Ejercicio ---------- */
+let EX=null;
+function newExercise(){
+  const mult=[0.5,0.75,1,1.25,1.5,2];
+  const d={}; Object.keys(BOOK).forEach(k=>{ const m=mult[Math.floor(Math.random()*mult.length)]; d[k]=Math.max(5,Math.round(BOOK[k]*m/5)*5); });
+  const pool=['LDR','STR','DPR','DPI','B'];
+  const ik=pool[Math.floor(Math.random()*pool.length)];
+  EX={ik,d};
+  $('#exq').innerHTML=`Con estos retardos, ¿cuánto tarda el camino crítico de <span class="asm">${INS[ik].asm}</span>${ik.startsWith('DP')?` <span style="color:var(--muted)">(${INS[ik].name.toLowerCase()})</span>`:''}? ¿Y cuál sería el periodo de reloj del procesador?`;
+  $('#exd').innerHTML=DMETA.map(([k])=>`<div class="cd${d[k]!==BOOK[k]?' chg':''}"><span>${PN[k]}</span><b>${fmt(d[k])}</b> <span style="display:inline">ps</span></div>`).join('');
+  $('#ex-path').value=''; $('#ex-tc').value=''; $('#m-path').textContent=''; $('#m-tc').textContent=''; $('#exfb').innerHTML='';
+}
+function solution(){
+  const p=path(EX.ik,EX.d), c=clockOf(EX.d);
+  const seq=p.segs.map(s=>PN[s.p]).join(' + '), nums=p.segs.map(s=>fmt(EX.d[s.p])).join(' + ');
+  return {p,c,html:`<div class="formula"><div class="r">T<sub>${INS[EX.ik].name.replace(/ /g,'&nbsp;')}</sub> = ${seq}</div><div class="r">${'&nbsp;'.repeat(4)}= ${nums} = <span class="res">${fmt(p.end)} ps</span></div><div class="r">T<sub>c</sub> = máx de todas las instrucciones = <span class="res">${fmt(c.Tc)} ps</span> (${INS[c.crit].name})</div></div>`};
+}
+$('#exf').addEventListener('submit',e=>{
+  e.preventDefault(); const s=solution();
+  const a=$('#ex-path').value, b=$('#ex-tc').value;
+  const okA=a!==''&&Math.round(+a)===s.p.end, okB=b!==''&&Math.round(+b)===s.c.Tc;
+  const mk=(el,v,ok)=>{ el.textContent=v===''?'':ok?'Correcto':'Revisa'; el.className='mark '+(v===''?'':ok?'ok':'bad'); };
+  mk($('#m-path'),a,okA); mk($('#m-tc'),b,okB);
+  let msg;
+  if(a===''&&b==='') msg='Escribe al menos una de las dos respuestas.';
+  else if((a===''||okA)&&(b===''||okB)) msg=`<b>¡Bien!</b> ${b===''?'Ahora calcula el periodo de reloj: es el camino más largo de todas las instrucciones.':a===''?'Ahora calcula el camino de esta instrucción.':'Las dos respuestas son correctas.'}`;
+  else msg=`${!okA&&a!==''?'El camino de la instrucción no cuadra. Recorre la ruta de datos desde el PC y suma cada elemento que atraviesa en serie; las ramas paralelas no se suman. ':''}${!okB&&b!==''?'El periodo de reloj es el máximo de los caminos de <b>todas</b> las instrucciones, no solo de esta.':''}`;
+  $('#exfb').innerHTML=msg;
+});
+$('#ex-sol').addEventListener('click',()=>{ const s=solution(); $('#exfb').innerHTML='<b>Solución.</b>'+s.html; });
+$('#ex-new').addEventListener('click',newExercise);
+
+/* ---------- Arranque ---------- */
+CL=clockOf(D); P=CL.P;
+select('LDR',false);
+recompute(true);
+newExercise();
+})();
+</script>
+
+</body></html>

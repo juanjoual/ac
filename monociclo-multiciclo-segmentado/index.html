@@ -1,0 +1,958 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Comparación interactiva de los procesadores ARM monociclo, multiciclo y segmentado (Harris y Harris, capítulo 7).">
+<title>Monociclo, multiciclo y segmentado</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@400;600&family=Source+Sans+3:wght@400;600;700&display=swap">
+<style>
+/* Layout: banco de pruebas — configuración arriba, carrera de tres carriles con relojes propios sobre un eje de tiempo real común, y debajo el porqué: ecuación de rendimiento, origen de cada Tc, retardos y SPECINT2000 */
+:root{
+  --paper:#f2f4f8; --panel:#ffffff; --sunk:#f7f8fb; --ink:#152033; --muted:#566377; --line:#d6dce5; --line-strong:#9aa6b8;
+  --accent:#2148c9; --accent-ink:#ffffff;
+  --fwd:#0a8273; --stall:#b47600; --flush:#c0392b; --struct:#7a3fc0; --wb:#2148c9;
+  --i0:#2563c4; --i1:#cf5f1c; --i2:#2c8a4d; --i3:#c02f80; --i4:#6a4bd0; --i5:#a67a0e; --i6:#11809a; --i7:#9c3b3b;
+  --f-display:"Barlow Condensed","Arial Narrow",sans-serif;
+  --f-body:"Source Sans 3","Segoe UI",system-ui,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --paper:#0e131b; --panel:#151c27; --sunk:#111821; --ink:#e2e8f1; --muted:#95a2b6; --line:#273244; --line-strong:#56637a;
+  --accent:#7d9fff; --accent-ink:#0b1224;
+  --fwd:#35c4b2; --stall:#f0b42a; --flush:#ff6e62; --struct:#b590ff; --wb:#7d9fff;
+  --i0:#6aa2ec; --i1:#f2935c; --i2:#5fc187; --i3:#ea72b8; --i4:#a38bf2; --i5:#e2b24b; --i6:#4dc1d2; --i7:#e47b7b;
+  color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --paper:#0e131b; --panel:#151c27; --sunk:#111821; --ink:#e2e8f1; --muted:#95a2b6; --line:#273244; --line-strong:#56637a;
+  --accent:#7d9fff; --accent-ink:#0b1224;
+  --fwd:#35c4b2; --stall:#f0b42a; --flush:#ff6e62; --struct:#b590ff; --wb:#7d9fff;
+  --i0:#6aa2ec; --i1:#f2935c; --i2:#5fc187; --i3:#ea72b8; --i4:#a38bf2; --i5:#e2b24b; --i6:#4dc1d2; --i7:#e47b7b;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--paper);color:var(--ink);font:15px/1.5 var(--f-body);-webkit-font-smoothing:antialiased}
+.wrap{max-width:1380px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0}
+h2{font-size:22px;font-weight:700;letter-spacing:.01em}
+h3{font-size:19px;font-weight:700;letter-spacing:.01em}
+p{margin:0}
+code,.mono{font-family:var(--f-mono);font-size:.88em}
+sub{font-size:.72em}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* Cabecera */
+.top{border-bottom:1px solid var(--line);background:var(--panel)}
+.top .wrap{padding-block:26px 20px;display:flex;flex-wrap:wrap;gap:20px 40px;align-items:flex-end;justify-content:space-between}
+.top .intro{min-width:0;flex:1 1 520px}
+.eyebrow{font:600 12.5px var(--f-display);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+h1{font-size:clamp(32px,4.4vw,50px);line-height:1;font-weight:700;margin-top:6px}
+.lede{margin-top:10px;max-width:68ch;color:var(--muted)}
+.lede i{font-style:italic;color:var(--ink)}
+.book{margin:0;flex:0 1 330px;min-width:0;display:flex;flex-direction:column;gap:5px}
+.book figcaption{font:600 11.5px var(--f-display);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:2px}
+.bk{display:grid;grid-template-columns:78px minmax(0,1fr) 52px;gap:8px;align-items:center;font-size:13px}
+.bk .tr{height:12px;background:var(--sunk);border:1px solid var(--line);border-radius:2px;overflow:hidden}
+.bk .tr i{display:block;height:100%;background:color-mix(in srgb,var(--accent) 55%,var(--panel))}
+.bk b{font:600 12px var(--f-mono);text-align:right;font-variant-numeric:tabular-nums}
+
+main.wrap{padding-block:18px 48px;display:flex;flex-direction:column;gap:16px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:16px;min-width:0}
+.ph{display:flex;align-items:baseline;justify-content:space-between;gap:6px 14px;flex-wrap:wrap;margin-bottom:12px}
+.ph .sub{color:var(--muted);font-size:13.5px}
+.lab{font:600 12px var(--f-display);letter-spacing:.11em;text-transform:uppercase;color:var(--muted)}
+
+/* Configuración */
+.config{display:grid;grid-template-columns:minmax(0,360px) minmax(0,1fr);gap:14px 26px;align-items:start}
+@media (max-width:820px){.config{grid-template-columns:minmax(0,1fr)}}
+.field{display:flex;flex-direction:column;gap:6px;min-width:0}
+select{width:100%;padding:7px 9px;border:1px solid var(--line-strong);border-radius:5px;background:var(--sunk)}
+.note{color:var(--muted);font-size:14px;max-width:80ch}
+.note b{color:var(--ink);font-weight:600}
+details.edit{margin-top:12px}
+details.edit summary{cursor:pointer;font-weight:600;font-size:14px}
+.editgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,300px);gap:12px;margin-top:10px}
+@media (max-width:820px){.editgrid{grid-template-columns:minmax(0,1fr)}}
+textarea{width:100%;height:250px;resize:vertical;padding:10px 12px;border:1px solid var(--line-strong);border-radius:5px;background:var(--sunk);font:13px/1.55 var(--f-mono);tab-size:8;white-space:pre;overflow:auto}
+.syntax{font-size:13.5px;color:var(--muted);display:flex;flex-direction:column;gap:6px}
+.syntax ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:3px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.btn{border:1px solid var(--line-strong);background:var(--panel);border-radius:5px;padding:6px 12px;font-weight:600;font-size:13.5px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{filter:brightness(1.08);color:var(--accent-ink)}
+.btn svg{width:14px;height:14px;fill:currentColor}
+.err{margin-top:10px;padding:8px 10px;border-radius:5px;border:1px solid color-mix(in srgb,var(--flush) 50%,transparent);background:color-mix(in srgb,var(--flush) 9%,var(--panel));font-size:13.5px}
+.err:empty{display:none}
+.pill{font:700 11px var(--f-display);letter-spacing:.09em;text-transform:uppercase;padding:2px 7px;border-radius:3px;border:1px solid currentColor;white-space:nowrap}
+.pill.ok{color:var(--fwd)} .pill.mod{color:var(--stall)}
+
+.seg{display:inline-flex;border:1px solid var(--line-strong);border-radius:5px;overflow:hidden;background:var(--sunk);flex-wrap:wrap}
+.seg input{position:absolute;opacity:0;pointer-events:none;width:1px;height:1px}
+.seg label{padding:5px 10px;cursor:pointer;font-weight:600;font-size:13px;border-right:1px solid var(--line);white-space:nowrap;user-select:none}
+.seg label:last-of-type{border-right:0}
+.seg label:hover{background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.seg input:checked+label{background:var(--accent);color:var(--accent-ink)}
+.seg input:focus-visible+label{outline:2px solid var(--accent);outline-offset:-3px}
+
+/* Transporte */
+.transport{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;margin-bottom:14px}
+.transport .btns{display:flex;gap:6px}
+.clock{font:700 28px/1 var(--f-display);font-variant-numeric:tabular-nums;min-width:132px}
+.clock small{font:500 13px var(--f-body);color:var(--muted);display:block;margin-top:2px}
+#scrub{flex:1 1 220px;min-width:0;accent-color:var(--accent)}
+.opts{display:flex;gap:10px 14px;flex-wrap:wrap;align-items:center}
+.opts .o{display:flex;gap:8px;align-items:center}
+
+/* Tarjetas de estado */
+.cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+@media (max-width:980px){.cards{grid-template-columns:minmax(0,1fr)}}
+.card{border:1px solid var(--line);border-radius:5px;padding:12px;background:var(--panel);display:flex;flex-direction:column;gap:9px;min-width:0}
+.card .hd{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+.card .hd .k{font:600 12px var(--f-mono);color:var(--muted);font-variant-numeric:tabular-nums}
+.card .tag{font-size:13px;color:var(--muted);margin-top:-6px}
+.meta{display:flex;justify-content:space-between;gap:8px;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;flex-wrap:wrap}
+.meta b{color:var(--ink);font-weight:600}
+.prog{height:6px;background:var(--sunk);border:1px solid var(--line);border-radius:3px;overflow:hidden}
+.prog i{display:block;height:100%;width:0;background:var(--accent)}
+.chips{display:grid;gap:4px;grid-template-columns:repeat(var(--n),minmax(0,1fr))}
+.chip{border:1px solid var(--line);border-radius:4px;padding:5px 6px;background:var(--sunk);min-width:0;transition:background .15s,border-color .15s}
+.chip .cn{display:block;font:600 10.5px var(--f-display);letter-spacing:.07em;text-transform:uppercase;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chip .cu{display:block;font:600 12px var(--f-mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted)}
+.chip.on{border-color:var(--ic);background:color-mix(in srgb,var(--ic) 18%,var(--panel))}
+.chip.on .cu{color:var(--ic)}
+.chip.done{background:color-mix(in srgb,var(--ic) 7%,var(--panel))}
+.chip.done .cu{color:color-mix(in srgb,var(--ic) 55%,var(--muted))}
+.chip.unused{border-style:dashed;background:transparent}
+.chip.stall{border-color:var(--stall);background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--stall) 24%,var(--panel)) 0 5px,color-mix(in srgb,var(--stall) 8%,var(--panel)) 5px 10px)}
+.chip.stall .cu{color:var(--ink)}
+.chip.flush{border-color:var(--flush);background:color-mix(in srgb,var(--flush) 10%,var(--panel))}
+.chip.flush .cu{color:var(--flush);text-decoration:line-through}
+.chip.bub{background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--muted) 14%,var(--panel)) 0 5px,var(--panel) 5px 10px)}
+.act{font-size:13.5px;line-height:1.45;min-height:4.4em;color:var(--ink)}
+.act code{font-weight:600;color:var(--ic,var(--ink));white-space:nowrap}
+.act .dim{color:var(--muted)}
+.act .ev{font:700 11px var(--f-display);letter-spacing:.09em;text-transform:uppercase;display:block;color:var(--ec,var(--accent))}
+.rank{font:700 11px var(--f-display);letter-spacing:.09em;text-transform:uppercase;padding:2px 7px;border-radius:3px;border:1px solid var(--line-strong);color:var(--muted)}
+.rank.r1{color:var(--fwd);border-color:var(--fwd)}
+
+/* Línea de tiempo */
+.tl{overflow-x:auto;border:1px solid var(--line);border-radius:5px;background:var(--sunk);margin-top:12px}
+.tli{position:relative;cursor:crosshair;padding-bottom:4px}
+.axis{position:relative;height:22px;border-bottom:1px solid var(--line)}
+.tick{position:absolute;top:0;height:100%;border-left:1px solid var(--line);font:10px/21px var(--f-mono);color:var(--muted);padding-left:3px;white-space:nowrap}
+.lane{position:relative;padding-top:6px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+.lane:last-of-type{border-bottom:0}
+.lt{position:sticky;left:0;display:inline-flex;gap:8px;align-items:baseline;padding:0 8px 2px;z-index:4;font:700 15px var(--f-display);letter-spacing:.02em;background:color-mix(in srgb,var(--sunk) 85%,transparent);border-radius:0 0 4px 0}
+.lt span{font:500 11px var(--f-mono);color:var(--muted)}
+.clk{display:block;height:14px;margin:2px 0 3px}
+.clk path{fill:none;stroke:var(--line-strong);stroke-width:1.2}
+.clk line{stroke:var(--line-strong);stroke-width:1.2;stroke-dasharray:2 3}
+.rows{position:relative}
+.trow{position:relative;height:var(--h)}
+.rl{position:sticky;left:0;z-index:3;display:inline-block;width:24px;height:100%;font:700 11px/var(--h) var(--f-mono);text-align:center;color:var(--muted);background:color-mix(in srgb,var(--sunk) 88%,transparent)}
+.c{position:absolute;top:1px;bottom:1px;border-radius:2px;overflow:hidden;font:600 10.5px var(--f-mono);display:flex;align-items:center;justify-content:center;white-space:nowrap;color:color-mix(in srgb,var(--ic) 72%,var(--ink));background:color-mix(in srgb,var(--ic) 24%,var(--panel));box-shadow:inset -1px 0 0 var(--sunk)}
+.c.m{justify-content:flex-start;background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--ic) 13%,var(--panel)) 0 4px,var(--panel) 4px 8px)}
+.c.m .u{position:absolute;left:0;top:0;bottom:0;background:color-mix(in srgb,var(--ic) 30%,var(--panel));border-right:2px solid color-mix(in srgb,var(--ic) 60%,transparent)}
+.c b{position:relative;font-weight:600;padding:0 4px;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.c.m b{margin-left:4px}
+.c.sp{background:color-mix(in srgb,var(--ic) 34%,var(--panel));box-shadow:inset -2px 0 0 var(--sunk)}
+.c.stall{background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--stall) 40%,var(--panel)) 0 4px,color-mix(in srgb,var(--stall) 12%,var(--panel)) 4px 8px);color:var(--ink)}
+.c.flush{background:color-mix(in srgb,var(--flush) 13%,var(--panel));color:var(--flush);outline:1px dashed color-mix(in srgb,var(--flush) 60%,transparent);outline-offset:-2px}
+.c.flush b{text-decoration:line-through}
+.c.bub{background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--muted) 18%,var(--sunk)) 0 4px,var(--sunk) 4px 8px)}
+.fin{position:absolute;top:0;bottom:0;border-left:2px dashed var(--ink);z-index:2;pointer-events:none}
+.fin span{position:absolute;top:3px;left:5px;font:600 11px var(--f-mono);white-space:nowrap;color:var(--ink);background:var(--sunk);padding:0 4px;border-radius:3px}
+.veil{position:absolute;top:22px;bottom:0;right:0;background:color-mix(in srgb,var(--sunk) 52%,transparent);pointer-events:none;z-index:5}
+.phl{position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;background:var(--accent);z-index:6;pointer-events:none}
+.phl::before{content:"";position:absolute;top:0;left:-5px;border:6px solid transparent;border-top-color:var(--accent)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:10px;font-size:13px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{display:inline-block;width:22px;height:12px;border-radius:2px}
+.lg-u{background:color-mix(in srgb,var(--i0) 30%,var(--panel))}
+.lg-w{background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--i0) 13%,var(--panel)) 0 4px,var(--panel) 4px 8px);border:1px solid var(--line)}
+.lg-s{background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--stall) 40%,var(--panel)) 0 4px,color-mix(in srgb,var(--stall) 12%,var(--panel)) 4px 8px)}
+.lg-f{background:color-mix(in srgb,var(--flush) 13%,var(--panel));outline:1px dashed var(--flush);outline-offset:-2px}
+.lg-b{background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--muted) 18%,var(--sunk)) 0 4px,var(--sunk) 4px 8px);border:1px solid var(--line)}
+.hint{font-size:13px;color:var(--muted);margin-top:6px}
+
+/* Rendimiento */
+.perf{overflow-x:auto}
+table.pt{border-collapse:collapse;width:100%;font-size:14px;font-variant-numeric:tabular-nums}
+table.pt th,table.pt td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+table.pt th{font:600 12px var(--f-display);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+table.pt th:first-child,table.pt td:first-child{text-align:left}
+table.pt td:first-child{font:700 16px var(--f-display);letter-spacing:.02em}
+table.pt td.br{font-size:12.5px;color:var(--muted);text-align:left;white-space:normal;min-width:220px}
+table.pt td.best{color:var(--fwd);font-weight:700}
+.tbars{display:flex;flex-direction:column;gap:7px;margin-top:14px}
+.tb{display:grid;grid-template-columns:96px minmax(0,1fr) 150px;gap:10px;align-items:center;font-size:13.5px}
+.tb .n{font:700 15px var(--f-display)}
+.tb .tr{height:20px;background:var(--sunk);border:1px solid var(--line);border-radius:3px;overflow:hidden}
+.tb .tr i{display:block;height:100%;background:color-mix(in srgb,var(--accent) 55%,var(--panel))}
+.tb .tr i.best{background:color-mix(in srgb,var(--fwd) 60%,var(--panel))}
+.tb .v{font:600 12.5px var(--f-mono);font-variant-numeric:tabular-nums}
+.tb .v small{color:var(--muted);font-weight:400}
+@media (max-width:560px){.tb{grid-template-columns:78px minmax(0,1fr)}.tb .v{grid-column:2}}
+.insight{margin-top:14px;padding:11px 14px;border-radius:5px;background:var(--sunk);border:1px solid var(--line);border-left:4px solid var(--accent);font-size:14.5px;line-height:1.55;max-width:110ch}
+.insight p+p{margin-top:6px}
+
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,360px);gap:16px;align-items:start}
+@media (max-width:1050px){.two{grid-template-columns:minmax(0,1fr)}}
+
+/* Origen de Tc */
+.tcg{display:flex;flex-direction:column;gap:4px;padding-block:10px;border-top:1px solid var(--line)}
+.tcg:first-of-type{border-top:0;padding-top:0}
+.tcg .gh{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:4px}
+.tcg .gh h3 span{font:600 13px var(--f-mono);color:var(--accent);margin-left:8px}
+.fx{font:12.5px var(--f-mono);color:var(--muted);overflow-wrap:anywhere}
+.br3{display:grid;grid-template-columns:110px minmax(0,1fr) 64px;gap:10px;align-items:center;font-size:13.5px}
+.br3 .tr{position:relative;height:16px;background:var(--sunk);border:1px solid var(--line);border-radius:2px}
+.br3 .tr .lg{position:absolute;top:0;bottom:0;left:0;background:color-mix(in srgb,var(--accent) 50%,var(--panel))}
+.br3 .tr .ov{position:absolute;top:0;bottom:0;background:color-mix(in srgb,var(--stall) 55%,var(--panel))}
+.br3 .tr .sl{position:absolute;top:0;bottom:0;background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--muted) 22%,var(--panel)) 0 3px,transparent 3px 6px)}
+.br3 .tr .tcl{position:absolute;top:-3px;bottom:-3px;border-left:2px solid var(--ink)}
+.br3 .v{font:600 12px var(--f-mono);text-align:right;font-variant-numeric:tabular-nums}
+.br3.max .n{font-weight:700}
+.br3.max .v{color:var(--accent)}
+.tcnote{font-size:13.5px;color:var(--muted);margin-top:6px;max-width:95ch}
+.tcnote b{color:var(--ink)}
+.keyrow{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12.5px;color:var(--muted);margin-bottom:10px}
+.keyrow span{display:inline-flex;gap:6px;align-items:center}
+.keyrow i{display:inline-block;width:18px;height:10px;border-radius:2px}
+.k-lg{background:color-mix(in srgb,var(--accent) 50%,var(--panel))}
+.k-ov{background:color-mix(in srgb,var(--stall) 55%,var(--panel))}
+.k-sl{background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--muted) 30%,var(--panel)) 0 3px,var(--panel) 3px 6px);border:1px solid var(--line)}
+.k-tc{width:2px!important;height:14px!important;background:var(--ink)}
+
+/* Retardos */
+.dl{display:flex;flex-direction:column;gap:6px}
+.dr{display:grid;grid-template-columns:minmax(0,1fr) 62px 86px;gap:8px;align-items:center;font-size:14px}
+.dr .p{font:12.5px var(--f-mono);color:var(--muted)}
+.dr input{width:100%;padding:4px 6px;border:1px solid var(--line-strong);border-radius:4px;background:var(--sunk);font:600 13px var(--f-mono);text-align:right;font-variant-numeric:tabular-nums}
+.dr input.chg{border-color:var(--stall);background:color-mix(in srgb,var(--stall) 10%,var(--panel))}
+.exps{display:flex;flex-direction:column;gap:6px;margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+.exps .btn{justify-content:flex-start;white-space:normal;text-align:left}
+
+/* SPECINT */
+.spec{display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr);gap:16px 28px;align-items:start}
+@media (max-width:900px){.spec{grid-template-columns:minmax(0,1fr)}}
+.sl2{display:flex;flex-direction:column;gap:10px}
+.sr{display:grid;grid-template-columns:minmax(0,1fr) 52px;gap:4px 10px;align-items:center;font-size:14px}
+.sr label{grid-column:1/-1;display:flex;justify-content:space-between;gap:8px}
+.sr input[type=range]{width:100%;accent-color:var(--accent)}
+.sr output{font:600 13px var(--f-mono);text-align:right;font-variant-numeric:tabular-nums}
+.sr .fixed{grid-column:1/-1;font-size:13.5px;color:var(--muted)}
+.subh{font:600 12px var(--f-display);letter-spacing:.11em;text-transform:uppercase;color:var(--muted);margin-top:4px}
+.tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+@media (max-width:560px){.tiles{grid-template-columns:minmax(0,1fr)}}
+.tile{padding:10px 12px;border-radius:5px;background:var(--sunk);border:1px solid var(--line)}
+.tile .tn{font:700 15px var(--f-display);letter-spacing:.02em}
+.tile .tv{font:700 30px/1.05 var(--f-display);font-variant-numeric:tabular-nums;margin-top:4px}
+.tile .tl{font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.tile.best .tv{color:var(--fwd)}
+.cpif{font:12.5px var(--f-mono);color:var(--muted);margin-top:12px;display:flex;flex-direction:column;gap:3px;overflow-wrap:anywhere}
+
+/* Hardware */
+.hwwrap{overflow-x:auto}
+table.hw{border-collapse:collapse;width:100%;min-width:720px;font-size:14px}
+table.hw th,table.hw td{padding:9px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+table.hw thead th{font:700 16px var(--f-display);letter-spacing:.02em}
+table.hw tbody th{font:600 12px var(--f-display);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);white-space:nowrap;width:180px}
+table.hw td b{font-weight:600}
+footer.wrap{padding-block:0 40px;color:var(--muted);font-size:13px}
+footer p{max-width:110ch}
+footer p+p{margin-top:6px}
+@media (prefers-reduced-motion: reduce){.chip{transition:none}}
+</style>
+<style>body{margin:0}[hidden]{display:none!important}img{max-width:100%}</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <div class="intro">
+      <p class="eyebrow">Arquitectura de Computadores · Grado en Ingeniería Informática · UAL</p>
+      <h1>Monociclo, multiciclo y segmentado</h1>
+      <p class="lede">Los tres procesadores ARM del capítulo 7 de Harris y Harris, <i>Digital Design and Computer Architecture: ARM Edition</i>. Ejecutan el mismo programa a la vez, cada uno con su propio reloj, sobre el mismo eje de tiempo real. Pulsa reproducir y mira quién llega antes y por qué.</p>
+    </div>
+    <figure class="book" aria-label="Tiempos de ejecución de los Ejemplos 7.4, 7.6 y 7.8">
+      <figcaption>Libro · SPECINT2000, 10<sup>11</sup> instrucciones</figcaption>
+      <div class="bk"><span>Monociclo</span><span class="tr"><i style="width:60%"></i></span><b>84 s</b></div>
+      <div class="bk"><span>Multiciclo</span><span class="tr"><i style="width:100%"></i></span><b>140 s</b></div>
+      <div class="bk"><span>Segmentado</span><span class="tr"><i style="width:26.4%"></i></span><b>36,9 s</b></div>
+    </figure>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section class="panel" aria-labelledby="h-prog">
+    <div class="config">
+      <label class="field" for="preset">
+        <span class="lab" id="h-prog">Programa</span>
+        <select id="preset"></select>
+      </label>
+      <div class="field">
+        <span class="lab">Qué observar</span>
+        <p class="note" id="pnote"></p>
+      </div>
+    </div>
+    <details class="edit" id="editbox">
+      <summary>Ver y editar el código ensamblador</summary>
+      <div class="editgrid">
+        <div>
+          <textarea id="src" spellcheck="false" aria-label="Código ensamblador ARM"></textarea>
+          <div class="row">
+            <button class="btn primary" id="b-run" type="button">Ejecutar este código</button>
+            <button class="btn" id="b-restore" type="button">Restaurar el ejemplo</button>
+          </div>
+          <div class="err" id="err" role="alert"></div>
+        </div>
+        <div class="syntax">
+          <span class="lab">Subconjunto admitido</span>
+          <ul>
+            <li><code>ADD SUB AND ORR MOV</code> con sufijo <code>S</code> opcional; <code>CMP</code></li>
+            <li>Segundo operando: registro o inmediato <code>#10</code>, <code>#0x100</code></li>
+            <li><code>LDR</code> / <code>STR Rd, [Rn]</code> o <code>[Rn, #desp]</code></li>
+            <li><code>B</code> y <code>BEQ BNE BGT BGE BLT BLE BMI BPL</code> a una etiqueta</li>
+            <li>Etiquetas con <code>nombre:</code>; comentarios con <code>;</code> o <code>@</code></li>
+            <li>Registros a 0 al empezar. Máximo 400 instrucciones ejecutadas.</li>
+          </ul>
+          <p id="meminit"></p>
+        </div>
+      </div>
+    </details>
+  </section>
+
+  <section class="panel" aria-labelledby="h-race">
+    <div class="ph">
+      <h2 id="h-race">La carrera</h2>
+      <p class="sub">Mismo programa y mismo tiempo real. Cada carril tiene su propio periodo de reloj.</p>
+    </div>
+    <div class="transport">
+      <div class="clock" aria-live="off"><span id="tnow">0,00 ns</span><small id="tmax">de 0 ns</small></div>
+      <div class="btns">
+        <button class="btn" id="b-reset" type="button" title="Volver al inicio (Inicio)" aria-label="Volver al inicio"><svg viewBox="0 0 16 16"><path d="M3 2h2v12H3zM14 2v12L6 8z"/></svg></button>
+        <button class="btn" id="b-prev" type="button" title="Flanco de reloj anterior (←)" aria-label="Flanco anterior"><svg viewBox="0 0 16 16"><path d="M12 2v12L4 8z"/></svg></button>
+        <button class="btn primary" id="b-play" type="button" title="Reproducir o pausar (espacio)"><svg viewBox="0 0 16 16" id="playico"><path d="M4 2v12l10-6z"/></svg><span id="playtxt">Reproducir</span></button>
+        <button class="btn" id="b-next" type="button" title="Siguiente flanco de reloj (→)" aria-label="Siguiente flanco"><svg viewBox="0 0 16 16"><path d="M4 2v12l8-6z"/></svg></button>
+      </div>
+      <input type="range" id="scrub" min="0" max="1000" step="10" value="0" aria-label="Instante de tiempo">
+      <div class="opts">
+        <div class="o"><span class="lab">Velocidad</span>
+          <div class="seg" role="radiogroup" aria-label="Velocidad">
+            <input type="radio" name="spd" id="spd1" value="800"><label for="spd1">Lenta</label>
+            <input type="radio" name="spd" id="spd2" value="2500" checked><label for="spd2">Normal</label>
+            <input type="radio" name="spd" id="spd3" value="9000"><label for="spd3">Rápida</label>
+          </div>
+        </div>
+        <div class="o"><span class="lab">Escala</span>
+          <div class="seg" role="radiogroup" aria-label="Escala">
+            <input type="radio" name="zm" id="zm1" value="fit"><label for="zm1">Todo</label>
+            <input type="radio" name="zm" id="zm2" value="0.05" checked><label for="zm2">Normal</label>
+            <input type="radio" name="zm" id="zm3" value="0.12"><label for="zm3">Detalle</label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cards" id="cards"></div>
+
+    <div class="tl" id="tl"><div class="tli" id="tli"></div></div>
+    <div class="legend">
+      <span><i class="lg-u"></i>Trabajo útil (un color por instrucción del código)</span>
+      <span><i class="lg-w"></i>Tiempo ocioso hasta el flanco</span>
+      <span><i class="lg-s"></i>Parada por dependencia de carga</span>
+      <span><i class="lg-f"></i>Instrucción vaciada (salto tomado)</span>
+      <span><i class="lg-b"></i>Burbuja</span>
+    </div>
+    <p class="hint">Haz clic en la línea de tiempo para saltar a ese instante. Teclado: espacio reproduce, ← y → van de flanco en flanco.</p>
+  </section>
+
+  <section class="panel" aria-labelledby="h-perf">
+    <div class="ph">
+      <h2 id="h-perf">Rendimiento de este programa</h2>
+      <p class="sub">T<sub>ejecución</sub> = N<sub>instrucciones</sub> × CPI × T<sub>c</sub> &nbsp;(ecuación 7.1)</p>
+    </div>
+    <div class="perf"><table class="pt" id="ptable"></table></div>
+    <div class="tbars" id="tbars"></div>
+    <div class="insight" id="insight"></div>
+  </section>
+
+  <div class="two">
+    <section class="panel" aria-labelledby="h-tc">
+      <div class="ph">
+        <h2 id="h-tc">¿De dónde sale cada T<sub>c</sub>?</h2>
+        <p class="sub">Las tres gráficas usan la misma escala en picosegundos</p>
+      </div>
+      <div class="keyrow">
+        <span><i class="k-lg"></i>Lógica y memorias</span>
+        <span><i class="k-ov"></i>Sobrecoste de los registros (t<sub>pcq</sub>, t<sub>setup</sub>)</span>
+        <span><i class="k-sl"></i>Holgura desperdiciada</span>
+        <span><i class="k-tc"></i>Periodo de reloj</span>
+      </div>
+      <div id="tcbox"></div>
+    </section>
+
+    <section class="panel" aria-labelledby="h-del">
+      <div class="ph">
+        <h2 id="h-del">Retardos</h2>
+        <span class="pill ok" id="dpill">Tabla 7.5</span>
+      </div>
+      <div class="dl" id="dl"></div>
+      <div class="row"><button class="btn" id="b-book" type="button">Volver a los valores del libro</button></div>
+      <div class="exps">
+        <span class="lab">Experimentos</span>
+        <button class="btn" type="button" data-exp="mem">Memoria el doble de rápida (t<sub>mem</sub> = 100 ps)</button>
+        <button class="btn" type="button" data-exp="alu">ALU lenta (t<sub>ALU</sub> = 300 ps)</button>
+        <button class="btn" type="button" data-exp="ideal">Registros ideales (t<sub>pcq</sub> = t<sub>setup</sub> = t<sub>RFsetup</sub> = 0)</button>
+      </div>
+    </section>
+  </div>
+
+  <section class="panel" aria-labelledby="h-spec">
+    <div class="ph">
+      <h2 id="h-spec">Banco de pruebas SPECINT2000</h2>
+      <p class="sub">Ejemplos 7.4 a 7.8 con 100 000 millones de instrucciones. Cambia la mezcla y los riesgos.</p>
+    </div>
+    <div class="spec">
+      <div class="sl2">
+        <span class="subh">Mezcla de instrucciones</span>
+        <div class="sr"><label for="m-ld"><span>Cargas (LDR)</span></label><input type="range" id="m-ld" min="0" max="60" value="25"><output id="o-ld"></output></div>
+        <div class="sr"><label for="m-st"><span>Almacenamientos (STR)</span></label><input type="range" id="m-st" min="0" max="60" value="10"><output id="o-st"></output></div>
+        <div class="sr"><label for="m-br"><span>Saltos (B)</span></label><input type="range" id="m-br" min="0" max="60" value="13"><output id="o-br"></output></div>
+        <div class="sr"><span class="fixed">Procesamiento de datos: <b id="o-dp"></b> (el resto)</span></div>
+        <span class="subh">Riesgos en el segmentado</span>
+        <div class="sr"><label for="m-dep"><span>Cargas seguidas de una instrucción que usa el dato</span></label><input type="range" id="m-dep" min="0" max="100" value="40"><output id="o-dep"></output></div>
+        <div class="sr"><label for="m-mis"><span>Saltos tomados (mal predichos)</span></label><input type="range" id="m-mis" min="0" max="100" value="50"><output id="o-mis"></output></div>
+        <div class="row"><button class="btn" id="b-specbook" type="button">Valores del libro</button><span class="pill ok" id="spill">Como en el libro</span></div>
+      </div>
+      <div>
+        <div class="tiles" id="stiles"></div>
+        <div class="cpif" id="cpif"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="h-hw">
+    <div class="ph">
+      <h2 id="h-hw">Qué cambia en el hardware</h2>
+      <p class="sub">Los tres implementan el mismo subconjunto ARM y el mismo estado arquitectónico</p>
+    </div>
+    <div class="hwwrap">
+      <table class="hw">
+        <thead><tr><th></th><th>Monociclo</th><th>Multiciclo</th><th>Segmentado</th></tr></thead>
+        <tbody>
+          <tr><th>Idea</th><td>Toda la instrucción en un ciclo largo</td><td>Varios pasos cortos; cada instrucción usa solo los que necesita</td><td>Cinco etapas solapadas: hasta cinco instrucciones a la vez</td></tr>
+          <tr><th>Memoria</th><td>Separadas de instrucciones y de datos</td><td><b>Una sola</b> para instrucciones y datos</td><td>Separadas de instrucciones y de datos</td></tr>
+          <tr><th>Sumadores</th><td>ALU + 2 sumadores para el PC</td><td><b>Solo la ALU</b>, reutilizada para PC+4 y PC+8</td><td>ALU + 2 sumadores para el PC</td></tr>
+          <tr><th>Registros extra</th><td>Ninguno</td><td>No arquitectónicos: Instr, Data, A, WriteData, ALUOut</td><td>Registros de segmentación entre etapas</td></tr>
+          <tr><th>Unidad de control</th><td>Combinacional (decodificadores)</td><td>Máquina de estados finitos (S0 a S9)</td><td>Combinacional, segmentada con los datos, más la Hazard Unit</td></tr>
+          <tr><th>CPI</th><td>1</td><td>3 (B), 4 (proc. datos y STR), 5 (LDR)</td><td>1 ideal; algo más por paradas y vaciados</td></tr>
+          <tr><th>Fija el reloj</th><td>La instrucción más lenta (LDR)</td><td>El paso más lento (acceso a memoria)</td><td>La etapa más lenta</td></tr>
+          <tr><th>Su punto débil</th><td>Las instrucciones rápidas esperan al ritmo de LDR</td><td>El sobrecoste de los registros se paga en cada paso</td><td>Riesgos de datos y de control, y sobrecoste en cada etapa</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap">
+  <p>Modelo del segmentado: el de la figura 7.58, con unidad de riesgos completa. Anticipación desde Memory y Writeback, un ciclo de parada si una instrucción usa el registro que carga el LDR inmediatamente anterior, y saltos resueltos en Execute con predicción de no tomado (dos instrucciones vaciadas por salto tomado). Los ciclos incluyen los 4 de llenado del cauce.</p>
+  <p>El libro solo da el camino crítico del monociclo (LDR, ecuación 7.3). El tiempo útil del resto de instrucciones en el monociclo es una estimación con los retardos de la Tabla 7.5: proc. datos sin memoria de datos, STR sin escritura en el banco de registros, y B escribiendo el PC tras la ALU.</p>
+</footer>
+
+<script>
+(function(){
+"use strict";
+const $=s=>document.querySelector(s);
+const fmt=(v,d=0)=>Number(v).toLocaleString('es-ES',{minimumFractionDigits:d,maximumFractionDigits:d});
+const fmtNs=(ps,d=2)=>fmt(ps/1000,d)+' ns';
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ---------- Retardos (Tabla 7.5) ---------- */
+const BOOK={tpcq:40,tsetup:50,tmux:25,tALU:120,tdec:70,tmem:200,tRFread:100,tRFsetup:60};
+const DMETA=[['tpcq','Registro, clk-to-Q','t<sub>pcq</sub>'],['tsetup','Registro, setup','t<sub>setup</sub>'],['tmux','Multiplexor','t<sub>mux</sub>'],['tALU','ALU','t<sub>ALU</sub>'],['tdec','Decodificador','t<sub>dec</sub>'],['tmem','Lectura de memoria','t<sub>mem</sub>'],['tRFread','Lectura del banco de registros','t<sub>RFread</sub>'],['tRFsetup','Setup del banco de registros','t<sub>RFsetup</sub>']];
+let D={...BOOK};
+
+const tc1=d=>d.tpcq+2*d.tmem+d.tdec+d.tRFread+d.tALU+2*d.tmux+d.tRFsetup;
+const mpaths=d=>[
+  {n:'Camino ALU',t:d.tpcq+2*d.tmux+d.tALU+d.tmux+d.tsetup,ov:d.tpcq+d.tsetup,f:'t<sub>pcq</sub> + 2t<sub>mux</sub> + t<sub>ALU</sub> + t<sub>mux</sub> + t<sub>setup</sub>'},
+  {n:'Camino memoria',t:d.tpcq+2*d.tmux+d.tmem+d.tsetup,ov:d.tpcq+d.tsetup,f:'t<sub>pcq</sub> + 2t<sub>mux</sub> + t<sub>mem</sub> + t<sub>setup</sub>'}];
+const tc2=d=>Math.max(...mpaths(d).map(p=>p.t));
+const stages3=d=>[
+  {k:'F',n:'Fetch',t:d.tpcq+d.tmem+d.tsetup,ov:d.tpcq+d.tsetup,f:'t<sub>pcq</sub> + t<sub>mem</sub> + t<sub>setup</sub>'},
+  {k:'D',n:'Decode',t:2*(d.tRFread+d.tsetup),ov:2*d.tsetup,f:'2(t<sub>RFread</sub> + t<sub>setup</sub>)'},
+  {k:'E',n:'Execute',t:d.tpcq+2*d.tmux+d.tALU+d.tsetup,ov:d.tpcq+d.tsetup,f:'t<sub>pcq</sub> + 2t<sub>mux</sub> + t<sub>ALU</sub> + t<sub>setup</sub>'},
+  {k:'M',n:'Memory',t:d.tpcq+d.tmem+d.tsetup,ov:d.tpcq+d.tsetup,f:'t<sub>pcq</sub> + t<sub>mem</sub> + t<sub>setup</sub>'},
+  {k:'W',n:'Writeback',t:2*(d.tpcq+d.tmux+d.tRFsetup),ov:2*(d.tpcq+d.tRFsetup),f:'2(t<sub>pcq</sub> + t<sub>mux</sub> + t<sub>RFsetup</sub>)'}];
+const tc3=d=>Math.max(...stages3(d).map(s=>s.t));
+
+/* Propagación dentro de un ciclo del monociclo */
+function monoPhases(type,d){
+  let t=d.tpcq; const ph=[];
+  ph.push({u:'IM',a:t,b:t+=d.tmem});
+  ph.push({u:'RF',w:'r',a:t,b:t+=d.tdec+d.tRFread});
+  t+=d.tmux; ph.push({u:'ALU',a:t,b:t+=d.tALU});
+  if(type==='LDR'||type==='STR') ph.push({u:'DM',a:t,b:t+=d.tmem});
+  if(type==='LDR'||type==='DP'){ t+=d.tmux; ph.push({u:'RF',w:'w',a:t,b:t+=d.tRFsetup}); }
+  if(type==='B'){ t+=d.tmux; ph.push({u:'PC',a:t,b:t+=d.tsetup}); }
+  return {ph,end:t};
+}
+const PHNAME={IM:'la memoria de instrucciones',RF:'el decodificador y la lectura del banco de registros',RFw:'la escritura en el banco de registros',ALU:'la ALU',DM:'la memoria de datos',PC:'el registro PC (destino del salto)'};
+
+/* Estados del multiciclo (figura 7.41) */
+const MST={
+  Fetch:{n:0,ab:'F',u:{MEM:'Instr',ALU:'PC+4'},op:'Instr ← Mem[PC]; PC ← PC+4'},
+  Decode:{n:1,ab:'D',u:{RF:'lee',ALU:'PC+8'},op:'lee Rn y Rm; ALUOut ← PC+4 (= PC+8)'},
+  MemAdr:{n:2,ab:'MA',u:{ALU:'Rn+Imm'},op:'ALUOut ← Rn + Imm'},
+  MemRead:{n:3,ab:'MR',u:{MEM:'Data'},op:'Data ← Mem[ALUOut]'},
+  MemWB:{n:4,ab:'WB',u:{RF:'Rd'},op:'Rd ← Data'},
+  MemWrite:{n:5,ab:'MW',u:{MEM:'escribe'},op:'Mem[ALUOut] ← Rd'},
+  ExecuteR:{n:6,ab:'ER',u:{ALU:'Rn op Rm'},op:'ALUOut ← Rn op Rm'},
+  ExecuteI:{n:7,ab:'EI',u:{ALU:'Rn op Imm'},op:'ALUOut ← Rn op Imm'},
+  ALUWB:{n:8,ab:'WB',u:{RF:'Rd'},op:'Rd ← ALUOut'},
+  Branch:{n:9,ab:'BR',u:{ALU:'destino'},op:'PC ← R15 + offset'}
+};
+function mseq(r){
+  if(r.type==='LDR') return ['Fetch','Decode','MemAdr','MemRead','MemWB'];
+  if(r.type==='STR') return ['Fetch','Decode','MemAdr','MemWrite'];
+  if(r.type==='B') return ['Fetch','Decode','Branch'];
+  return ['Fetch','Decode',r.imm?'ExecuteI':'ExecuteR','ALUWB'];
+}
+
+/* ---------- Programas de ejemplo ---------- */
+const PRESETS=[
+ {id:'bucle',name:'Bucle de los ejercicios 3.2 a 3.4',
+  note:'El programa de las diapositivas 29, 50 y 62. Con R3 = 10 el cuerpo del bucle se repite 11 veces. <b>Hay 12 saltos tomados</b>: cada uno vacía dos instrucciones del segmentado. El multiciclo gana algo en los saltos, que solo necesitan 3 ciclos.',
+  mem:{},regs:{},
+  src:`        ADD  R3, R3, #10
+        SUB  R2, R2, R2
+        ADD  R7, R7, R7
+        SUB  R1, R1, R1
+loop:   CMP  R2, R3
+        BGT  fin
+        ADD  R1, R1, R2
+        ADD  R2, R2, #1
+        B    loop
+fin:    STR  R1, [R0, #4]`},
+ {id:'vector',name:'Suma de un vector (riesgo de carga)',
+  note:'Suma cuatro palabras a partir de 0x100. <b>El ADD usa R2 justo después del LDR</b>: el segmentado se detiene un ciclo en cada vuelta, aunque la anticipación resuelve las demás dependencias. Para el multiciclo, cada LDR cuesta 5 ciclos.',
+  mem:{0x100:3,0x104:7,0x108:1,0x10C:9},regs:{},
+  src:`; Suma los 4 elementos del vector en R5
+        MOV  R5, #0
+        MOV  R1, #4
+        MOV  R4, #0x100
+loop:   LDR  R2, [R4]
+        ADD  R5, R5, R2      ; usa R2 nada más cargarlo
+        ADD  R4, R4, #4
+        SUBS R1, R1, #1
+        BNE  loop
+        STR  R5, [R4]`},
+ {id:'reord',name:'Suma de un vector, código reordenado',
+  note:'Las mismas instrucciones que el ejemplo anterior, reordenadas como propone la diapositiva 100: entre el LDR y el ADD que usa R2 hay dos instrucciones independientes. <b>Desaparecen las paradas del segmentado</b>; monociclo y multiciclo tardan exactamente lo mismo que antes.',
+  mem:{0x100:3,0x104:7,0x108:1,0x10C:9},regs:{},
+  src:`; Mismo cálculo, sin dependencia LDR → uso inmediato
+        MOV  R5, #0
+        MOV  R1, #4
+        MOV  R4, #0x100
+loop:   LDR  R2, [R4]
+        ADD  R4, R4, #4
+        SUBS R1, R1, #1
+        ADD  R5, R5, R2
+        BNE  loop
+        STR  R5, [R4]`},
+ {id:'lineal',name:'Código lineal sin saltos',
+  note:'Ocho instrucciones sin bucles. Con tan pocas instrucciones <b>pesan los 4 ciclos de llenado del cauce</b>: el segmentado no llega a su ritmo de una instrucción por ciclo durante mucho tiempo. Fíjate en el monociclo: en cada ADD, ORR o AND sobran 200 ps de ciclo.',
+  mem:{0x100:5,0x104:12},regs:{R0:0x100},
+  src:`        LDR  R1, [R0, #0]
+        LDR  R2, [R0, #4]
+        ADD  R3, R1, R2      ; R2 recién cargado: parada
+        SUB  R4, R3, #1
+        STR  R4, [R0, #8]
+        ORR  R5, R1, R2
+        AND  R6, R5, R3
+        STR  R6, [R0, #12]`}
+];
+
+/* ---------- Ensamblador e intérprete ---------- */
+const CONDS={EQ:f=>f.Z,NE:f=>!f.Z,GE:f=>f.N===f.V,LT:f=>f.N!==f.V,GT:f=>!f.Z&&f.N===f.V,LE:f=>f.Z||f.N!==f.V,MI:f=>f.N,PL:f=>!f.N,HS:f=>f.C,CS:f=>f.C,LO:f=>!f.C,CC:f=>!f.C,HI:f=>f.C&&!f.Z,LS:f=>!f.C||f.Z,AL:()=>true};
+function reg(s,ln){const m=/^R(\d{1,2})$/i.exec(s.trim()); if(!m||+m[1]>14) throw new Error(`Línea ${ln}: «${s.trim()}» no es un registro válido (R0 a R14).`); return +m[1];}
+function imm(s,ln){const m=/^#\s*(-?)(0x[0-9a-f]+|\d+)$/i.exec(s.trim()); if(!m) throw new Error(`Línea ${ln}: «${s.trim()}» no es un inmediato válido (por ejemplo #10 o #0x100).`); return (m[1]?-1:1)*parseInt(m[2]);}
+function op2(s,ln){s=s.trim(); return s.startsWith('#')?{imm:imm(s,ln)}:{rm:reg(s,ln)};}
+
+function assemble(src){
+  const lines=src.split(/\r?\n/); const prog=[]; const labels={}; const pend=[];
+  lines.forEach((raw,k)=>{
+    const ln=k+1; let s=raw.replace(/(;|@|\/\/).*$/,'').trim();
+    let m;
+    while((m=/^([A-Za-z_]\w*)\s*:/.exec(s))){ if(labels[m[1]]!==undefined) throw new Error(`Línea ${ln}: la etiqueta «${m[1]}» está repetida.`); labels[m[1]]=prog.length; s=s.slice(m[0].length).trim(); }
+    if(!s) return;
+    m=/^([A-Za-z]+)\s*(.*)$/.exec(s); if(!m) throw new Error(`Línea ${ln}: no se entiende «${s}».`);
+    const mn=m[1].toUpperCase(); const rest=m[2].trim();
+    const text=(mn+' '+rest).trim().replace(/\s+/g,' ').replace(/\s*,\s*/g,', ').replace(/\[\s*/g,'[').replace(/\s*\]/g,']');
+    let ins={ln,text,op:mn,static:prog.length};
+    let bm=/^B(EQ|NE|GE|LT|GT|LE|MI|PL|HS|CS|LO|CC|HI|LS|AL)?$/.exec(mn);
+    if(bm){ if(!/^[A-Za-z_]\w*$/.test(rest)) throw new Error(`Línea ${ln}: el salto necesita una etiqueta de destino.`); Object.assign(ins,{type:'B',cond:bm[1]||'AL',target:rest}); pend.push(ins); }
+    else{
+      const dm=/^(ADD|SUB|AND|ORR|MOV|CMP)(S?)$/.exec(mn);
+      if(dm){
+        const base=dm[1]; const ops=rest.split(',');
+        if(base==='MOV'){ if(ops.length!==2) throw new Error(`Línea ${ln}: MOV lleva dos operandos (MOV Rd, Op2).`); Object.assign(ins,{type:'DP',base,S:!!dm[2],rd:reg(ops[0],ln)},op2(ops[1],ln)); }
+        else if(base==='CMP'){ if(dm[2]) throw new Error(`Línea ${ln}: CMP ya actualiza los flags; escribe CMP sin S.`); if(ops.length!==2) throw new Error(`Línea ${ln}: CMP lleva dos operandos (CMP Rn, Op2).`); Object.assign(ins,{type:'DP',base,S:true,rn:reg(ops[0],ln)},op2(ops[1],ln)); }
+        else { if(ops.length!==3) throw new Error(`Línea ${ln}: ${base} lleva tres operandos (${base} Rd, Rn, Op2).`); Object.assign(ins,{type:'DP',base,S:!!dm[2],rd:reg(ops[0],ln),rn:reg(ops[1],ln)},op2(ops[2],ln)); }
+        ins.isImm=ins.imm!==undefined;
+      } else if(mn==='LDR'||mn==='STR'){
+        const mm=/^(R\d{1,2})\s*,\s*\[\s*(R\d{1,2})\s*(?:,\s*(#\s*-?(?:0x[0-9a-f]+|\d+)))?\s*\]$/i.exec(rest);
+        if(!mm) throw new Error(`Línea ${ln}: usa ${mn} Rd, [Rn] o ${mn} Rd, [Rn, #desp].`);
+        Object.assign(ins,{type:mn,rd:reg(mm[1],ln),rn:reg(mm[2],ln),off:mm[3]?imm(mm[3],ln):0});
+      } else throw new Error(`Línea ${ln}: la instrucción «${mn}» no está en el subconjunto admitido.`);
+    }
+    prog.push(ins);
+  });
+  pend.forEach(b=>{ if(labels[b.target]===undefined) throw new Error(`Línea ${b.ln}: la etiqueta «${b.target}» no existe.`); b.to=labels[b.target]; });
+  if(!prog.length) throw new Error('El programa está vacío.');
+  return prog;
+}
+
+const MAXDYN=400;
+function execute(prog,preset){
+  const R=new Array(16).fill(0); Object.entries(preset.regs||{}).forEach(([k,v])=>R[+k.slice(1)]=v|0);
+  const mem=new Map(Object.entries(preset.mem||{}).map(([a,v])=>[+a,v|0]));
+  const F={N:false,Z:false,C:false,V:false}; const tr=[]; let pc=0;
+  while(pc<prog.length){
+    if(tr.length>=MAXDYN) throw new Error(`El programa ejecuta más de ${MAXDYN} instrucciones. Revisa la condición de salida del bucle.`);
+    const I=prog[pc]; const r={st:pc,text:I.text,op:I.op,type:I.type,imm:!!I.isImm,dest:null,srcs:[]}; let next=pc+1;
+    if(I.type==='DP'){
+      const a=I.base==='MOV'?0:R[I.rn]|0; const b=I.isImm?I.imm|0:R[I.rm]|0; let res,C=F.C,V=F.V;
+      if(I.base!=='MOV') r.srcs.push(I.rn); if(!I.isImm) r.srcs.push(I.rm);
+      switch(I.base){
+        case 'ADD': res=(a+b)|0; C=((a>>>0)+(b>>>0))>0xFFFFFFFF; V=((a^res)&(b^res))<0; break;
+        case 'SUB': case 'CMP': res=(a-b)|0; C=(a>>>0)>=(b>>>0); V=((a^b)&(a^res))<0; break;
+        case 'AND': res=a&b; break; case 'ORR': res=a|b; break; case 'MOV': res=b; break;
+      }
+      if(I.base!=='CMP'){R[I.rd]=res; r.dest=I.rd;}
+      if(I.S){F.N=res<0;F.Z=res===0;F.C=C;F.V=V;}
+    } else if(I.type==='LDR'){ const ad=(R[I.rn]+I.off)>>>0; R[I.rd]=mem.get(ad)|0; r.dest=I.rd; r.srcs.push(I.rn); r.addr=ad; }
+    else if(I.type==='STR'){ const ad=(R[I.rn]+I.off)>>>0; mem.set(ad,R[I.rd]); r.srcs.push(I.rn,I.rd); r.addr=ad; }
+    else if(I.type==='B'){ r.taken=CONDS[I.cond](F); if(r.taken) next=I.to; }
+    tr.push(r); pc=next;
+  }
+  return {trace:tr,R,mem};
+}
+
+/* ---------- Modelo temporal de los tres procesadores ---------- */
+let preset=PRESETS[0], prog=null, trace=[], M=null;
+
+function buildModel(){
+  const d=D, Tc=[tc1(d),tc2(d),tc3(d)], N=trace.length;
+  const mono=trace.map((r,i)=>{const p=monoPhases(r.type,d);return {i,a:i*Tc[0],use:p.end,ph:p.ph};});
+  const mcyc=[], mins=[]; let c=0;
+  trace.forEach((r,i)=>{const c0=c; mseq(r).forEach((s,k)=>{mcyc.push({i,s,k,c});c++;}); mins.push({i,c0,c1:c});});
+  // Segmentado
+  const e=[], cells=[], occ=new Map(); let stalls=0, flushes=0, prevStalled=false;
+  const put=x=>{cells.push(x); const key=x.s+':'+x.c; if(!occ.has(key)||x.kind!=='flush') occ.set(key,x);};
+  trace.forEach((r,i)=>{
+    let ei, stalled=false;
+    if(i===0) ei=2;
+    else{
+      const p=trace[i-1];
+      if(p.type==='B'&&p.taken){
+        ei=e[i-1]+3; flushes++; const b=e[i-1];
+        [1,2].forEach(k=>{const st=p.st+k; if(st<prog.length){
+          if(k===1){put({s:0,c:b-1,st,kind:'flush'});put({s:1,c:b,st,kind:'flush'});}
+          else put({s:0,c:b,st,kind:'flush'});}});
+      } else if(p.type==='LDR'&&r.srcs.includes(p.dest)){ ei=e[i-1]+2; stalled=true; stalls++; r.stallReg=p.dest; }
+      else ei=e[i-1]+1;
+    }
+    e.push(ei);
+    if(prevStalled) put({s:0,c:e[i-1]-2,dyn:i,st:r.st,kind:'stall'});
+    if(stalled){ put({s:0,c:ei-3,dyn:i,st:r.st,kind:'n'}); put({s:1,c:ei-2,dyn:i,st:r.st,kind:'stall'}); put({s:1,c:ei-1,dyn:i,st:r.st,kind:'n'}); }
+    else { put({s:0,c:ei-2,dyn:i,st:r.st,kind:'n'}); put({s:1,c:ei-1,dyn:i,st:r.st,kind:'n'}); }
+    put({s:2,c:ei,dyn:i,st:r.st,kind:'n'}); put({s:3,c:ei+1,dyn:i,st:r.st,kind:'n'}); put({s:4,c:ei+2,dyn:i,st:r.st,kind:'n'});
+    prevStalled=stalled;
+  });
+  const segCycles=e[N-1]+3;
+  for(let s=0;s<5;s++){
+    let lo=Infinity,hi=-1; cells.forEach(x=>{if(x.s===s){lo=Math.min(lo,x.c);hi=Math.max(hi,x.c);}});
+    for(let k=lo;k<=hi;k++) if(!occ.has(s+':'+k)) put({s,c:k,kind:'bub'});
+  }
+  const cyc=[N,c,segCycles];
+  M={Tc,N,mono,mcyc,mins,e,cells,occ,stalls,flushes,cyc,T:[cyc[0]*Tc[0],cyc[1]*Tc[1],cyc[2]*Tc[2]]};
+  M.maxT=Math.max(...M.T);
+  M.edges=[0,1,2].map(k=>Tc[k]);
+}
+
+/* ---------- Línea de tiempo ---------- */
+let t=0, playing=false, speed=2500, zoom='0.05', px=0.05;
+const tl=$('#tl'), tli=$('#tli');
+const col=st=>`var(--i${st%8})`;
+
+function niceStep(){const c=[50,100,200,500,1000,2000,5000,10000,20000,50000];return c.find(s=>s*px>=58)||100000;}
+function clockSvg(Tc,T){
+  const w=Math.max(1,Math.round(T*px)); const pw=Tc*px;
+  if(pw<4) return `<svg class="clk" width="${w}" height="14" aria-hidden="true"><line x1="0" y1="7" x2="${w}" y2="7"/></svg>`;
+  let d=''; const n=Math.round(T/Tc);
+  for(let k=0;k<n;k++){const x0=(k*Tc*px).toFixed(1),x1=((k+.5)*Tc*px).toFixed(1),x2=((k+1)*Tc*px).toFixed(1); d+=`M${x0} 12V2H${x1}V12H${x2}`;}
+  return `<svg class="clk" width="${w}" height="14" viewBox="0 0 ${w} 14" aria-hidden="true"><path d="${d}"/></svg>`;
+}
+function lbl(w,r){return w>=120?esc(r.text):w>=30?esc(r.op):'';}
+
+function renderTimeline(){
+  if(zoom==='fit') px=Math.max(0.002,(tl.clientWidth-40)/M.maxT); else px=+zoom;
+  const W=Math.ceil(M.maxT*px)+90; let h='';
+  const step=niceStep(); h+=`<div class="axis" style="width:${W}px">`;
+  for(let x=0;x<=M.maxT+step;x+=step) h+=`<span class="tick" style="left:${(x*px).toFixed(1)}px">${fmt(x/1000,step<1000?1:0)} ns</span>`;
+  h+='</div>';
+  const lane=(k,title,sub,rows)=>`<div class="lane" style="width:${W}px"><div class="lt">${title}<span>${sub}</span></div>${clockSvg(M.Tc[k],M.T[k])}<div class="rows">${rows}</div><div class="fin" style="left:${(M.T[k]*px).toFixed(1)}px"><span>${fmtNs(M.T[k])}</span></div></div>`;
+  // Monociclo
+  let r0=`<div class="trow" style="--h:30px">`;
+  M.mono.forEach(b=>{const r=trace[b.i],w=M.Tc[0]*px; r0+=`<div class="c m" style="left:${(b.a*px).toFixed(1)}px;width:${w.toFixed(1)}px;--ic:${col(r.st)}" title="${esc(r.text)} · útil ${b.use} ps de ${M.Tc[0]} ps"><i class="u" style="width:${(b.use/M.Tc[0]*100).toFixed(1)}%"></i><b>${lbl(w,r)}</b></div>`;});
+  r0+='</div>';
+  // Multiciclo
+  let r1a=`<div class="trow" style="--h:22px">`, r1b=`<div class="trow" style="--h:20px">`;
+  M.mins.forEach(s=>{const r=trace[s.i],w=(s.c1-s.c0)*M.Tc[1]*px; r1a+=`<div class="c sp" style="left:${(s.c0*M.Tc[1]*px).toFixed(1)}px;width:${w.toFixed(1)}px;--ic:${col(r.st)}" title="${esc(r.text)} · ${s.c1-s.c0} ciclos"><b>${lbl(w,r)}</b></div>`;});
+  M.mcyc.forEach(y=>{const r=trace[y.i],w=M.Tc[1]*px,S=MST[y.s]; r1b+=`<div class="c" style="left:${(y.c*M.Tc[1]*px).toFixed(1)}px;width:${w.toFixed(1)}px;--ic:${col(r.st)}" title="S${S.n} ${y.s} · ${esc(r.text)}"><b>${w>=15?S.ab:''}</b></div>`;});
+  r1a+='</div>'; r1b+='</div>';
+  // Segmentado
+  const SN=['F','D','E','M','W']; let r2='';
+  for(let s=0;s<5;s++){
+    r2+=`<div class="trow" style="--h:17px"><span class="rl">${SN[s]}</span>`;
+    M.cells.forEach(x=>{ if(x.s!==s) return; const w=M.Tc[2]*px, left=(x.c*M.Tc[2]*px).toFixed(1);
+      if(x.kind==='bub'){ r2+=`<div class="c bub" style="left:${left}px;width:${w.toFixed(1)}px" title="Burbuja"></div>`; return; }
+      const st=x.st, text=prog[st].text, op=prog[st].op;
+      const cls=x.kind==='stall'?'stall':x.kind==='flush'?'flush':'';
+      const tt=x.kind==='stall'?' · detenida':x.kind==='flush'?' · vaciada':'';
+      r2+=`<div class="c ${cls}" style="left:${left}px;width:${w.toFixed(1)}px;--ic:${col(st)}" title="${esc(text)}${tt}"><b>${w>=30?esc(op):''}</b></div>`;});
+    r2+='</div>';
+  }
+  h+=lane(0,'Monociclo',`Tc = ${M.Tc[0]} ps · 1 ciclo por instrucción`,r0);
+  h+=lane(1,'Multiciclo',`Tc = ${M.Tc[1]} ps · 3 a 5 ciclos por instrucción`,r1a+r1b);
+  h+=lane(2,'Segmentado',`Tc = ${M.Tc[2]} ps · 5 etapas solapadas`,r2);
+  h+=`<div class="veil" id="veil"></div><div class="phl" id="phl"></div>`;
+  tli.style.width=W+'px'; tli.innerHTML=h;
+  $('#scrub').max=M.maxT; $('#tmax').textContent='de '+fmtNs(M.maxT);
+}
+
+/* ---------- Tarjetas de estado ---------- */
+const CARDDEF=[
+  {name:'Monociclo',tag:'Una instrucción por ciclo largo',chips:[['IM','Mem. instr.'],['RF','Banco reg.'],['ALU','ALU'],['DM','Mem. datos']]},
+  {name:'Multiciclo',tag:'Una instrucción en varios ciclos cortos',chips:[['MEM','Memoria'],['RF','Banco reg.'],['ALU','ALU']]},
+  {name:'Segmentado',tag:'Una etapa por ciclo, cinco instrucciones a la vez',chips:[['F','F · Fetch'],['D','D · Decode'],['E','E · Execute'],['M','M · Memory'],['W','W · Writeback']]}
+];
+let CE=[];
+function renderCards(){
+  $('#cards').innerHTML=CARDDEF.map((c,k)=>`<article class="card" id="card${k}">
+    <div class="hd"><h3>${c.name}</h3><span class="k">Tc ${M.Tc[k]} ps · ${fmt(1e6/M.Tc[k],0)} MHz</span></div>
+    <p class="tag">${c.tag}</p>
+    <div class="meta"><span class="m1"></span><span class="m2"></span></div>
+    <div class="prog"><i></i></div>
+    <div class="chips" style="--n:${c.chips.length}">${c.chips.map(([id,n])=>`<div class="chip" data-u="${id}"><span class="cn">${n}</span><span class="cu">—</span></div>`).join('')}</div>
+    <p class="act" aria-live="off"></p></article>`).join('');
+  CE=[0,1,2].map(k=>{const el=$('#card'+k);return {el,m1:el.querySelector('.m1'),m2:el.querySelector('.m2'),bar:el.querySelector('.prog i'),act:el.querySelector('.act'),chips:Object.fromEntries([...el.querySelectorAll('.chip')].map(x=>[x.dataset.u,{el:x,cu:x.querySelector('.cu')}]))};});
+}
+function setChip(ch,cls,txt,st){ch.el.className='chip'+(cls?' '+cls:''); if(st!=null) ch.el.style.setProperty('--ic',col(st)); ch.cu.textContent=txt;}
+function finishRank(k){const order=[0,1,2].sort((a,b)=>M.T[a]-M.T[b]);return order.indexOf(k)+1;}
+function finishedHTML(k){const rk=finishRank(k);const sp=M.T[0]/M.T[k];
+  return `<span class="rank${rk===1?' r1':''}">${rk}º</span> Terminó las ${M.N} instrucciones en <b>${fmtNs(M.T[k])}</b>${k?` · ${fmt(sp,2)}× respecto al monociclo`:''}.`;}
+
+function updateCards(){
+  const N=M.N;
+  // Monociclo
+  {const E=CE[0],Tc=M.Tc[0];
+   const fin=t>=M.T[0]; const done=Math.min(N,Math.floor(t/Tc));
+   E.m1.innerHTML=fin?`<b>${N}</b> ciclos`:`Ciclo <b>${Math.floor(t/Tc)+1}</b> de ${N}`; E.m2.textContent=`${done}/${N} terminadas`; E.bar.style.width=(done/N*100)+'%';
+   if(fin){Object.values(E.chips).forEach(ch=>setChip(ch,'','—'));E.act.innerHTML=finishedHTML(0);}
+   else{const b=M.mono[done],r=trace[done],loc=t-b.a; E.el.style.setProperty('--ic',col(r.st));
+     ['IM','RF','ALU','DM'].forEach(u=>{const ps=b.ph.filter(p=>p.u===u),ch=E.chips[u];
+       if(!ps.length){setChip(ch,'unused','no se usa',r.st);return;}
+       const on=ps.some(p=>loc>=p.a&&loc<p.b), any=ps.some(p=>loc>=p.b);
+       setChip(ch,on?'on':any?'done':'',on||any?r.op:'—',r.st);});
+     let msg; const cur=b.ph.find(p=>loc>=p.a&&loc<p.b);
+     if(loc<D.tpcq) msg=`Flanco de reloj: el PC tarda t<sub>pcq</sub> = ${D.tpcq} ps en mostrar la nueva dirección.`;
+     else if(loc>=b.use) msg=`Trabajo terminado a los ${b.use} ps. <b>${Tc-b.use} ps ociosos</b> esperando el flanco, porque el ciclo se diseña para LDR.`;
+     else if(cur&&cur.u==='PC'&&!r.taken) msg=`La condición es falsa: el salto no se toma y el PC se queda en PC+4 (${Math.round(cur.a)}–${Math.round(cur.b)} ps del ciclo).`;
+     else if(cur) msg=`La señal atraviesa ${PHNAME[cur.u==='RF'&&cur.w==='w'?'RFw':cur.u]} (${Math.round(cur.a)}–${Math.round(cur.b)} ps del ciclo).`;
+     else msg='La señal atraviesa un multiplexor.';
+     E.act.innerHTML=`<code>${esc(r.text)}</code> <span class="dim">· ${Math.round(loc)} de ${Tc} ps</span><br>${msg}`;}}
+  // Multiciclo
+  {const E=CE[1],Tc=M.Tc[1],C=M.cyc[1];
+   const fin=t>=M.T[1]; const c=Math.floor(t/Tc); const done=M.mins.filter(s=>s.c1*Tc<=t).length;
+   E.m1.innerHTML=fin?`<b>${C}</b> ciclos`:`Ciclo <b>${c+1}</b> de ${C}`; E.m2.textContent=`${done}/${N} terminadas`; E.bar.style.width=(done/N*100)+'%';
+   if(fin){Object.values(E.chips).forEach(ch=>setChip(ch,'','—'));E.act.innerHTML=finishedHTML(1);}
+   else{const y=M.mcyc[c],r=trace[y.i],S=MST[y.s],len=mseq(r).length; E.el.style.setProperty('--ic',col(r.st));
+     ['MEM','RF','ALU'].forEach(u=>{const ch=E.chips[u]; if(S.u[u]) setChip(ch,'on',S.u[u],r.st); else setChip(ch,'','libre');});
+     let op=S.op;
+     if(y.s==='ALUWB'&&r.op==='CMP') op='no escribe ningún registro: CMP solo actualiza los flags';
+     if(y.s==='Branch'&&!r.taken) op='la condición es falsa: el PC no cambia';
+     const extra=y.s==='Fetch'?' La ALU se reutiliza para calcular PC+4.':'';
+     E.act.innerHTML=`<code>${esc(r.text)}</code> <span class="dim">· paso ${y.k+1} de ${len}</span><br>Estado S${S.n} ${y.s}: ${esc(op)}.${extra}`;}}
+  // Segmentado
+  {const E=CE[2],Tc=M.Tc[2],C=M.cyc[2];
+   const fin=t>=M.T[2]; const c=Math.floor(t/Tc); const done=M.e.filter(ei=>(ei+3)*Tc<=t).length;
+   E.m1.innerHTML=fin?`<b>${C}</b> ciclos`:`Ciclo <b>${c+1}</b> de ${C}`; E.m2.textContent=`${done}/${N} terminadas`; E.bar.style.width=(done/N*100)+'%';
+   if(fin){Object.values(E.chips).forEach(ch=>setChip(ch,'','—'));E.act.innerHTML=finishedHTML(2);}
+   else{const SN=['F','D','E','M','W']; const at=SN.map((_,s)=>M.occ.get(s+':'+c)); let full=0;
+     at.forEach((x,s)=>{const ch=E.chips[SN[s]];
+       if(!x) setChip(ch,'','—'); else if(x.kind==='bub') setChip(ch,'bub','burbuja');
+       else{ if(x.kind==='n') full++; setChip(ch,x.kind==='n'?'on':x.kind,prog[x.st].op,x.st);} });
+     let msg='', ic=null;
+     const sD=at[1]&&at[1].kind==='stall'?at[1]:null, xE=at[2]&&at[2].kind==='n'?at[2]:null, xM=at[3]&&at[3].kind==='n'?at[3]:null, xW=at[4]&&at[4].kind==='n'?at[4]:null;
+     if(sD){const r=trace[sD.dyn]; ic=col(r.st); msg=`<span class="ev" style="--ec:var(--stall)">Riesgo de datos · parada</span><code>${esc(r.text)}</code> necesita R${r.stallReg}, que el LDR anterior aún está leyendo de memoria. Se congelan Fetch y Decode y entra una burbuja en Execute.`;}
+     else if(xE&&trace[xE.dyn].type==='B'&&trace[xE.dyn].taken){const r=trace[xE.dyn]; ic=col(r.st); msg=`<span class="ev" style="--ec:var(--flush)">Riesgo de control · vaciado</span><code>${esc(r.text)}</code> se resuelve en Execute: salto tomado. Las dos instrucciones que entraron detrás se descartan.`;}
+     else if(xE){const r=trace[xE.dyn]; const fw=[[xM,'Memory'],[xW,'Writeback']].find(([x])=>x&&trace[x.dyn].dest!=null&&r.srcs.includes(trace[x.dyn].dest));
+       if(fw){const p=trace[fw[0].dyn]; ic=col(r.st); msg=`<span class="ev" style="--ec:var(--fwd)">Anticipación</span><code>${esc(r.text)}</code> recibe R${p.dest} desde la etapa ${fw[1]} sin esperar a que se escriba en el banco de registros.`;}}
+     if(!msg){ if(full===5) msg='<span class="ev">Cauce lleno</span>Cinco instrucciones a la vez, una en cada etapa: termina una por ciclo.';
+       else if(c<4) msg=`<span class="ev">Llenando el cauce</span>Ciclo ${c+1} de los 4 de llenado: aún no ha terminado ninguna instrucción.`;
+       else if(c>=C-4&&done>=N-4) msg='<span class="ev">Vaciando el cauce</span>Ya no entran instrucciones nuevas; terminan las últimas.';
+       else msg=`<span class="ev">${full} de 5 etapas con trabajo útil</span>Las burbujas son los huecos que dejaron las paradas y los vaciados.`;}
+     if(ic) E.el.style.setProperty('--ic',ic);
+     E.act.innerHTML=msg;}}
+}
+
+function update(follow){
+  const x=t*px; const ph=$('#phl'), v=$('#veil');
+  if(ph){ph.style.left=x+'px'; v.style.left=x+'px';}
+  $('#tnow').textContent=fmtNs(t); $('#scrub').value=t;
+  updateCards();
+  if(follow){const L=tl.scrollLeft,Wd=tl.clientWidth; if(x>L+Wd*.72||x<L) tl.scrollLeft=Math.max(0,x-Wd*.3);}
+}
+
+/* ---------- Rendimiento del programa ---------- */
+function renderPerf(){
+  const N=M.N, cnt={LDR:0,STR:0,DP:0,B:0}; trace.forEach(r=>cnt[r.type]++);
+  const taken=trace.filter(r=>r.type==='B'&&r.taken).length;
+  const best=M.T.indexOf(Math.min(...M.T));
+  const names=['Monociclo','Multiciclo','Segmentado'];
+  const br=[
+    `${N} instrucciones × 1 ciclo`,
+    [cnt.LDR&&`${cnt.LDR} LDR × 5`,cnt.STR&&`${cnt.STR} STR × 4`,cnt.DP&&`${cnt.DP} proc. datos × 4`,cnt.B&&`${cnt.B} B × 3`].filter(Boolean).join(' + '),
+    `${N} + 4 de llenado + ${M.stalls} de parada + 2 × ${M.flushes} salto${M.flushes===1?'':'s'} tomado${M.flushes===1?'':'s'}`];
+  let h=`<thead><tr><th>Procesador</th><th>N</th><th>Ciclos</th><th>CPI</th><th>T<sub>c</sub></th><th>Tiempo</th><th>Frente al monociclo</th><th>De dónde salen los ciclos</th></tr></thead><tbody>`;
+  for(let k=0;k<3;k++){const sp=M.T[0]/M.T[k];
+    h+=`<tr><td>${names[k]}</td><td>${N}</td><td>${M.cyc[k]}</td><td>${fmt(M.cyc[k]/N,2)}</td><td>${M.Tc[k]} ps</td><td class="${k===best?'best':''}">${fmtNs(M.T[k])}</td><td>${k?(sp>=1?fmt(sp,2)+'× más rápido':fmt(1/sp,2)+'× más lento'):'referencia'}</td><td class="br">${br[k]}</td></tr>`;}
+  $('#ptable').innerHTML=h+'</tbody>';
+  $('#tbars').innerHTML=[0,1,2].map(k=>`<div class="tb"><span class="n">${names[k]}</span><span class="tr"><i class="${k===best?'best':''}" style="width:${(M.T[k]/M.maxT*100).toFixed(1)}%"></i></span><span class="v">${fmtNs(M.T[k])} <small>· ${M.cyc[k]} × ${M.Tc[k]} ps</small></span></div>`).join('');
+  // Conclusiones
+  const sp3=M.T[0]/M.T[2], sp2=M.T[0]/M.T[1], tcr=M.Tc[0]/M.Tc[2];
+  const st=stages3(D); const slow=st.reduce((a,b)=>b.t>a.t?b:a);
+  const cpi3=M.cyc[2]/N, cpi2=M.cyc[1]/N;
+  let p1;
+  if(sp3>=1) p1=`<p><b>El segmentado ${best===2?'gana':'mejora al monociclo'}: ${fmt(sp3,2)}× más rápido</b>, lejos del 5× que prometen cinco etapas. El reloj solo pasa de ${M.Tc[0]} a ${M.Tc[2]} ps (${fmt(tcr,2)}×, no 5×) porque lo marca la etapa más lenta (${slow.n}, ${slow.t} ps) y porque cada etapa paga su propio sobrecoste de registros. Y su CPI es ${fmt(cpi3,2)}, no 1: de sus ${M.cyc[2]} ciclos, 4 son de llenado, ${M.stalls} de paradas por cargas y ${2*M.flushes} de vaciados por saltos.</p>`;
+  else p1=`<p><b>Con estos retardos el segmentado no compensa</b>: ${fmt(1/sp3,2)}× más lento que el monociclo. Su ciclo de ${M.Tc[2]} ps lo fija la etapa ${slow.n} y su CPI es ${fmt(cpi3,2)}.</p>`;
+  const p2=`<p><b>El multiciclo es ${sp2>=1?fmt(sp2,2)+'× más rápido':fmt(1/sp2,2)+'× más lento'} que el monociclo.</b> Su reloj es ${fmt(M.Tc[0]/M.Tc[1],2)}× más rápido, pero cada instrucción necesita de media ${fmt(cpi2,2)} ciclos. ${sp2<1?'Partir la instrucción en pasos no sale gratis: el paso más lento es una lectura de memoria completa y el sobrecoste de los registros se paga en cada paso.':'Aquí gana porque abundan las instrucciones cortas y el monociclo desperdicia mucho tiempo en ellas.'}</p>`;
+  const lat=5*M.Tc[2];
+  const p3=`<p><b>Latencia frente a productividad:</b> una instrucción tarda ${lat} ps en atravesar las cinco etapas del segmentado, ${lat>M.Tc[0]?'más':'menos'} que los ${M.Tc[0]} ps del monociclo. El segmentado no hace cada instrucción más rápida; termina una por ciclo porque trabaja en cinco a la vez.</p>`;
+  $('#insight').innerHTML=p1+p2+p3;
+}
+
+/* ---------- Origen de cada Tc ---------- */
+function renderTc(){
+  const T1=tc1(D),T2=tc2(D),T3=tc3(D), S=Math.max(T1,T2,T3)*1.02;
+  const pct=v=>(v/S*100).toFixed(2)+'%';
+  const bar=(name,tot,ov,tc,isMax,title)=>{const lg=tot-ov;
+    return `<div class="br3${isMax?' max':''}" title="${title||''}"><span class="n">${name}</span><span class="tr"><span class="lg" style="width:${pct(lg)}"></span>${ov?`<span class="ov" style="left:${pct(lg)};width:${pct(ov)}"></span>`:''}<span class="sl" style="left:${pct(tot)};width:${pct(Math.max(0,tc-tot))}"></span><span class="tcl" style="left:${pct(tc)}"></span></span><span class="v">${Math.round(tot)} ps</span></div>`;};
+  const types=[['LDR','LDR'],['STR','STR'],['DP','Proc. datos'],['B','B']];
+  let h=`<div class="tcg"><div class="gh"><h3>Monociclo<span>T<sub>c1</sub> = ${T1} ps</span></h3></div>
+    <p class="fx">T<sub>c1</sub> = t<sub>pcq</sub> + 2t<sub>mem</sub> + t<sub>dec</sub> + t<sub>RFread</sub> + t<sub>ALU</sub> + 2t<sub>mux</sub> + t<sub>RFsetup</sub> = ${D.tpcq} + 2(${D.tmem}) + ${D.tdec} + ${D.tRFread} + ${D.tALU} + 2(${D.tmux}) + ${D.tRFsetup}</p>`;
+  types.forEach(([ty,n])=>{const e=monoPhases(ty,D).end; h+=bar(n,e,D.tpcq+(ty==='STR'?0:ty==='B'?D.tsetup:D.tRFsetup),T1,ty==='LDR');});
+  h+=`<p class="tcnote">Un solo periodo para todas: <b>lo marca LDR</b>, la más lenta. Las demás terminan antes y esperan.</p></div>`;
+  const mp=mpaths(D);
+  h+=`<div class="tcg"><div class="gh"><h3>Multiciclo<span>T<sub>c2</sub> = ${T2} ps</span></h3></div>
+    <p class="fx">T<sub>c2</sub> = t<sub>pcq</sub> + 2t<sub>mux</sub> + max(t<sub>ALU</sub> + t<sub>mux</sub>, t<sub>mem</sub>) + t<sub>setup</sub> = ${D.tpcq} + 2(${D.tmux}) + max(${D.tALU+D.tmux}, ${D.tmem}) + ${D.tsetup}</p>`;
+  mp.forEach(p=>h+=bar(p.n,p.t,p.ov,T2,p.t===T2));
+  h+=`<p class="tcnote">Cada paso hace una sola cosa: un acceso a memoria, una operación de la ALU o un acceso al banco de registros. Pero <b>los ${D.tpcq+D.tsetup} ps de t<sub>pcq</sub> + t<sub>setup</sub> se pagan en cada paso</b>: un LDR de 5 pasos cuesta ${5*T2} ps.</p></div>`;
+  const st=stages3(D);
+  h+=`<div class="tcg"><div class="gh"><h3>Segmentado<span>T<sub>c3</sub> = ${T3} ps</span></h3></div>
+    <p class="fx">T<sub>c3</sub> = max(${st.map(s=>s.t).join(', ')}) · el banco de registros se escribe en la primera mitad del ciclo y se lee en la segunda, por eso Decode y Writeback cuentan doble</p>`;
+  st.forEach(s=>h+=bar(`${s.k} · ${s.n}`,s.t,s.ov,T3,s.t===T3,s.f.replace(/<\/?sub>/g,'')));
+  const ovs=st.reduce((a,s)=>a+s.ov,0);
+  h+=`<p class="tcnote">Las etapas no están equilibradas y <b>la más lenta marca el ritmo</b>. Ideal: ${T1} / 5 = ${fmt(T1/5,0)} ps. Real: ${T3} ps.</p></div>`;
+  $('#tcbox').innerHTML=h;
+}
+
+/* ---------- Retardos ---------- */
+function renderDelays(){
+  $('#dl').innerHTML=DMETA.map(([k,n,p])=>`<div class="dr"><label for="d-${k}">${n}</label><span class="p">${p}</span><input type="number" id="d-${k}" min="0" max="2000" step="5" value="${D[k]}" class="${D[k]!==BOOK[k]?'chg':''}" aria-label="${n} en ps"></div>`).join('');
+  DMETA.forEach(([k])=>{$('#d-'+k).addEventListener('change',e=>{const v=Math.max(0,Math.min(2000,Math.round(+e.target.value||0))); D[k]=v; delaysChanged();});});
+  const same=DMETA.every(([k])=>D[k]===BOOK[k]); const p=$('#dpill'); p.textContent=same?'Tabla 7.5':'Modificados'; p.className='pill '+(same?'ok':'mod');
+}
+function delaysChanged(){ const frac=M?t/M.maxT:0; renderDelays(); rebuild(); t=Math.min(M.maxT,frac*M.maxT); update(false); }
+
+/* ---------- SPECINT2000 ---------- */
+const SPEC_BOOK={ld:25,st:10,br:13,dep:40,mis:50};
+function specIn(){return {ld:+$('#m-ld').value,st:+$('#m-st').value,br:+$('#m-br').value,dep:+$('#m-dep').value,mis:+$('#m-mis').value};}
+function clampMix(src){const s=specIn(); const sum=s.ld+s.st+s.br; if(sum>100){const el=$('#m-'+src); el.value=+el.value-(sum-100);}}
+function renderSpec(){
+  const s=specIn(), dp=100-s.ld-s.st-s.br, f=x=>x/100;
+  $('#o-ld').textContent=s.ld+' %'; $('#o-st').textContent=s.st+' %'; $('#o-br').textContent=s.br+' %'; $('#o-dp').textContent=dp+' %';
+  $('#o-dep').textContent=s.dep+' %'; $('#o-mis').textContent=s.mis+' %';
+  const cpi=[1, 3*f(s.br)+4*(f(dp)+f(s.st))+5*f(s.ld), f(s.ld)*(1+f(s.dep))+f(s.st)+f(s.br)*(1+2*f(s.mis))+f(dp)];
+  const Tc=[tc1(D),tc2(D),tc3(D)]; const N=100e9; const T=cpi.map((c,k)=>N*c*Tc[k]*1e-12);
+  const best=T.indexOf(Math.min(...T)); const names=['Monociclo','Multiciclo','Segmentado'];
+  $('#stiles').innerHTML=[0,1,2].map(k=>`<div class="tile${k===best?' best':''}"><div class="tn">${names[k]}</div><div class="tv">${fmt(T[k],T[k]<100?1:0)} s</div><div class="tl">CPI ${fmt(cpi[k],2)} · T<sub>c</sub> ${Tc[k]} ps${k?` · ${T[0]/T[k]>=1?fmt(T[0]/T[k],2)+'× más rápido':fmt(T[k]/T[0],2)+'× más lento'}`:''}</div></div>`).join('');
+  $('#cpif').innerHTML=`<span>CPI multiciclo = 3(${fmt(f(s.br),2)}) + 4(${fmt(f(dp),2)} + ${fmt(f(s.st),2)}) + 5(${fmt(f(s.ld),2)}) = ${fmt(cpi[1],2)}</span>
+    <span>CPI segmentado = ${fmt(f(s.ld),2)}(1 + ${fmt(f(s.dep),2)}) + ${fmt(f(s.st),2)} + ${fmt(f(s.br),2)}(1 + 2 × ${fmt(f(s.mis),2)}) + ${fmt(f(dp),2)} = ${fmt(cpi[2],2)}</span>
+    <span>T = 10<sup>11</sup> × CPI × T<sub>c</sub></span>`;
+  const same=Object.keys(SPEC_BOOK).every(k=>s[k]===SPEC_BOOK[k])&&DMETA.every(([k])=>D[k]===BOOK[k]);
+  const p=$('#spill'); p.textContent=same?'Como en el libro':'Modificado'; p.className='pill '+(same?'ok':'mod');
+}
+
+/* ---------- Orquestación ---------- */
+function loadProgram(src){
+  try{ const p=assemble(src); const ex=execute(p,preset); prog=p; trace=ex.trace; $('#err').textContent=''; return true; }
+  catch(e){ $('#err').textContent=e.message; return false; }
+}
+function rebuild(){ buildModel(); renderCards(); renderTimeline(); renderPerf(); renderTc(); renderSpec(); }
+function selectPreset(id){
+  preset=PRESETS.find(p=>p.id===id)||PRESETS[0];
+  $('#pnote').innerHTML=preset.note; $('#src').value=preset.src;
+  const mem=Object.entries(preset.mem); const regs=Object.entries(preset.regs);
+  $('#meminit').innerHTML=(regs.length?'Registros iniciales: '+regs.map(([r,v])=>`<code>${r} = 0x${v.toString(16).toUpperCase()}</code>`).join(', ')+'. ':'')+(mem.length?'Memoria inicial: '+mem.map(([a,v])=>`<code>[0x${(+a).toString(16).toUpperCase()}] = ${v}</code>`).join(', ')+'.':'Memoria inicial a cero.');
+  stop(); loadProgram(preset.src); t=0; rebuild(); tl.scrollLeft=0; update(false);
+}
+
+function play(){ if(t>=M.maxT) t=0; playing=true; last=0; setPlay(); requestAnimationFrame(tick); }
+function stop(){ playing=false; setPlay(); }
+function setPlay(){ $('#playtxt').textContent=playing?'Pausa':'Reproducir'; $('#playico').innerHTML=playing?'<path d="M3 2h4v12H3zM9 2h4v12H9z"/>':'<path d="M4 2v12l10-6z"/>'; }
+let last=0;
+function tick(ts){ if(!playing) return; const dt=last?Math.min(0.1,(ts-last)/1000):0; last=ts; t=Math.min(M.maxT,t+dt*speed); update(true); if(t>=M.maxT) stop(); else requestAnimationFrame(tick); }
+function edge(dir){
+  stop(); const eps=0.5; let best=dir>0?Infinity:-Infinity;
+  M.Tc.forEach((Tc,k)=>{ if(dir>0){const n=(Math.floor((t+eps)/Tc)+1)*Tc; if(n<=M.T[k]) best=Math.min(best,n);} else {const p=(Math.ceil((t-eps)/Tc)-1)*Tc; if(p>=0) best=Math.max(best,p);} });
+  if(!isFinite(best)) best=dir>0?M.maxT:0; t=Math.max(0,Math.min(M.maxT,best)); update(true);
+}
+
+$('#preset').innerHTML=PRESETS.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('');
+$('#preset').addEventListener('change',e=>selectPreset(e.target.value));
+$('#b-run').addEventListener('click',()=>{ stop(); if(loadProgram($('#src').value)){ t=0; rebuild(); tl.scrollLeft=0; update(false);} });
+$('#b-restore').addEventListener('click',()=>selectPreset(preset.id));
+$('#b-play').addEventListener('click',()=>playing?stop():play());
+$('#b-reset').addEventListener('click',()=>{stop();t=0;tl.scrollLeft=0;update(false);});
+$('#b-next').addEventListener('click',()=>edge(1));
+$('#b-prev').addEventListener('click',()=>edge(-1));
+$('#scrub').addEventListener('input',e=>{stop();t=+e.target.value;update(true);});
+document.querySelectorAll('input[name=spd]').forEach(r=>r.addEventListener('change',e=>speed=+e.target.value));
+document.querySelectorAll('input[name=zm]').forEach(r=>r.addEventListener('change',e=>{zoom=e.target.value;renderTimeline();update(true);}));
+tli.addEventListener('click',e=>{const rc=tli.getBoundingClientRect(); stop(); t=Math.max(0,Math.min(M.maxT,(e.clientX-rc.left)/px)); update(false);});
+document.addEventListener('keydown',e=>{ if(/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+  if(e.code==='Space'){e.preventDefault();playing?stop():play();} else if(e.key==='ArrowRight'){e.preventDefault();edge(1);} else if(e.key==='ArrowLeft'){e.preventDefault();edge(-1);} else if(e.key==='Home'){stop();t=0;tl.scrollLeft=0;update(false);} });
+$('#b-book').addEventListener('click',()=>{D={...BOOK};delaysChanged();});
+document.querySelectorAll('[data-exp]').forEach(b=>b.addEventListener('click',()=>{ D={...BOOK}; const x=b.dataset.exp;
+  if(x==='mem') D.tmem=100; if(x==='alu') D.tALU=300; if(x==='ideal'){D.tpcq=0;D.tsetup=0;D.tRFsetup=0;} delaysChanged(); }));
+['ld','st','br'].forEach(k=>$('#m-'+k).addEventListener('input',()=>{clampMix(k);renderSpec();}));
+['dep','mis'].forEach(k=>$('#m-'+k).addEventListener('input',renderSpec));
+$('#b-specbook').addEventListener('click',()=>{Object.entries(SPEC_BOOK).forEach(([k,v])=>$('#m-'+k).value=v);renderSpec();});
+let rz; window.addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(()=>{if(zoom==='fit'){renderTimeline();update(false);}},150);});
+
+renderDelays();
+selectPreset(PRESETS[0].id);
+})();
+</script>
+
+</body>
+</html>
