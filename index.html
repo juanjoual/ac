@@ -141,7 +141,7 @@
 
     .grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
       gap: 16px;
     }
     .card {
@@ -262,6 +262,13 @@
         descripcion: "Sigue la señal por la ruta de datos del ARM monociclo hasta que se estabiliza y descubre qué instrucción fija el tiempo de ciclo. Cronograma con los retardos de la Tabla 7.5, experimentos cambiando retardos y ejercicios aleatorios para calcular Tc.",
         etiquetas: ["Monociclo", "Tiempo de ciclo", "Camino crítico"],
         color: "i2"
+      },
+      {
+        carpeta: "control-multiciclo",
+        titulo: "Control del multiciclo",
+        descripcion: "Avanza ciclo a ciclo por el ARM multiciclo y mira cómo la máquina de estados de la unidad de control configura multiplexores y habilitaciones en cada estado. Programa editable, señales de control del ciclo, recorrido por los estados, CPI y modo «adivina el siguiente estado».",
+        etiquetas: ["Multiciclo", "FSM", "Unidad de control"],
+        color: "i4"
       },
       {
         carpeta: "monociclo-multiciclo-segmentado",
