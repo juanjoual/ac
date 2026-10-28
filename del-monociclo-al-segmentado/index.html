@@ -1,4 +1,10 @@
-<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+
 <title>Del monociclo al segmentado</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -226,6 +232,24 @@ table.tv.f3 td:first-child{font:600 14px var(--f-body)}
 table.tv.f3 td:last-child,table.tv.f3 th:last-child{font-weight:600;text-align:right}
 table.tv.f3 tr.max td:last-child{color:var(--accent)}
 .params{font:12.5px/1.6 var(--f-mono);color:var(--muted)}
+.rfclk{margin:0;display:flex;flex-direction:column;gap:6px;padding:12px;border:1px solid var(--line);border-radius:5px;background:var(--sunk)}
+.rfclk svg{display:block;width:100%;height:auto}
+.rfclk .lb{font:700 13.5px var(--f-display);letter-spacing:.04em;fill:var(--ink)}
+.rfclk .sb{font:12px var(--f-body);fill:var(--muted)}
+.rfclk .m,.rfclk .bt,.rfclk .bs{text-anchor:middle}
+.rfclk .bt{font:600 12.5px var(--f-body);fill:var(--ink)}
+.rfclk .bs{font:11px var(--f-mono);fill:var(--muted)}
+.rfclk .gd{stroke:var(--line-strong);stroke-width:1;stroke-dasharray:3 4}
+.rfclk .wv{fill:none;stroke:var(--ink);stroke-width:1.6;stroke-linejoin:round}
+.rfclk .ar{stroke:var(--i1);stroke-width:1.6}
+.rfclk rect{stroke-width:1.2;transition:stroke-width .2s,fill .2s}
+.rfclk .bw rect{fill:color-mix(in srgb,var(--i1) 14%,var(--panel));stroke:var(--i1)}
+.rfclk .bd rect{fill:color-mix(in srgb,var(--ok) 14%,var(--panel));stroke:var(--ok)}
+.rfclk .bo rect{fill:var(--panel);stroke:var(--line-strong);stroke-dasharray:4 3}
+.rfclk .bw.on rect{stroke-width:2.6;fill:color-mix(in srgb,var(--i1) 26%,var(--panel))}
+.rfclk .bd.on rect{stroke-width:2.6;fill:color-mix(in srgb,var(--ok) 26%,var(--panel))}
+.rfclk .dw{fill:var(--i1)} .rfclk .dd{fill:var(--ok)}
+.rfclk figcaption{font-size:13.5px;color:var(--muted)}
 
 /* Programa */
 .prog{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:3px;font:13px var(--f-mono)}
@@ -286,7 +310,8 @@ a{color:var(--accent)}
 .foot{color:var(--muted);font-size:13px;padding-top:4px}
 @media (prefers-reduced-motion: reduce){#dp *{animation:none!important;transition:none!important}}
 </style>
-
+</head>
+<body>
 <header class="top">
   <div class="wrap">
     <div class="intro">
@@ -773,6 +798,9 @@ function sel3(i){
   cls(f.b,'hl');
   document.querySelectorAll('#p3t tbody tr').forEach((tr,j)=>tr.classList.toggle('sel',j===i));
   note.innerHTML='<b>'+f.n+' = '+f.s+' = '+f.v+' ps.</b> '+f.x;
+  const rW=document.getElementById('rfW'),rD=document.getElementById('rfD');
+  if(rW)rW.classList.toggle('on',i===4);
+  if(rD)rD.classList.toggle('on',i===1);
 }
 function lab3(){
   const W=840;
@@ -1062,7 +1090,37 @@ const STEPS=[
    x:`<p>En cada corte colocamos un <b>registro de segmentación</b>: F/D, D/E, E/M y M/W. En cada flanco de reloj, cada registro captura lo que ha producido su etapa y se lo entrega a la siguiente. Así cada etapa trabaja con una instrucción diferente.</p>
    <p>Las señales llevan ahora un <b>sufijo</b> con la etapa en la que están: <code>InstrF</code>, <code>SrcAE</code>, <code>ALUOutM</code>, <code>ResultW</code>… El mismo valor cambia de nombre al cruzar un registro.</p>
    <p>El ciclo de reloj ya no lo marca la instrucción entera, sino <b>la etapa más lenta</b> más el sobrecoste de su registro.</p>
-   <div class="aside">El banco de registros es especial: se <b>escribe en el flanco de bajada</b>, en la primera mitad del ciclo, y se lee en la segunda. Por eso un valor escrito en W puede leerse en D en el mismo ciclo.</div>`,
+   <div class="aside">El banco de registros es especial: se <b>escribe en el flanco de bajada</b>, en la primera mitad del ciclo, y se lee en la segunda. Por eso un valor escrito en W puede leerse en D en el mismo ciclo.</div>
+   <figure class="rfclk" aria-label="Escritura y lectura del banco de registros en un ciclo">
+<svg viewBox="0 0 580 296" role="img"><title>Un ciclo de 300 ps: escritura en el flanco de bajada, lectura en la segunda mitad</title>
+<defs><marker id="rfarr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M2 1L8 5L2 9" fill="none" stroke="var(--i1)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+<line class="gd" x1="96" y1="30" x2="96" y2="250"/><line class="gd" x1="306" y1="30" x2="306" y2="250"/><line class="gd" x1="516" y1="30" x2="516" y2="250"/>
+<text class="lb" x="0" y="55" dominant-baseline="central">CLK</text>
+<path class="wv" d="M70 70H96V40H306V70H516V40H560"/>
+<text class="bs" x="201" y="88" dominant-baseline="central">1.ª mitad · 150 ps</text>
+<text class="bs" x="411" y="88" dominant-baseline="central">2.ª mitad · 150 ps</text>
+<text class="lb" x="0" y="117" dominant-baseline="central">Writeback</text>
+<text class="sb" x="0" y="135" dominant-baseline="central">escribe</text>
+<g class="bw" id="rfW"><rect x="96" y="100" width="210" height="52" rx="4"/>
+<text class="bt" x="201" y="117" dominant-baseline="central">ResultW llega al banco</text>
+<text class="bs" x="201" y="135" dominant-baseline="central">40 + 25 + 60 = 125 ps</text></g>
+<circle class="dw" cx="306" cy="126" r="5"/>
+<line class="ar" x1="306" y1="158" x2="306" y2="178" marker-end="url(#rfarr)"/>
+<text class="lb" x="0" y="199" dominant-baseline="central">Decode</text>
+<text class="sb" x="0" y="217" dominant-baseline="central">lee</text>
+<g class="bo"><rect x="96" y="182" width="210" height="52" rx="4"/>
+<text class="bt" x="201" y="199" dominant-baseline="central">RD1/RD2: valor antiguo</text>
+<text class="bs" x="201" y="217" dominant-baseline="central">lectura combinacional</text></g>
+<g class="bd" id="rfD"><rect x="306" y="182" width="210" height="52" rx="4"/>
+<text class="bt" x="411" y="199" dominant-baseline="central">RD1/RD2: valor nuevo</text>
+<text class="bs" x="411" y="217" dominant-baseline="central">100 + 50 = 150 ps</text></g>
+<circle class="dd" cx="516" cy="208" r="5"/>
+<text class="sb m" x="96" y="266" dominant-baseline="central">flanco de subida</text><text class="sb m" x="96" y="283" dominant-baseline="central">empieza el ciclo</text>
+<text class="sb m" x="306" y="266" dominant-baseline="central">flanco de bajada</text><text class="sb m" x="306" y="283" dominant-baseline="central">se escribe el banco</text>
+<text class="sb m" x="516" y="266" dominant-baseline="central">flanco de subida</text><text class="sb m" x="516" y="283" dominant-baseline="central">D/E lo guarda</text>
+</svg>
+<figcaption>La lectura no espera a ningún flanco: RD1 y RD2 cambian en cuanto se escribe el registro, y D/E guarda el valor nuevo en el siguiente flanco de subida. Decode necesita su medio ciclo entero, por eso fija T<sub>c</sub> = 2 · 150 = 300 ps.</figcaption>
+</figure>`,
    leg:[['var(--bar)','registro de segmentación']], init:lab3},
   {t:'¿Encuentras el error?',s:'El error',f:'Figura 7.44 (b) → 7.45: todas las señales de una instrucción avanzan juntas',
    x:`<p>El diseño del paso anterior tiene un fallo sutil. El libro lo plantea como reto: <i>¿lo encuentras?</i></p>
@@ -1133,5 +1191,5 @@ state.step=0;
 go(fromH(),true);
 })();
 </script>
-
-</body></html>
+</body>
+</html>
