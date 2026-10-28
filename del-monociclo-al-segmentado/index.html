@@ -1,9 +1,4 @@
-<!doctype html>
-<html lang="es">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<style>:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
 <title>Del monociclo al segmentado</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -224,6 +219,13 @@ input[type=range]{flex:1 1 200px;min-width:0;accent-color:var(--accent)}
 .keys i{display:inline-block;width:16px;height:10px;border-radius:2px}
 .formula{padding:10px 12px;border-radius:5px;background:var(--sunk);border:1px solid var(--line);font:13px/1.7 var(--f-mono);overflow-x:auto}
 .formula .res{color:var(--accent);font-weight:600}
+table.tv.f3 tbody tr:hover{background:color-mix(in srgb,var(--accent) 6%,var(--panel))}
+table.tv.f3 tbody tr.sel{background:color-mix(in srgb,var(--accent) 14%,var(--panel))}
+table.tv.f3 td{font:13px var(--f-mono)}
+table.tv.f3 td:first-child{font:600 14px var(--f-body)}
+table.tv.f3 td:last-child,table.tv.f3 th:last-child{font-weight:600;text-align:right}
+table.tv.f3 tr.max td:last-child{color:var(--accent)}
+.params{font:12.5px/1.6 var(--f-mono);color:var(--muted)}
 
 /* Programa */
 .prog{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:3px;font:13px var(--f-mono)}
@@ -284,8 +286,7 @@ a{color:var(--accent)}
 .foot{color:var(--muted);font-size:13px;padding-top:4px}
 @media (prefers-reduced-motion: reduce){#dp *{animation:none!important;transition:none!important}}
 </style>
-</head>
-<body>
+
 <header class="top">
   <div class="wrap">
     <div class="intro">
@@ -750,6 +751,29 @@ const T3=[
   {k:'M',n:'Memory',seg:[['ov',40,'t_pcq'],['cb',200,'t_mem'],['ov',50,'t_setup']]},
   {k:'W',n:'Writeback',seg:[['ov',40,'pcq'],['cb',25,'mux'],['cb',60,'RFsetup'],['ov',40,'pcq'],['cb',25,'mux'],['cb',60,'RFsetup']],half:true}
 ];
+const ts=x=>'t<sub>'+x+'</sub>';
+const F3=[
+  {k:'F',n:'Fetch',f:`${ts('pcq')} + ${ts('mem')} + ${ts('setup')}`,s:'40 + 200 + 50',v:290,b:['bFD','w_pc_im','w_instr'],
+   x:`El PC sale de su registro (${ts('pcq')}), se lee la memoria de instrucciones (${ts('mem')}) y la instrucción debe llegar estable al registro F/D antes del flanco (${ts('setup')}).`},
+  {k:'D',n:'Decode',f:`2·(${ts('RFread')} + ${ts('setup')})`,s:'2·(100 + 50)',v:300,b:['bFD','bDE','w_ra1_out','w_rd1','w_rd2'],
+   x:`El banco de registros solo se lee en la <b>segunda mitad</b> del ciclo, porque la primera es para la escritura de Writeback. La lectura (${ts('RFread')}) y el setup de D/E (${ts('setup')}) tienen que caber en medio ciclo, así que el ciclo completo debe durar el doble. Es la etapa que fija T<sub>c</sub>.`},
+  {k:'E',n:'Execute',f:`${ts('pcq')} + ${ts('mux')} + ${ts('ALU')} + ${ts('setup')}`,s:'40 + 25 + 120 + 50',v:235,b:['bDE','bEM','w_srcb','w_alures'],
+   x:`El operando sale de D/E (${ts('pcq')}), pasa por el multiplexor ALUSrc (${ts('mux')}) y por la ALU (${ts('ALU')}), y el resultado se guarda en E/M (${ts('setup')}). Con la anticipación (3.4.1) se añade un segundo multiplexor delante de la ALU: 40 + 2·25 + 120 + 50 = 260 ps, el valor del libro.`},
+  {k:'M',n:'Memory',f:`${ts('pcq')} + ${ts('mem')} + ${ts('setup')}`,s:'40 + 200 + 50',v:290,b:['bEM','bMW','w_rd'],
+   x:`Igual que Fetch, pero con la memoria de datos: la dirección sale de E/M (${ts('pcq')}), se lee la memoria (${ts('mem')}) y el dato se guarda en M/W (${ts('setup')}).`},
+  {k:'W',n:'Writeback',f:`2·(${ts('pcq')} + ${ts('mux')} + ${ts('RFsetup')})`,s:'2·(40 + 25 + 60)',v:250,b:['bMW','w_res','w_res_wd3','RF'],
+   x:`El dato sale de M/W (${ts('pcq')}), atraviesa el multiplexor de resultado (${ts('mux')}) y debe estar listo en el banco de registros: aquí el setup es el del banco, ${ts('RFsetup')}, no ${ts('setup')}. La escritura ocurre en la <b>primera mitad</b> del ciclo, de ahí el factor 2.`}
+];
+function sel3(i){
+  clearHL();
+  const f=F3[i], s=STAGES[i];
+  svg.querySelector('.band[data-st="'+i+'"]').classList.add('sel');
+  svg.querySelector('.tag[data-st="'+i+'"]').classList.add('sel');
+  cls(s.els.filter(id=>id!=='ADD8'),'hl');
+  cls(f.b,'hl');
+  document.querySelectorAll('#p3t tbody tr').forEach((tr,j)=>tr.classList.toggle('sel',j===i));
+  note.innerHTML='<b>'+f.n+' = '+f.s+' = '+f.v+' ps.</b> '+f.x;
+}
 function lab3(){
   const W=840;
   const row=(name,segs,tot,max)=>{let x=0;return `<div class="tr3${max?' max':''}"><span class="nm">${name}</span><div class="tk">${segs.map(([c,v,l])=>{const h=`<span class="sg ${c}" style="left:${x/W*100}%;width:${v/W*100}%" title="${l}: ${v} ps">${v>=40?v:''}</span>`;x+=v;return h;}).join('')}</div><span class="v">${tot} ps</span></div>`;};
@@ -759,9 +783,15 @@ function lab3(){
   <div class="lh">Duración de cada etapa con sus registros</div>
   <div class="tim" id="tim">${mono}${st}<div class="tcline" style="left:calc(106px + (100% - 178px) * ${300/840})"><span>T<sub>c</sub> = 300 ps</span></div></div>
   <div class="keys"><span><i style="background:color-mix(in srgb,var(--accent) 30%,var(--panel))"></i>lógica de la etapa</span><span><i style="background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--over) 40%,var(--panel)) 0 3px,var(--panel) 3px 6px)"></i>sobrecoste del registro (t<sub>pcq</sub>, t<sub>setup</sub>)</span></div>
-  <div class="formula">T<sub>c</sub> = máx(290, 300, 235, 290, 250) = <span class="res">300 ps</span><br>D y W valen el doble: el banco se escribe en la 1.ª mitad del ciclo y se lee en la 2.ª.</div>
+  <div class="lh">De dónde sale cada tiempo (ecuación 7.5 · toca una fila)</div>
+  <div class="tw"><table class="tv f3" id="p3t"><thead><tr><th>Etapa</th><th>Fórmula</th><th>Sustitución</th><th>ps</th></tr></thead><tbody>
+  ${F3.map((f,i)=>`<tr class="${f.v===300?'max':''}" data-i="${i}"><td>${f.k} · ${f.n}</td><td>${f.f}</td><td>${f.s}</td><td>${f.v}</td></tr>`).join('')}
+  </tbody></table></div>
+  <p class="params">Tabla 7.5: t<sub>pcq</sub> = 40 · t<sub>setup</sub> = 50 · t<sub>mux</sub> = 25 · t<sub>ALU</sub> = 120 · t<sub>mem</sub> = 200 · t<sub>RFread</sub> = 100 · t<sub>RFsetup</sub> = 60 (ps)</p>
+  <div class="formula">T<sub>c</sub> = máx(290, 300, 235, 290, 250) = <span class="res">300 ps</span><br>D y W valen el doble: el banco se escribe en la 1.ª mitad del ciclo y se lee en la 2.ª, así que cada operación dispone solo de medio ciclo.</div>
   <div class="box">Cada instrucción tarda ahora más en completarse (5 × 300 = 1500 ps de <b>latencia</b>), pero sale una instrucción terminada cada 300 ps: mejora la <b>productividad</b>.</div>
   <p class="foot">La ecuación 7.5 del libro da 260 ps para Execute porque incluye el multiplexor de anticipación (forwarding) que se añade al gestionar riesgos. T<sub>c</sub> sigue siendo 300 ps.</p>`;
+  lab.querySelectorAll('#p3t tbody tr').forEach(tr=>tr.onclick=()=>sel3(+tr.dataset.i));
   clearHL();
   note.innerHTML='Han aparecido los 4 <b>registros de segmentación</b>. Toca cualquiera de ellos en el dibujo para ver qué guarda. Las señales cambian de nombre según la etapa: <code>InstrF</code>, <code>SrcAE</code>, <code>ALUOutM</code>, <code>ResultW</code>…';
 }
@@ -812,7 +842,7 @@ function draw4(){
     note.innerHTML='Con <code>WA3</code> segmentado, dato (<code>ResultW</code>) y dirección (<code>WA3W</code>) llegan juntos al banco.';
   }else{
     const wrong=di!==null?PROG[di].rd:null;
-    byId('w_a3_bug').classList.add('bad');
+    if(state.found) byId('w_a3_bug').classList.add('bad');
     callout(wrong!==null?'✗ '+mnem(w)+' escribe en R'+wrong+' (debería ser R'+w.rd+')':'✗ A3 indefinida: no hay nada en Decode',false);
     s4.className='box bad';
     s4.innerHTML='<b>Ciclo '+c+':</b> '+w.asm+' quiere escribir en <b>R'+w.rd+'</b>, pero el banco escribe en <b>'+(wrong!==null?'R'+wrong:'un registro indefinido')+'</b>. '+(di!==null?'Ese número es el Rd de <code>'+PROG[di].asm+'</code>, que está en Decode.':'');
@@ -827,7 +857,7 @@ function buildHits(){
 function pick(id){
   const k=CANDS[id], fb=$('#p4fb');
   fb.hidden=false; fb.className='box '+(k.ok?'good':'warn'); fb.innerHTML=k.t;
-  if(k.ok){state.found=true;byId('hits').innerHTML='';$('#p4fix').disabled=false;$('#p4sol').hidden=true;}
+  if(k.ok){state.found=true;byId('hits').innerHTML='';byId('w_a3_bug').classList.add('bad');$('#p4fix').disabled=false;$('#p4sol').hidden=true;}
 }
 function lab4(){
   state.c4=0; state.found=false;
@@ -1103,5 +1133,5 @@ state.step=0;
 go(fromH(),true);
 })();
 </script>
-</body>
-</html>
+
+</body></html>
