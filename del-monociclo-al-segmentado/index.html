@@ -1,0 +1,1107 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Del monociclo al segmentado</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@400;600&family=Source+Sans+3:wght@400;600;700&display=swap">
+<style>
+/* Layout: obra en construcción — barra de pasos arriba, un único camino de datos que se va transformando, y debajo explicación + laboratorio interactivo de cada paso */
+:root{
+  --paper:#f2f4f8; --panel:#ffffff; --sunk:#f7f8fb; --ink:#152033; --muted:#566377; --line:#d6dce5; --line-strong:#9aa6b8;
+  --accent:#2148c9; --accent-ink:#ffffff;
+  --ok:#0a8273; --over:#b47600; --bad:#c0392b; --ctl:#7a3fc0;
+  --wire:#6f7b8e; --bar:#28324a; --bar-ink:#ffffff; --band:#e8ecf3;
+  --i0:#2563c4; --i1:#cf5f1c; --i2:#2c8a4d; --i3:#c02f80; --i4:#6a4bd0; --i5:#a67a0e;
+  --f-display:"Barlow Condensed","Arial Narrow",sans-serif;
+  --f-body:"Source Sans 3","Segoe UI",system-ui,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --paper:#0e131b; --panel:#151c27; --sunk:#111821; --ink:#e2e8f1; --muted:#95a2b6; --line:#273244; --line-strong:#56637a;
+  --accent:#7d9fff; --accent-ink:#0b1224;
+  --ok:#35c4b2; --over:#f0b42a; --bad:#ff6e62; --ctl:#b590ff;
+  --wire:#7f8ca1; --bar:#c3cde0; --bar-ink:#0e131b; --band:#18202d;
+  --i0:#6aa2ec; --i1:#f2935c; --i2:#5fc187; --i3:#ea72b8; --i4:#a38bf2; --i5:#e2b24b;
+  color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --paper:#0e131b; --panel:#151c27; --sunk:#111821; --ink:#e2e8f1; --muted:#95a2b6; --line:#273244; --line-strong:#56637a;
+  --accent:#7d9fff; --accent-ink:#0b1224;
+  --ok:#35c4b2; --over:#f0b42a; --bad:#ff6e62; --ctl:#b590ff;
+  --wire:#7f8ca1; --bar:#c3cde0; --bar-ink:#0e131b; --band:#18202d;
+  --i0:#6aa2ec; --i1:#f2935c; --i2:#5fc187; --i3:#ea72b8; --i4:#a38bf2; --i5:#e2b24b;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--paper);color:var(--ink);font:15px/1.5 var(--f-body);-webkit-font-smoothing:antialiased}
+.wrap{max-width:1380px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0}
+h2{font-size:26px;font-weight:700;letter-spacing:.01em;line-height:1.1}
+h3{font-size:17px;font-weight:700;letter-spacing:.01em}
+p{margin:0}
+code,.mono{font-family:var(--f-mono);font-size:.88em}
+sub{font-size:.72em}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* Cabecera */
+.top{border-bottom:1px solid var(--line);background:var(--panel)}
+.top .wrap{padding-block:24px 18px;display:flex;flex-wrap:wrap;gap:18px 40px;align-items:flex-end;justify-content:space-between}
+.top .intro{min-width:0;flex:1 1 520px}
+.eyebrow{font:600 12.5px var(--f-display);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+h1{font-size:clamp(32px,4.4vw,50px);line-height:1;font-weight:700;margin-top:6px}
+.lede{margin-top:10px;max-width:72ch;color:var(--muted)}
+.hstat{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap}
+.hstat .lab{width:100%}
+.hstat .big{font:700 42px/1 var(--f-display);font-variant-numeric:tabular-nums}
+.hstat .big small{font-size:20px;color:var(--muted);font-weight:600}
+.hstat .arrow{font:600 26px/1 var(--f-display);color:var(--muted);padding-bottom:6px}
+.hstat .big.after{color:var(--accent)}
+
+/* Pasos */
+.steps{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:color-mix(in srgb,var(--paper) 92%,transparent);backdrop-filter:blur(6px);border-bottom:1px solid var(--line)}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--paper)}
+.steps .wrap{display:flex;gap:6px;overflow-x:auto;padding-block:10px;scrollbar-width:thin}
+.stp{flex:1 0 auto;display:flex;align-items:center;gap:8px;padding:6px 10px 6px 6px;border:1px solid var(--line);border-radius:5px;background:var(--panel);cursor:pointer;text-align:left;min-width:0}
+.stp:hover{border-color:var(--accent)}
+.stp .n{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font:700 13px var(--f-display);border:1px solid var(--line-strong);color:var(--muted);flex-shrink:0}
+.stp .t{font:600 14.5px var(--f-display);letter-spacing:.02em;white-space:nowrap}
+.stp.done .n{background:color-mix(in srgb,var(--accent) 14%,var(--panel));border-color:var(--accent);color:var(--accent)}
+.stp.cur{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 9%,var(--panel))}
+.stp.cur .n{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+
+main.wrap{padding-block:16px 48px;display:flex;flex-direction:column;gap:16px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:16px;min-width:0}
+.head{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:flex-end;justify-content:space-between;margin-bottom:12px}
+.head .ti{min-width:0;flex:1 1 400px}
+.head .k{font:600 12.5px var(--f-display);letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+.head .fig{font-size:13.5px;color:var(--muted);margin-top:3px}
+.nav{display:flex;gap:6px}
+.btn{border:1px solid var(--line-strong);background:var(--panel);border-radius:5px;padding:6px 12px;font-weight:600;font-size:13.5px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{filter:brightness(1.08);color:var(--accent-ink)}
+.btn.good{border-color:var(--ok);color:var(--ok)}
+.btn:disabled{opacity:.4;cursor:default;pointer-events:none}
+.btn svg{width:14px;height:14px;fill:currentColor}
+
+/* Camino de datos */
+.dpbox{overflow-x:auto;border:1px solid var(--line);border-radius:5px;background:var(--sunk)}
+#dp{display:block;width:100%;min-width:880px;height:auto;user-select:none}
+#dp .gone{display:none}
+#dp .band{fill:transparent;transition:fill .3s}
+#dp .band.alt{fill:var(--band)}
+#dp .band.occ{fill:color-mix(in srgb,var(--c) 12%,transparent)}
+#dp .band.sel{fill:color-mix(in srgb,var(--accent) 12%,transparent)}
+#dp.s2 .band{cursor:pointer}
+#dp .cut{stroke:var(--accent);stroke-width:1.6;stroke-dasharray:6 5}
+#dp .cutl{fill:var(--accent);font:600 10px var(--f-display);letter-spacing:.1em;text-anchor:middle;text-transform:uppercase}
+#dp .tag rect{fill:var(--panel);stroke:var(--line);transition:fill .25s,stroke .25s}
+#dp .tag text{fill:var(--muted);font:700 12px var(--f-display);letter-spacing:.1em;text-anchor:middle;text-transform:uppercase}
+#dp .tag.occ rect{fill:color-mix(in srgb,var(--c) 22%,var(--panel));stroke:var(--c)}
+#dp .tag.occ text{fill:var(--ink);font:600 11.5px var(--f-mono);letter-spacing:0;text-transform:none}
+#dp .tag.sel rect{stroke:var(--accent);fill:color-mix(in srgb,var(--accent) 16%,var(--panel))}
+#dp .tag.sel text{fill:var(--accent)}
+#dp .w{fill:none;stroke:var(--wire);stroke-width:1.6;stroke-linejoin:round;stroke-linecap:round;transition:stroke .2s,opacity .2s}
+#dp .c{fill:none;stroke:var(--ctl);stroke-width:1.3;stroke-linejoin:round;opacity:.8;transition:opacity .2s}
+#dp .ck{fill:none;stroke:var(--bar-ink);stroke-width:1.2}
+#dp .blk .ck{stroke:var(--line-strong)}
+#dp .w.act,#dp .w.hl{stroke:var(--accent);stroke-width:3.2}
+#dp .w.act{stroke-dasharray:9 6;animation:flow .5s linear infinite}
+#dp .w.done{opacity:.28}
+#dp .w.bad{stroke:var(--bad);stroke-width:3.4;stroke-dasharray:7 4;animation:flow .5s linear infinite}
+#dp .w.good{stroke:var(--ok);stroke-width:3.2}
+#dp .c.ctlhl{stroke:var(--ctl);stroke-width:3.4;opacity:1;stroke-dasharray:8 5;animation:flow .5s linear infinite}
+#dp .w.dim,#dp .c.dim{opacity:.18}
+#dp .w.draw{stroke-dasharray:1;stroke-dashoffset:1;animation:draw 1.2s ease forwards}
+@keyframes flow{to{stroke-dashoffset:-15}}
+@keyframes draw{to{stroke-dashoffset:0}}
+#dp .blk rect,#dp .blk polygon{fill:var(--panel);stroke:var(--line-strong);stroke-width:1.4;transition:fill .2s,stroke .2s,opacity .2s}
+#dp .blk text{fill:var(--ink);font:600 12.5px var(--f-display);text-anchor:middle;letter-spacing:.02em}
+#dp .blk .pt{fill:var(--muted);font:500 9px var(--f-mono);letter-spacing:0}
+#dp .blk .pt.s{text-anchor:start} #dp .blk .pt.e{text-anchor:end}
+#dp .blk.ctlb rect{stroke:var(--ctl);fill:color-mix(in srgb,var(--ctl) 8%,var(--panel))}
+#dp .blk.act rect,#dp .blk.act polygon,#dp .blk.hl rect,#dp .blk.hl polygon{fill:color-mix(in srgb,var(--accent) 22%,var(--panel));stroke:var(--accent);stroke-width:2.6}
+#dp .blk.act{animation:pulse .9s ease-in-out infinite}
+#dp .blk.done{opacity:.35}
+#dp .blk.dim{opacity:.22}
+#dp .blk.ctlhl rect,#dp .blk.ctlhl polygon{fill:color-mix(in srgb,var(--ctl) 22%,var(--panel));stroke:var(--ctl);stroke-width:2.6}
+#dp .blk.bad rect{stroke:var(--bad);stroke-width:2.6}
+@keyframes pulse{50%{opacity:.7}}
+#dp .bar rect{fill:var(--bar);stroke:none;transition:fill .2s}
+#dp .bar text{fill:var(--bar-ink);font:700 10.5px var(--f-display);letter-spacing:.1em;text-anchor:middle}
+#dp.s3 .bar,#dp.s4 .bar,#dp.s5 .bar,#dp.s6 .bar,#dp.s7 .bar{cursor:pointer}
+#dp .bar:hover rect{fill:var(--accent)}
+#dp .bar.hl rect{fill:var(--accent)}
+#dp .bar.ctlhl rect{fill:var(--ctl)}
+#dp .pop{animation:pop .7s cubic-bezier(.2,.9,.3,1.2)}
+@keyframes pop{from{opacity:0;transform:translateY(-26px)}to{opacity:1;transform:none}}
+#dp .fade{animation:fadein .6s ease}
+@keyframes fadein{from{opacity:0}}
+#dp .wl{fill:var(--muted);font:500 9.5px var(--f-mono);paint-order:stroke;stroke:var(--sunk);stroke-width:3px}
+#dp .wl.cl{fill:var(--ctl)}
+#dp .wl.e{text-anchor:end} #dp .wl.m{text-anchor:middle}
+#dp .dot{fill:var(--wire)}
+#dp .dot.c{fill:var(--ctl);stroke:none}
+#dp .hit{fill:none;stroke:transparent;stroke-width:16;cursor:pointer;pointer-events:stroke}
+#dp .hit:hover{stroke:color-mix(in srgb,var(--over) 30%,transparent)}
+#dp #callout rect{fill:var(--panel);stroke:var(--bad);stroke-width:1.6}
+#dp #callout text{fill:var(--bad);font:600 12px var(--f-mono);text-anchor:middle}
+#dp #callout.good rect{stroke:var(--ok)} #dp #callout.good text{fill:var(--ok)}
+.note{margin-top:10px;padding:9px 12px;border-radius:5px;background:var(--sunk);border:1px solid var(--line);border-left:4px solid var(--accent);font-size:14.5px;min-height:2.9em}
+.note b{font-weight:700}
+.note code{font-weight:600}
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:8px;font-size:13px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.legend i{display:inline-block;width:22px;height:0;border-top:3px solid}
+
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:16px;align-items:start}
+@media (max-width:1000px){.two{grid-template-columns:minmax(0,1fr)}}
+.explain{display:flex;flex-direction:column;gap:10px;max-width:68ch}
+.explain p{font-size:15.5px}
+.explain .aside{font-size:14px;color:var(--muted);padding:10px 12px;border:1px dashed var(--line-strong);border-radius:5px}
+.explain .aside b{color:var(--ink)}
+.explain ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px}
+.lab{display:flex;flex-direction:column;gap:12px;min-width:0}
+.lab .lh{font:600 12px var(--f-display);letter-spacing:.11em;text-transform:uppercase;color:var(--muted)}
+.row{display:flex;gap:8px 12px;flex-wrap:wrap;align-items:center}
+.clock{font:700 26px/1 var(--f-display);font-variant-numeric:tabular-nums;min-width:96px}
+.clock small{font:500 13px var(--f-body);color:var(--muted)}
+input[type=range]{flex:1 1 200px;min-width:0;accent-color:var(--accent)}
+.box{padding:10px 12px;border-radius:5px;background:var(--sunk);border:1px solid var(--line);font-size:14.5px}
+.box.bad{border-color:color-mix(in srgb,var(--bad) 55%,var(--line));background:color-mix(in srgb,var(--bad) 8%,var(--panel))}
+.box.good{border-color:color-mix(in srgb,var(--ok) 55%,var(--line));background:color-mix(in srgb,var(--ok) 8%,var(--panel))}
+.box.warn{border-color:color-mix(in srgb,var(--over) 55%,var(--line));background:color-mix(in srgb,var(--over) 8%,var(--panel))}
+.seg{display:inline-flex;border:1px solid var(--line-strong);border-radius:5px;overflow:hidden;background:var(--sunk)}
+.seg button{border:0;background:none;padding:6px 12px;font-weight:600;font-size:13.5px;cursor:pointer;border-right:1px solid var(--line)}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed=true]{background:var(--accent);color:var(--accent-ink)}
+
+/* Ocupación (paso 1) */
+.occ{display:flex;flex-direction:column;gap:6px}
+.oc{display:grid;grid-template-columns:150px minmax(0,1fr) 92px;gap:10px;align-items:center;font-size:14px}
+.oc .tr{height:14px;background:var(--sunk);border:1px solid var(--line);border-radius:3px;position:relative;overflow:hidden}
+.oc .tr i{position:absolute;top:0;bottom:0;background:color-mix(in srgb,var(--accent) 55%,var(--panel))}
+.oc .v{font:600 12.5px var(--f-mono);text-align:right;font-variant-numeric:tabular-nums}
+@media (max-width:520px){.oc{grid-template-columns:110px minmax(0,1fr) 70px}}
+
+/* Etapas (paso 2) */
+.stcards{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+@media (max-width:620px){.stcards{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.stc{border:1px solid var(--line);border-radius:5px;padding:7px 8px;background:var(--panel);cursor:pointer;text-align:left;min-width:0}
+.stc:hover{border-color:var(--accent)}
+.stc b{display:block;font:700 15px var(--f-display);letter-spacing:.03em}
+.stc span{font:600 11.5px var(--f-mono);color:var(--muted)}
+.stc[aria-pressed=true]{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,var(--panel))}
+.strip{position:relative;height:40px;display:flex;border-radius:4px;overflow:visible;margin-top:18px}
+.strip div{height:100%;display:flex;align-items:center;justify-content:center;font:600 11px var(--f-mono);color:var(--ink);background:color-mix(in srgb,var(--accent) 12%,var(--panel));border:1px solid var(--line);margin-right:-1px;overflow:hidden;white-space:nowrap;cursor:pointer}
+.strip div.on{background:color-mix(in srgb,var(--accent) 34%,var(--panel));border-color:var(--accent);position:relative;z-index:1}
+.strip .ideal{position:absolute;top:-16px;bottom:-4px;border-left:2px dashed var(--over);pointer-events:none}
+.strip .ideal span{position:absolute;top:-2px;left:4px;font:600 10.5px var(--f-mono);color:var(--over);white-space:nowrap}
+.dl{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:4px 12px;font-size:14px;margin:0}
+.dl dt{color:var(--muted)} .dl dd{margin:0}
+
+/* Tiempos (paso 3) */
+.tim{display:flex;flex-direction:column;gap:5px;position:relative}
+.tr3{display:grid;grid-template-columns:96px minmax(0,1fr) 62px;gap:10px;align-items:center;font-size:13.5px}
+.tr3 .nm{font-weight:600}
+.tr3 .tk{position:relative;height:22px}
+.tr3 .sg{position:absolute;top:0;bottom:0;border-radius:2px;display:flex;align-items:center;justify-content:center;font:500 10px var(--f-mono);overflow:hidden;white-space:nowrap;box-shadow:inset -1px 0 0 var(--panel)}
+.sg.cb{background:color-mix(in srgb,var(--accent) 30%,var(--panel));color:color-mix(in srgb,var(--accent) 70%,var(--ink))}
+.sg.ov{background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--over) 40%,var(--panel)) 0 4px,color-mix(in srgb,var(--over) 16%,var(--panel)) 4px 8px);color:var(--ink)}
+.sg.mono{background:color-mix(in srgb,var(--muted) 28%,var(--panel));color:var(--ink)}
+.tr3 .v{font:600 12.5px var(--f-mono);text-align:right;font-variant-numeric:tabular-nums}
+.tr3.max .v{color:var(--accent)}
+.tcline{position:absolute;top:30px;bottom:0;border-left:2px solid var(--ink);pointer-events:none}
+.tcline span{position:absolute;bottom:-18px;left:-1px;transform:translateX(-50%);font:600 11px var(--f-mono);white-space:nowrap;background:var(--panel);padding:0 3px}
+.keys{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;color:var(--muted);margin-top:16px}
+.keys span{display:inline-flex;align-items:center;gap:6px}
+.keys i{display:inline-block;width:16px;height:10px;border-radius:2px}
+.formula{padding:10px 12px;border-radius:5px;background:var(--sunk);border:1px solid var(--line);font:13px/1.7 var(--f-mono);overflow-x:auto}
+.formula .res{color:var(--accent);font-weight:600}
+
+/* Programa */
+.prog{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:3px;font:13px var(--f-mono)}
+.prog li{display:flex;gap:10px;align-items:center;padding:3px 8px;border-radius:4px;border-left:4px solid var(--c)}
+.prog li .a{color:var(--muted);font-size:11.5px}
+.prog li.on{background:color-mix(in srgb,var(--c) 12%,var(--panel))}
+
+/* Tabla de viaje (paso 6) */
+.tw{overflow-x:auto;border:1px solid var(--line);border-radius:5px}
+table.tv{border-collapse:collapse;width:100%;font-size:13.5px}
+table.tv th,table.tv td{padding:5px 8px;border-bottom:1px solid var(--line);text-align:center;white-space:nowrap}
+table.tv th{font:600 11.5px var(--f-display);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);background:var(--sunk)}
+table.tv td:first-child,table.tv th:first-child{text-align:left}
+table.tv tbody tr{cursor:pointer}
+table.tv tbody tr:hover{background:color-mix(in srgb,var(--ctl) 6%,var(--panel))}
+table.tv tbody tr.sel{background:color-mix(in srgb,var(--ctl) 14%,var(--panel))}
+table.tv .sn{font:600 12.5px var(--f-mono)}
+table.tv .gt{font:700 9.5px var(--f-display);letter-spacing:.08em;color:var(--ctl);border:1px solid var(--ctl);border-radius:3px;padding:0 4px;margin-left:6px;text-transform:uppercase}
+table.tv .pip{display:inline-block;width:12px;height:12px;border-radius:2px;background:var(--ctl)}
+table.tv .use{font:700 11px var(--f-display);letter-spacing:.06em;padding:1px 6px;border-radius:3px;background:color-mix(in srgb,var(--ctl) 16%,var(--panel));color:var(--ctl)}
+table.tv tfoot td{font:600 12.5px var(--f-mono);color:var(--muted);border-bottom:0}
+table.tv tr.data .sn{color:var(--muted)} table.tv tr.data .pip{background:var(--wire)}
+
+/* Diagrama multiciclo (paso 7) */
+.mcw{overflow-x:auto;border:1px solid var(--line);border-radius:5px}
+table.mc{border-collapse:separate;border-spacing:0;font:11.5px var(--f-mono);min-width:100%}
+table.mc th,table.mc td{border-bottom:1px solid var(--line);border-right:1px solid color-mix(in srgb,var(--line) 60%,transparent);height:28px;padding:0;text-align:center;min-width:34px}
+table.mc thead th{background:var(--sunk);color:var(--muted);font-weight:600}
+table.mc th.cur{background:var(--accent);color:var(--accent-ink)}
+table.mc .rh{position:sticky;left:0;background:var(--panel);text-align:left;padding:0 10px 0 8px;white-space:nowrap;border-left:4px solid var(--c,var(--line));font-weight:600;z-index:1}
+table.mc thead .rh{background:var(--sunk);border-left-color:transparent}
+table.mc td.k{background:color-mix(in srgb,var(--c) 20%,var(--panel));color:color-mix(in srgb,var(--c) 75%,var(--ink));font-weight:600}
+table.mc td.k.idle{background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--c) 12%,var(--panel)) 0 4px,var(--panel) 4px 8px);color:var(--muted)}
+table.mc td.cur{box-shadow:inset 0 0 0 2px var(--accent)}
+.stl{display:flex;flex-direction:column;gap:5px}
+.sl{display:grid;grid-template-columns:118px minmax(0,1fr);gap:10px;align-items:baseline;padding:6px 10px;border-radius:5px;border:1px solid var(--line);border-left:4px solid var(--c,var(--line));font-size:14px;background:var(--panel)}
+.sl .sk{font:700 13px var(--f-display);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.sl .si{font:600 12.5px var(--f-mono);display:block;color:var(--c,var(--muted))}
+.sl.idle{background:repeating-linear-gradient(135deg,var(--sunk) 0 6px,var(--panel) 6px 12px)}
+@media (max-width:520px){.sl{grid-template-columns:minmax(0,1fr)}}
+
+/* Rendimiento (paso 8) */
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
+.tile{padding:10px 12px;border-radius:5px;background:var(--sunk);border:1px solid var(--line);border-top:3px solid var(--tc,var(--line-strong))}
+.tile .tv2{font:700 28px/1.05 var(--f-display);font-variant-numeric:tabular-nums}
+.tile .tl{font-size:12.5px;color:var(--muted);margin-top:2px}
+#chart8{display:block;width:100%;height:auto}
+#chart8 .ax{stroke:var(--line-strong);stroke-width:1}
+#chart8 .gr{stroke:var(--line);stroke-width:1}
+#chart8 .tx{fill:var(--muted);font:500 10.5px var(--f-mono)}
+#chart8 .crv{fill:none;stroke:var(--accent);stroke-width:2.6}
+#chart8 .area{fill:color-mix(in srgb,var(--accent) 12%,transparent)}
+#chart8 .lim{stroke:var(--ok);stroke-width:1.6;stroke-dasharray:5 4}
+#chart8 .ide{stroke:var(--over);stroke-width:1.6;stroke-dasharray:2 4}
+#chart8 .ltx{font:600 11px var(--f-display);letter-spacing:.06em}
+#chart8 .pt{fill:var(--accent);stroke:var(--panel);stroke-width:2}
+a{color:var(--accent)}
+.foot{color:var(--muted);font-size:13px;padding-top:4px}
+@media (prefers-reduced-motion: reduce){#dp *{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <div class="intro">
+      <div class="eyebrow">Tema 3 · 3.3 Procesador segmentado · ARM</div>
+      <h1>Del monociclo al segmentado</h1>
+      <p class="lede">Construimos el procesador segmentado paso a paso, partiendo del camino de datos monociclo, igual que en la sección 7.5 del Harris &amp; Harris. Cada paso transforma el mismo dibujo: pulsa, toca los bloques y los registros, y ejecuta los ejemplos.</p>
+    </div>
+    <div class="hstat" aria-label="Ciclo de reloj">
+      <div class="lab eyebrow">Ciclo de reloj (tabla 7.5)</div>
+      <div class="big">840<small> ps</small></div>
+      <div class="arrow">→</div>
+      <div class="big after">300<small> ps</small></div>
+    </div>
+  </div>
+</header>
+
+<nav class="steps" aria-label="Pasos"><div class="wrap" id="stepper"></div></nav>
+
+<main class="wrap">
+  <section class="panel">
+    <div class="head">
+      <div class="ti">
+        <div class="k" id="stepK">Paso 1 de 8</div>
+        <h2 id="stepT">Partimos del monociclo</h2>
+        <div class="fig" id="stepF"></div>
+      </div>
+      <div class="nav">
+        <button class="btn" id="prev" aria-label="Paso anterior"><svg viewBox="0 0 16 16"><path d="M10.5 2 4.5 8l6 6 1.2-1.2L6.9 8l4.8-4.8z"/></svg>Anterior</button>
+        <button class="btn primary" id="next" aria-label="Paso siguiente">Siguiente<svg viewBox="0 0 16 16"><path d="M5.5 2 4.3 3.2 9.1 8l-4.8 4.8L5.5 14l6-6z"/></svg></button>
+      </div>
+    </div>
+
+    <div class="dpbox">
+<svg id="dp" viewBox="0 0 1180 590" role="img" aria-labelledby="dpTitle">
+<title id="dpTitle">Camino de datos del procesador ARM</title>
+
+<g id="bands" data-show="2-">
+  <rect class="band" data-st="0" x="0" y="0" width="252" height="590"/>
+  <rect class="band alt" data-st="1" x="266" y="0" width="300" height="590"/>
+  <rect class="band" data-st="2" x="580" y="0" width="220" height="590"/>
+  <rect class="band alt" data-st="3" x="814" y="0" width="192" height="590"/>
+  <rect class="band" data-st="4" x="1020" y="0" width="160" height="590"/>
+</g>
+<g id="cuts" data-show="2-2">
+  <line class="cut" x1="259" y1="190" x2="259" y2="584"/>
+  <line class="cut" x1="573" y1="190" x2="573" y2="584"/>
+  <line class="cut" x1="807" y1="190" x2="807" y2="584"/>
+  <line class="cut" x1="1013" y1="190" x2="1013" y2="584"/>
+</g>
+
+<!-- Cables de datos -->
+<g id="wires">
+  <path class="w" id="w_pcmux_pc" d="M40 290H54"/>
+  <path class="w" id="w_pc_im" d="M88 290H118"/>
+  <path class="w" id="w_pc_add" d="M100 290V392H134"/>
+  <path class="w" id="w_four1" d="M118 412H134"/>
+  <path class="w" id="w_pcp4" d="M170 402H184V440H12V306H24"/>
+  <path class="w" id="w_pcp4_d" data-pc="old" d="M184 440V470H286"/>
+  <path class="w" id="w_four2" data-pc="old" d="M278 490H286"/>
+  <path class="w" id="w_add8_r15" data-pc="old" d="M318 480H476V380"/>
+  <path class="w" id="w_pcp8d" data-pc="new" d="M184 440V480H476V380"/>
+  <path class="w" id="w_instr" d="M222 290H274"/>
+  <path class="w" id="bus" d="M274 232V419"/>
+  <path class="w" id="bus_up" data-show="6-" d="M274 232V78"/>
+  <path class="w" id="w_ra1_in0" d="M274 232H304"/>
+  <path class="w" id="w_15" d="M292 254H304"/>
+  <path class="w" id="w_ra2_in0" d="M274 286H304"/>
+  <path class="w" id="w_ra2_in1" d="M274 308H304"/>
+  <path class="w" id="w_ra1_out" d="M318 243H362"/>
+  <path class="w" id="w_ra2_out" d="M318 297H362"/>
+  <path class="w" id="w_a3_bug" data-fix="0" d="M274 344H362"/>
+  <path class="w" id="w_ext_in" d="M274 419H346"/>
+  <path class="w" id="w_rd1" d="M492 250H660"/>
+  <path class="w" id="w_rd2" d="M492 320H606"/>
+  <path class="w" id="w_wd" d="M588 320V440H844V350H860"/>
+  <path class="w" id="w_ext_out" d="M436 419H598V344H606"/>
+  <path class="w" id="w_srcb" d="M622 332H660"/>
+  <path class="w" id="w_alures" d="M720 291H860"/>
+  <path class="w" id="w_aluout" d="M836 291V400H1066V315H1080"/>
+  <path class="w" id="w_rd" d="M980 285H1080"/>
+  <path class="w" id="w_res" d="M1096 300H1150V570"/>
+  <path class="w" id="w_res_pc" d="M1150 570H6V274H24"/>
+  <path class="w" id="w_res_wd3" d="M1150 552H336V366H362"/>
+  <path class="w" id="w_wa3" data-fix="1" d="M274 419V516H1034V534H326V344H362"/>
+</g>
+
+<!-- Control (figura 7.47) -->
+<g id="ctl" data-show="6-">
+  <path class="c" id="k_cond" d="M274 78H566"/>
+  <path class="c" id="k_op" d="M274 110H306"/>
+  <path class="c" id="k_funct" d="M274 140H306"/>
+  <path class="c" id="k_rd" d="M274 170H306"/>
+  <path class="c" id="k_regsrc" d="M330 198V270H311V280M330 210H311V226"/>
+  <path class="c" id="k_immsrc" d="M352 198V402"/>
+  <path class="c" id="k_fw_d" d="M416 92H566"/>
+  <path class="c" id="k_rw_d" d="M416 106H566"/>
+  <path class="c" id="k_pcs_d" d="M416 118H566"/>
+  <path class="c" id="k_br_d" d="M416 130H566"/>
+  <path class="c" id="k_mw_d" d="M416 144H566"/>
+  <path class="c" id="k_mtr_d" d="M416 164H566"/>
+  <path class="c" id="k_alc_d" d="M416 176H566"/>
+  <path class="c" id="k_als_d" d="M416 188H566"/>
+  <path class="c" id="k_flags_e" d="M580 66H650"/>
+  <path class="c" id="k_cond_e" d="M580 78H650"/>
+  <path class="c" id="k_fw_e" d="M580 92H650"/>
+  <path class="c" id="k_rw_e" d="M580 106H650"/>
+  <path class="c" id="k_pcs_e" d="M580 118H650"/>
+  <path class="c" id="k_br_e" d="M580 130H650"/>
+  <path class="c" id="k_mw_e" d="M580 144H650"/>
+  <path class="c" id="k_mtr_e" d="M580 164H800"/>
+  <path class="c" id="k_alc_e" d="M580 176H676V231"/>
+  <path class="c" id="k_als_e" d="M580 188H614V314"/>
+  <path class="c" id="k_flagsp" d="M700 60V50H556V66H566"/>
+  <path class="c" id="k_aluflags" d="M704 247V156"/>
+  <path class="c" id="k_rw_m" d="M720 106H800"/>
+  <path class="c" id="k_pcs_m" d="M720 124H800"/>
+  <path class="c" id="k_mw_m" d="M720 144H800"/>
+  <path class="c" id="k_rw_m2" d="M814 106H1006"/>
+  <path class="c" id="k_pcs_m2" d="M814 124H1006"/>
+  <path class="c" id="k_mw_m2" d="M814 144H940V236"/>
+  <path class="c" id="k_mtr_m" d="M814 164H1006"/>
+  <path class="c" id="k_rw_w" d="M1020 106H1044V38H470V210"/>
+  <path class="c" id="k_pcs_w" d="M1020 124H1056V30H32V266"/>
+  <path class="c" id="k_mtr_w" d="M1020 164H1088V274"/>
+</g>
+
+<!-- Bloques -->
+<g id="blocks">
+  <g class="blk" id="PCMUX"><polygon points="24,262 40,270 40,310 24,318"/><text class="pt" x="32" y="279">1</text><text class="pt" x="32" y="309">0</text></g>
+  <g class="blk" id="PC"><rect x="54" y="265" width="34" height="50" rx="3"/><text x="71" y="294">PC</text><polyline class="ck" points="65,315 71,308 77,315"/></g>
+  <g class="blk" id="IM"><rect x="118" y="230" width="104" height="120" rx="3"/><text x="170" y="284">Memoria de</text><text x="170" y="300">instrucciones</text><text class="pt s" x="122" y="294">A</text><text class="pt e" x="218" y="294">RD</text></g>
+  <g class="blk" id="ADD4"><rect x="134" y="380" width="36" height="44" rx="4"/><text x="152" y="407">+</text></g>
+  <g class="blk" id="ADD8" data-pc="old"><rect x="286" y="458" width="32" height="44" rx="4"/><text x="302" y="485">+</text></g>
+  <g class="blk" id="RA1MUX"><polygon points="304,222 318,230 318,256 304,264"/><text class="pt" x="311" y="240">0</text><text class="pt" x="311" y="259">1</text></g>
+  <g class="blk" id="RA2MUX"><polygon points="304,276 318,284 318,310 304,318"/><text class="pt" x="311" y="294">0</text><text class="pt" x="311" y="313">1</text></g>
+  <g class="blk" id="RF"><rect x="362" y="210" width="130" height="170" rx="3"/><text x="427" y="290">Banco de</text><text x="427" y="306">registros</text>
+    <text class="pt s" x="366" y="247">A1</text><text class="pt s" x="366" y="301">A2</text><text class="pt s" x="366" y="348">A3</text><text class="pt s" x="366" y="370">WD3</text>
+    <text class="pt e" x="488" y="254">RD1</text><text class="pt e" x="488" y="324">RD2</text><text class="pt" x="476" y="374">R15</text><text class="pt" x="470" y="222">WE3</text></g>
+  <g class="blk" id="EXT"><rect x="346" y="402" width="90" height="34" rx="3"/><text x="391" y="423">Extend</text></g>
+  <g class="blk" id="SRCB"><polygon points="606,310 622,318 622,346 606,354"/><text class="pt" x="614" y="327">0</text><text class="pt" x="614" y="349">1</text></g>
+  <g class="blk" id="ALU"><polygon points="660,222 720,256 720,326 660,360 660,302 672,291 660,280"/><text x="698" y="295">ALU</text></g>
+  <g class="blk" id="DM"><rect x="860" y="236" width="120" height="140" rx="3"/><text x="920" y="318">Memoria</text><text x="920" y="334">de datos</text>
+    <text class="pt s" x="864" y="295">A</text><text class="pt s" x="864" y="354">WD</text><text class="pt e" x="976" y="289">RD</text><text class="pt" x="940" y="248">WE</text></g>
+  <g class="blk" id="RESMUX"><polygon points="1080,270 1096,278 1096,322 1080,330"/><text class="pt" x="1088" y="290">1</text><text class="pt" x="1088" y="319">0</text></g>
+  <g class="blk ctlb" id="CU" data-show="6-"><rect x="306" y="86" width="110" height="112" rx="6"/><text x="378" y="138">Unidad de</text><text x="378" y="154">control</text>
+    <text class="pt s" x="310" y="113">Op</text><text class="pt s" x="310" y="143">Funct</text><text class="pt s" x="310" y="173">Rd</text></g>
+  <g class="blk ctlb" id="COND" data-show="6-"><rect x="650" y="60" width="70" height="96" rx="5"/><text x="685" y="102">Cond</text><text x="685" y="118">Unit</text><text class="pt" x="685" y="146">CondExE</text></g>
+</g>
+
+<!-- Registros de segmentación -->
+<g id="bars" data-show="3-">
+  <g class="bar" id="bFD" data-r="FD"><rect x="252" width="14" y="222" height="288" rx="2"/><polyline class="ck" points="254,0 259,0 264,0"/><text>F/D</text></g>
+  <g class="bar" id="bDE" data-r="DE"><rect x="566" width="14" y="200" height="322" rx="2"/><polyline class="ck" points="568,0 573,0 578,0"/><text>D/E</text></g>
+  <g class="bar" id="bEM" data-r="EM"><rect x="800" width="14" y="200" height="322" rx="2"/><polyline class="ck" points="802,0 807,0 812,0"/><text>E/M</text></g>
+  <g class="bar" id="bMW" data-r="MW"><rect x="1006" width="14" y="200" height="322" rx="2"/><polyline class="ck" points="1008,0 1013,0 1018,0"/><text>M/W</text></g>
+</g>
+
+<!-- Uniones -->
+<g id="dots">
+  <circle class="dot" cx="100" cy="290" r="3"/>
+  <circle class="dot" cx="184" cy="440" r="3"/>
+  <circle class="dot" cx="274" cy="290" r="3"/>
+  <circle class="dot" cx="588" cy="320" r="3"/>
+  <circle class="dot" cx="836" cy="291" r="3"/>
+  <circle class="dot" cx="1150" cy="552" r="3"/>
+  <circle class="dot" cx="274" cy="419" r="3" data-fix="1"/>
+  <circle class="dot" cx="274" cy="232" r="3" data-show="6-"/>
+  <circle class="dot c" cx="274" cy="110" r="3" data-show="6-"/>
+  <circle class="dot c" cx="274" cy="140" r="3" data-show="6-"/>
+  <circle class="dot c" cx="274" cy="170" r="3" data-show="6-"/>
+  <circle class="dot c" cx="330" cy="210" r="3" data-show="6-"/>
+</g>
+
+<!-- Etiquetas de señales -->
+<g id="labels">
+  <text class="wl" x="92" y="284" data-m="" data-p="PCF"></text>
+  <text class="wl e" x="249" y="284" data-m="Instr" data-p="InstrF"></text>
+  <text class="wl" x="278" y="398" data-m="" data-p="InstrD"></text>
+  <text class="wl" x="174" y="397" data-m="PCPlus4" data-p="PCPlus4F"></text>
+  <text class="wl" x="384" y="476" data-m="PCPlus8" data-p="PCPlus8D"></text>
+  <text class="wl e" x="113" y="416" data-m="4" data-p="4"></text>
+  <text class="wl m" x="282" y="503" data-m="4" data-p="4" data-pc="old"></text>
+  <text class="wl" x="277" y="229" data-m="19:16" data-p="19:16"></text>
+  <text class="wl e" x="290" y="258" data-m="15" data-p="15"></text>
+  <text class="wl" x="277" y="283" data-m="3:0" data-p="3:0"></text>
+  <text class="wl" x="277" y="305" data-m="15:12" data-p="15:12"></text>
+  <text class="wl" x="277" y="341" data-m="15:12" data-p="15:12" data-fix="0"></text>
+  <text class="wl" x="277" y="416" data-m="23:0" data-p="23:0"></text>
+  <text class="wl" x="440" y="415" data-m="ExtImm" data-p=""></text>
+  <text class="wl" x="590" y="246" data-m="SrcA" data-p="SrcAE"></text>
+  <text class="wl" x="584" y="415" data-m="" data-p="ExtImmE"></text>
+  <text class="wl" x="626" y="328" data-m="SrcB" data-p="SrcBE"></text>
+  <text class="wl" x="596" y="436" data-m="WriteData" data-p="WriteDataE"></text>
+  <text class="wl" x="818" y="436" data-m="" data-p="WriteDataM"></text>
+  <text class="wl" x="724" y="287" data-m="ALUResult" data-p="ALUResultE"></text>
+  <text class="wl" x="818" y="287" data-m="" data-p="ALUOutM"></text>
+  <text class="wl" x="984" y="281" data-m="ReadData" data-p=""></text>
+  <text class="wl" x="1024" y="281" data-m="" data-p="ReadDataW"></text>
+  <text class="wl" x="1024" y="396" data-m="" data-p="ALUOutW"></text>
+  <text class="wl" x="1100" y="296" data-m="Result" data-p="ResultW"></text>
+  <text class="wl" x="700" y="548" data-m="Result → WD3" data-p="ResultW → WD3"></text>
+  <text class="wl" x="700" y="566" data-m="Result → PC'" data-p="ResultW → PC'"></text>
+  <text class="wl" x="288" y="512" data-m="" data-p="WA3D" data-fix="1"></text>
+  <text class="wl" x="584" y="512" data-m="" data-p="WA3E" data-fix="1"></text>
+  <text class="wl" x="818" y="512" data-m="" data-p="WA3M" data-fix="1"></text>
+  <text class="wl" x="700" y="530" data-m="" data-p="WA3W" data-fix="1"></text>
+  <g data-show="6-">
+    <text class="wl cl" x="278" y="74" data-m="" data-p="31:28 (Cond)"></text>
+    <text class="wl" x="276" y="106" data-m="" data-p="27:26"></text>
+    <text class="wl" x="276" y="136" data-m="" data-p="25:20"></text>
+    <text class="wl" x="276" y="166" data-m="" data-p="15:12"></text>
+    <text class="wl cl e" x="326" y="207" data-m="" data-p="RegSrcD"></text>
+    <text class="wl cl" x="356" y="396" data-m="" data-p="ImmSrcD"></text>
+    <text class="wl cl e" x="562" y="89" data-m="" data-p="FlagWriteD"></text>
+    <text class="wl cl e" x="562" y="103" data-m="" data-p="RegWriteD"></text>
+    <text class="wl cl e" x="562" y="115" data-m="" data-p="PCSrcD"></text>
+    <text class="wl cl e" x="562" y="127" data-m="" data-p="BranchD"></text>
+    <text class="wl cl e" x="562" y="141" data-m="" data-p="MemWriteD"></text>
+    <text class="wl cl e" x="562" y="161" data-m="" data-p="MemtoRegD"></text>
+    <text class="wl cl e" x="562" y="173" data-m="" data-p="ALUControlD"></text>
+    <text class="wl cl e" x="562" y="185" data-m="" data-p="ALUSrcD"></text>
+    <text class="wl cl" x="584" y="63" data-m="" data-p="FlagsE"></text>
+    <text class="wl cl" x="584" y="75" data-m="" data-p="CondE"></text>
+    <text class="wl cl" x="584" y="89" data-m="" data-p="FlagWriteE"></text>
+    <text class="wl cl" x="584" y="103" data-m="" data-p="RegWriteE"></text>
+    <text class="wl cl" x="584" y="115" data-m="" data-p="PCSrcE"></text>
+    <text class="wl cl" x="584" y="127" data-m="" data-p="BranchE"></text>
+    <text class="wl cl" x="584" y="141" data-m="" data-p="MemWriteE"></text>
+    <text class="wl cl" x="584" y="161" data-m="" data-p="MemtoRegE"></text>
+    <text class="wl cl" x="584" y="173" data-m="" data-p="ALUControlE"></text>
+    <text class="wl cl" x="584" y="185" data-m="" data-p="ALUSrcE"></text>
+    <text class="wl cl" x="604" y="47" data-m="" data-p="Flags'"></text>
+    <text class="wl cl" x="708" y="214" data-m="" data-p="ALUFlags"></text>
+    <text class="wl cl" x="818" y="103" data-m="" data-p="RegWriteM"></text>
+    <text class="wl cl" x="818" y="121" data-m="" data-p="PCSrcM"></text>
+    <text class="wl cl" x="818" y="141" data-m="" data-p="MemWriteM"></text>
+    <text class="wl cl" x="818" y="161" data-m="" data-p="MemtoRegM"></text>
+    <text class="wl cl" x="1024" y="103" data-m="" data-p="RegWriteW"></text>
+    <text class="wl cl" x="1024" y="121" data-m="" data-p="PCSrcW"></text>
+    <text class="wl cl" x="1024" y="161" data-m="" data-p="MemtoRegW"></text>
+    <text class="wl cl" x="474" y="60" data-m="" data-p="RegWriteW → WE3"></text>
+    <text class="wl cl" x="36" y="60" data-m="" data-p="PCSrcW"></text>
+  </g>
+</g>
+
+<g id="tags" data-show="2-">
+  <g class="tag" data-st="0"><rect x="6" y="5" width="240" height="22" rx="3"/><text x="126" y="20">Fetch · BI</text></g>
+  <g class="tag" data-st="1"><rect x="272" y="5" width="288" height="22" rx="3"/><text x="416" y="20">Decode · LR</text></g>
+  <g class="tag" data-st="2"><rect x="586" y="5" width="208" height="22" rx="3"/><text x="690" y="20">Execute · E</text></g>
+  <g class="tag" data-st="3"><rect x="820" y="5" width="180" height="22" rx="3"/><text x="910" y="20">Memory · M</text></g>
+  <g class="tag" data-st="4"><rect x="1026" y="5" width="148" height="22" rx="3"/><text x="1100" y="20">Writeback · ER</text></g>
+</g>
+<g id="cutlabels" data-show="2-2">
+  <text class="cutl" x="259" y="584">corte</text><text class="cutl" x="573" y="584">corte</text><text class="cutl" x="807" y="584">corte</text><text class="cutl" x="1013" y="584">corte</text>
+</g>
+
+<g id="callout" class="gone"><rect x="296" y="186" width="312" height="22" rx="4"/><text x="452" y="201.5"></text></g>
+<g id="hits"></g>
+</svg>
+    </div>
+    <div class="note" id="note" aria-live="polite"></div>
+    <div class="legend" id="legend"></div>
+  </section>
+
+  <section class="panel two">
+    <article class="explain" id="explain"></article>
+    <div class="lab" id="lab"></div>
+  </section>
+
+  <p class="foot">Retardos de la tabla 7.5 y figuras 7.43 a 7.47 de <i>Digital Design and Computer Architecture, ARM Edition</i> (Harris &amp; Harris). Usa las flechas ← → del teclado para cambiar de paso.</p>
+</main>
+
+<script>
+(function(){
+"use strict";
+const $=s=>document.querySelector(s);
+const svg=$('#dp');
+const byId=id=>svg.querySelector('#'+id);
+const note=$('#note'), lab=$('#lab'), explain=$('#explain'), legend=$('#legend');
+const ICON={
+  play:'<svg viewBox="0 0 16 16"><path d="M4 2.5v11l9-5.5z"/></svg>',
+  pause:'<svg viewBox="0 0 16 16"><path d="M4 2.5h3v11H4zM9 2.5h3v11H9z"/></svg>',
+  prev:'<svg viewBox="0 0 16 16"><path d="M10.5 2 4.5 8l6 6 1.2-1.2L6.9 8l4.8-4.8z"/></svg>',
+  next:'<svg viewBox="0 0 16 16"><path d="M5.5 2 4.3 3.2 9.1 8l-4.8 4.8L5.5 14l6-6z"/></svg>',
+  reset:'<svg viewBox="0 0 16 16"><path d="M8 2.5a5.5 5.5 0 1 1-5.2 3.7l1.5.5A3.9 3.9 0 1 0 8 4.1V6L4.8 3.3 8 .6z"/></svg>'
+};
+const STAGES=[
+  {k:'F',es:'búsqueda de la instrucción',en:'Fetch',ab:'BI',hw:'PC, memoria de instrucciones y sumador PC+4',ldr:'Lee la instrucción LDR de la memoria de instrucciones y calcula PC+4.',t:[0,240],els:['PCMUX','PC','IM','ADD4']},
+  {k:'D',es:'decodificación y lectura de registros',en:'Decode',ab:'LR',hw:'Multiplexores RA, banco de registros (lectura), Extend y unidad de control',ldr:'Lee el registro base R0 y extiende el inmediato #40 a 32 bits.',t:[240,410],els:['RA1MUX','RA2MUX','RF','EXT','ADD8']},
+  {k:'E',es:'ejecución en la ALU',en:'Execute',ab:'E',hw:'Multiplexor ALUSrc y ALU',ldr:'La ALU suma R0 + 40: la dirección de memoria.',t:[410,555],els:['SRCB','ALU']},
+  {k:'M',es:'acceso a la memoria de datos',en:'Memory',ab:'M',hw:'Memoria de datos',ldr:'Lee la palabra que hay en esa dirección.',t:[555,755],els:['DM']},
+  {k:'W',es:'escritura del resultado',en:'Writeback',ab:'ER',hw:'Multiplexor de resultado y banco de registros (escritura)',ldr:'Escribe el dato leído en R2.',t:[755,840],els:['RESMUX']}
+];
+const PROG=[
+  {asm:'LDR R2, [R0, #40]',t:'ldr',rd:2,rn:0,imm:40},
+  {asm:'ADD R3, R9, R10',t:'dp',op:'+',rd:3,rn:9,rm:10},
+  {asm:'SUB R4, R1, R5',t:'dp',op:'−',rd:4,rn:1,rm:5},
+  {asm:'AND R5, R12, R13',t:'dp',op:'AND',rd:5,rn:12,rm:13},
+  {asm:'STR R6, [R1, #20]',t:'str',rd:6,rn:1,imm:20},
+  {asm:'ORR R7, R11, #42',t:'dp',op:'OR',rd:7,rn:11,imm:42}
+];
+const COLS=['--i0','--i1','--i2','--i3','--i4','--i5'];
+const mnem=p=>p.asm.split(' ')[0];
+
+const state={step:1,fixed:false,pcOld:false,timer:null,raf:null};
+
+/* ---------- utilidades del dibujo ---------- */
+const HLC=['act','done','hl','bad','good','dim','ctlhl','sel','occ'];
+function clearHL(){
+  svg.querySelectorAll('.w,.c,.blk,.bar,.band,.tag').forEach(el=>el.classList.remove(...HLC));
+  svg.querySelectorAll('.band,.tag').forEach(el=>el.style.removeProperty('--c'));
+  const co=byId('callout'); co.classList.add('gone'); co.classList.remove('good');
+  byId('hits').innerHTML='';
+  setTags(null);
+}
+function cls(ids,c,on=true){ids.forEach(id=>{const el=byId(id);if(el)el.classList.toggle(c,on);});}
+const TAGDEF=['Fetch · BI','Decode · LR','Execute · E','Memory · M','Writeback · ER'];
+function setTags(arr){
+  svg.querySelectorAll('#tags .tag').forEach((g,i)=>{
+    const t=g.querySelector('text'); const band=svg.querySelector('.band[data-st="'+i+'"]');
+    const v=arr&&arr[i];
+    if(v){g.classList.add('occ');g.style.setProperty('--c','var('+v.c+')');t.textContent=v.text;band.classList.add('occ');band.style.setProperty('--c','var('+v.c+')');}
+    else{g.classList.remove('occ');g.style.removeProperty('--c');t.textContent=TAGDEF[i];if(band){band.classList.remove('occ');band.style.removeProperty('--c');}}
+  });
+}
+function callout(text,good){const co=byId('callout');co.classList.remove('gone');co.classList.toggle('good',!!good);co.querySelector('text').textContent=text;}
+function inRange(spec,s){const [a,b]=spec.split('-');const lo=+a, hi=b===''?99:(b===undefined?lo:+b);return s>=lo&&s<=hi;}
+function layout(prevStep){
+  const s=state.step;
+  const fixed = s>=5 || (s===4&&state.fixed);
+  const pcOld = s<=4 || (s===5&&state.pcOld);
+  svg.setAttribute('class','s'+s);
+  svg.querySelectorAll('[data-show],[data-fix],[data-pc]').forEach(el=>{
+    let v=true;
+    if(el.dataset.show) v=v&&inRange(el.dataset.show,s);
+    if(el.dataset.fix) v=v&&(el.dataset.fix==='1'?fixed:!fixed);
+    if(el.dataset.pc) v=v&&(el.dataset.pc==='old'?pcOld:!pcOld);
+    const was=!el.classList.contains('gone');
+    el.classList.toggle('gone',!v);
+    if(v&&!was&&prevStep!==undefined){
+      const anim = el.id==='bars'?'pop':'fade';
+      if(el.id==='bars'){el.querySelectorAll('.bar').forEach((b,i)=>{b.style.animationDelay=(i*0.12)+'s';b.classList.remove('pop');b.getBoundingClientRect();b.classList.add('pop');});}
+      else if(el.tagName==='path'&&(el.id==='w_wa3'||el.id==='w_pcp8d')){el.setAttribute('pathLength','1');el.classList.remove('draw');el.getBoundingClientRect();el.classList.add('draw');setTimeout(()=>{el.classList.remove('draw');el.removeAttribute('pathLength');},1300);}
+      else {el.classList.remove(anim);el.getBoundingClientRect();el.classList.add(anim);}
+    }
+  });
+  // nombres de señales
+  svg.querySelectorAll('#labels text').forEach(t=>{const v=s<=2?t.dataset.m:t.dataset.p;t.textContent=v;});
+  // geometría de los registros
+  const ctl=s>=6;
+  svg.setAttribute('viewBox',ctl?'0 0 1180 590':'0 154 1180 436');
+  byId('tags').setAttribute('transform',ctl?'':'translate(0 156)');
+  const geo={FD:pcOld?[222,288]:[222,138],DE:ctl?[58,464]:[200,322],EM:ctl?[58,464]:[200,322],MW:ctl?[58,464]:[200,322]};
+  svg.querySelectorAll('.bar').forEach(g=>{
+    const r=g.querySelector('rect'),t=g.querySelector('text');const [y,h]=geo[g.dataset.r];const x=+r.getAttribute('x');
+    r.setAttribute('y',y);r.setAttribute('height',h);
+    const ck=g.querySelector('.ck');ck.setAttribute('points',(x+2)+','+(y+h-2)+' '+(x+7)+','+(y+h-9)+' '+(x+12)+','+(y+h-2));
+    const ty=y+h-30;t.setAttribute('x',x+7);t.setAttribute('y',ty);t.setAttribute('transform','rotate(-90 '+(x+7)+' '+ty+')');t.setAttribute('dy','3.5');
+  });
+}
+
+/* ---------- contenido de los registros ---------- */
+function regInfo(r){
+  const s=state.step, fixed=s>=5||(s===4&&state.fixed), pcOld=s<=4||(s===5&&state.pcOld), ctl=s>=6;
+  const D={FD:['InstrF'].concat(pcOld?['PCPlus4F']:[]),
+           DE:['RD1 → SrcAE','RD2 → WriteDataE','ExtImmE'],
+           EM:['ALUResultE → ALUOutM','WriteDataM'],
+           MW:['ReadDataW','ALUOutW']};
+  if(fixed){D.DE.push('WA3E');D.EM.push('WA3M');D.MW.push('WA3W');}
+  const C={FD:[],DE:['PCSrc','Branch','RegWrite','MemtoReg','MemWrite','ALUControl','ALUSrc','FlagWrite','Cond'],EM:['PCSrc','RegWrite','MemtoReg','MemWrite'],MW:['PCSrc','RegWrite','MemtoReg']};
+  const name={FD:'F/D (Fetch → Decode)',DE:'D/E (Decode → Execute)',EM:'E/M (Execute → Memory)',MW:'M/W (Memory → Writeback)'}[r];
+  let h='<b>Registro '+name+'</b>. Datos: <code>'+D[r].join('</code>, <code>')+'</code>.';
+  if(ctl&&C[r].length) h+=' Control: <code>'+C[r].join('</code>, <code>')+'</code>.';
+  if(ctl&&r==='FD') h+=' Sin señales de control: la instrucción aún no se ha decodificado.';
+  if(r==='FD'&&!pcOld) h+=' Ya no guarda PCPlus4F: R15 recibe PCPlus4F directamente (paso 5).';
+  return h;
+}
+svg.querySelectorAll('.bar').forEach(g=>{
+  g.addEventListener('click',()=>{ if(state.step<3)return; svg.querySelectorAll('.bar').forEach(b=>b.classList.remove('hl')); g.classList.add('hl'); note.innerHTML=regInfo(g.dataset.r); });
+});
+
+/* ---------- PASO 1: monociclo ---------- */
+const EV1=[
+  {a:0,b:40,n:'registro PC',d:'t<sub>pcq</sub> = 40 ps',els:['PC','w_pc_im']},
+  {a:40,b:240,n:'memoria de instrucciones',d:'t<sub>mem</sub> = 200 ps',els:['IM','w_instr','bus']},
+  {a:240,b:310,n:'decodificador de control y mux RA1',d:'t<sub>dec</sub> = 70 ps',els:['RA1MUX','w_ra1_in0','w_ra1_out']},
+  {a:310,b:410,n:'lectura del banco de registros',d:'t<sub>RFread</sub> = 100 ps',els:['RF','w_rd1','EXT','w_ext_in','w_ext_out']},
+  {a:410,b:435,n:'multiplexor ALUSrc',d:'t<sub>mux</sub> = 25 ps',els:['SRCB','w_srcb']},
+  {a:435,b:555,n:'ALU',d:'t<sub>ALU</sub> = 120 ps',els:['ALU','w_alures']},
+  {a:555,b:755,n:'memoria de datos',d:'t<sub>mem</sub> = 200 ps',els:['DM','w_rd']},
+  {a:755,b:780,n:'multiplexor de resultado',d:'t<sub>mux</sub> = 25 ps',els:['RESMUX','w_res','w_res_wd3']},
+  {a:780,b:840,n:'escritura en el banco (setup)',d:'t<sub>RFsetup</sub> = 60 ps',els:['RF']}
+];
+const OCC1=[['Memoria de instrucciones',[[40,240]]],['Banco de registros',[[310,410],[780,840]]],['ALU',[[435,555]]],['Memoria de datos',[[555,755]]]];
+function draw1(t){
+  clearHL();
+  const st={};
+  EV1.forEach(e=>{const s=t>=e.a&&t<e.b?'act':(t>=e.b?'done':'pend');e.els.forEach(id=>{const p=st[id];if(s==='act'||!p)st[id]=s;else if(p==='done'&&s==='pend')st[id]='pend';});});
+  if(t>=840)Object.keys(st).forEach(k=>st[k]='done');
+  Object.entries(st).forEach(([id,s])=>{if(s!=='pend')byId(id).classList.add(s);});
+  const cur=EV1.find(e=>t>=e.a&&t<e.b);
+  const idle=EV1.filter(e=>t>=e.b&&!EV1.some(f=>f.n===e.n&&t<f.b)).map(e=>e.n);
+  if(t<=0) note.innerHTML='Pulsa <b>Reproducir</b> o arrastra el control de tiempo para seguir a LDR R2, [R0, #40] por el camino de datos.';
+  else if(cur) note.innerHTML='<b>t = '+Math.round(t)+' ps.</b> Trabaja: '+cur.n+' ('+cur.d+'). '+(idle.length?'Ya sin trabajo hasta el próximo flanco: '+[...new Set(idle)].slice(-4).join(', ')+'.':'');
+  else note.innerHTML='<b>t = 840 ps: flanco de reloj.</b> Solo ahora puede entrar la siguiente instrucción. Cada bloque ha trabajado una fracción pequeña del ciclo y el resto del tiempo ha estado esperando.';
+  const c=$('#p1clk'); if(c)c.innerHTML=Math.round(t)+'<small> ps</small>';
+  const r=$('#p1t'); if(r&&+r.value!==Math.round(t))r.value=Math.round(t);
+  document.querySelectorAll('#p1occ .oc').forEach((row,i)=>{const iv=OCC1[i][1];const tr=row.querySelector('.tr');tr.innerHTML=iv.map(([a,b])=>'<i style="left:'+(a/840*100)+'%;width:'+((Math.min(b,t)>a?Math.min(b,t)-a:0)/840*100)+'%"></i>').join('');});
+}
+function lab1(){
+  lab.innerHTML=`
+  <div class="lh">Una instrucción LDR en el monociclo</div>
+  <div class="row"><button class="btn primary" id="p1play">${ICON.play}<span>Reproducir</span></button><button class="btn" id="p1reset">${ICON.reset}Reiniciar</button><div class="clock" id="p1clk">0<small> ps</small></div></div>
+  <input type="range" id="p1t" min="0" max="840" step="5" value="0" aria-label="Tiempo dentro del ciclo">
+  <div class="lh">Tiempo que trabaja cada bloque dentro del ciclo de 840 ps</div>
+  <div class="occ" id="p1occ">${OCC1.map(([n,iv])=>{const tot=iv.reduce((s,[a,b])=>s+b-a,0);return `<div class="oc"><span>${n}</span><div class="tr"></div><span class="v">${tot} ps · ${Math.round(tot/840*100)}%</span></div>`;}).join('')}</div>
+  <div class="box">Ninguno de los cuatro bloques grandes trabaja más de una cuarta parte del ciclo. Esa es la oportunidad que aprovecha la segmentación.</div>`;
+  let t=0,playing=false,last=0;
+  const btn=$('#p1play');
+  const setBtn=()=>{btn.innerHTML=(playing?ICON.pause:ICON.play)+'<span>'+(playing?'Pausa':'Reproducir')+'</span>';};
+  const tick=now=>{if(!playing)return;const dt=now-last;last=now;t=Math.min(840,t+dt*0.2);draw1(t);if(t>=840){playing=false;setBtn();return;}state.raf=requestAnimationFrame(tick);};
+  btn.onclick=()=>{if(t>=840)t=0;playing=!playing;setBtn();if(playing){last=performance.now();state.raf=requestAnimationFrame(tick);}};
+  $('#p1reset').onclick=()=>{playing=false;setBtn();t=0;draw1(0);};
+  $('#p1t').oninput=e=>{playing=false;setBtn();t=+e.target.value;draw1(t);};
+  draw1(0);
+}
+
+/* ---------- PASO 2: etapas ---------- */
+function sel2(i){
+  clearHL();
+  const s=STAGES[i];
+  svg.querySelector('.band[data-st="'+i+'"]').classList.add('sel');
+  svg.querySelector('.tag[data-st="'+i+'"]').classList.add('sel');
+  cls(s.els,'hl');
+  if(i===4){cls(['w_res','w_res_wd3'],'hl');byId('RF').classList.add('hl');}
+  document.querySelectorAll('.stc').forEach((b,j)=>b.setAttribute('aria-pressed',j===i));
+  document.querySelectorAll('.strip div').forEach((d,j)=>d.classList.toggle('on',j===i));
+  const d=$('#p2info');
+  if(d)d.innerHTML=`<dl class="dl"><dt>Etapa</dt><dd><b>${s.en}</b> (${s.es}) · sufijo <code>${s.k}</code> · en los diagramas de clase: <b>${s.ab}</b></dd><dt>Hardware</dt><dd>${s.hw}</dd><dt>Para LDR</dt><dd>${s.ldr}</dd><dt>Tiempo en el monociclo</dt><dd><code>${s.t[0]}–${s.t[1]} ps</code> → ${s.t[1]-s.t[0]} ps</dd></dl>`;
+  note.innerHTML= i===4
+    ? '<b>Fíjate:</b> el banco de registros se dibuja en Decode, pero se <b>escribe</b> desde Writeback: <code>Result</code> vuelve hacia atrás. Esa realimentación nos dará trabajo en el paso 4.'
+    : 'Etapa <b>'+s.en+'</b>: '+s.hw.toLowerCase()+'. Toca otra franja del dibujo o una tarjeta para compararlas.';
+}
+function lab2(){
+  lab.innerHTML=`
+  <div class="lh">Las cinco etapas (toca una)</div>
+  <div class="stcards">${STAGES.map((s,i)=>`<button class="stc" data-i="${i}" aria-pressed="false"><b>${s.en}</b><span>${s.k} · ${s.ab}</span></button>`).join('')}</div>
+  <div id="p2info" class="box"></div>
+  <div class="lh">El ciclo de 840 ps repartido entre las etapas</div>
+  <div class="strip">${STAGES.map((s,i)=>`<div data-i="${i}" style="width:${(s.t[1]-s.t[0])/840*100}%">${s.k} ${s.t[1]-s.t[0]}</div>`).join('')}<span class="ideal" style="left:20%"><span>reparto ideal: 840 / 5 = 168 ps</span></span></div>
+  <div class="box warn">Las etapas no duran lo mismo: la más larga (Fetch, 240 ps) marcará el ritmo. Por eso, aunque cortemos en 5, no iremos 5 veces más rápido.</div>`;
+  lab.querySelectorAll('[data-i]').forEach(b=>b.onclick=()=>sel2(+b.dataset.i));
+  sel2(0);
+}
+svg.querySelectorAll('.band').forEach(b=>b.addEventListener('click',()=>{if(state.step===2)sel2(+b.dataset.st);}));
+
+/* ---------- PASO 3: registros y tiempos ---------- */
+const T3=[
+  {k:'F',n:'Fetch',seg:[['ov',40,'t_pcq'],['cb',200,'t_mem'],['ov',50,'t_setup']]},
+  {k:'D',n:'Decode',seg:[['cb',100,'RF read'],['ov',50,'setup'],['cb',100,'RF read'],['ov',50,'setup']],half:true},
+  {k:'E',n:'Execute',seg:[['ov',40,'t_pcq'],['cb',25,'mux'],['cb',120,'ALU'],['ov',50,'t_setup']]},
+  {k:'M',n:'Memory',seg:[['ov',40,'t_pcq'],['cb',200,'t_mem'],['ov',50,'t_setup']]},
+  {k:'W',n:'Writeback',seg:[['ov',40,'pcq'],['cb',25,'mux'],['cb',60,'RFsetup'],['ov',40,'pcq'],['cb',25,'mux'],['cb',60,'RFsetup']],half:true}
+];
+function lab3(){
+  const W=840;
+  const row=(name,segs,tot,max)=>{let x=0;return `<div class="tr3${max?' max':''}"><span class="nm">${name}</span><div class="tk">${segs.map(([c,v,l])=>{const h=`<span class="sg ${c}" style="left:${x/W*100}%;width:${v/W*100}%" title="${l}: ${v} ps">${v>=40?v:''}</span>`;x+=v;return h;}).join('')}</div><span class="v">${tot} ps</span></div>`;};
+  const mono=row('Monociclo',[['mono',840,'LDR completa']],840);
+  const st=T3.map(s=>{const tot=s.seg.reduce((a,b)=>a+b[1],0);return row(s.k+' · '+s.n,s.seg,tot,tot===300);}).join('');
+  lab.innerHTML=`
+  <div class="lh">Duración de cada etapa con sus registros</div>
+  <div class="tim" id="tim">${mono}${st}<div class="tcline" style="left:calc(106px + (100% - 178px) * ${300/840})"><span>T<sub>c</sub> = 300 ps</span></div></div>
+  <div class="keys"><span><i style="background:color-mix(in srgb,var(--accent) 30%,var(--panel))"></i>lógica de la etapa</span><span><i style="background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--over) 40%,var(--panel)) 0 3px,var(--panel) 3px 6px)"></i>sobrecoste del registro (t<sub>pcq</sub>, t<sub>setup</sub>)</span></div>
+  <div class="formula">T<sub>c</sub> = máx(290, 300, 235, 290, 250) = <span class="res">300 ps</span><br>D y W valen el doble: el banco se escribe en la 1.ª mitad del ciclo y se lee en la 2.ª.</div>
+  <div class="box">Cada instrucción tarda ahora más en completarse (5 × 300 = 1500 ps de <b>latencia</b>), pero sale una instrucción terminada cada 300 ps: mejora la <b>productividad</b>.</div>
+  <p class="foot">La ecuación 7.5 del libro da 260 ps para Execute porque incluye el multiplexor de anticipación (forwarding) que se añade al gestionar riesgos. T<sub>c</sub> sigue siendo 300 ps.</p>`;
+  clearHL();
+  note.innerHTML='Han aparecido los 4 <b>registros de segmentación</b>. Toca cualquiera de ellos en el dibujo para ver qué guarda. Las señales cambian de nombre según la etapa: <code>InstrF</code>, <code>SrcAE</code>, <code>ALUOutM</code>, <code>ResultW</code>…';
+}
+
+/* ---------- simulación genérica del cauce ---------- */
+function occ(c){ // c=1.. ciclo; devuelve índice de instrucción por etapa
+  return [0,1,2,3,4].map(s=>{const i=c-1-s;return(i>=0&&i<PROG.length)?i:null;});
+}
+function tagsFor(c){
+  return occ(c).map(i=>i===null?null:{text:PROG[i].asm,c:COLS[i]});
+}
+function progList(id){return `<ol class="prog" id="${id}">${PROG.map((p,i)=>`<li style="--c:var(${COLS[i]})"><span class="a">0x${(i*4).toString(16).toUpperCase().padStart(2,'0')}</span>${p.asm}</li>`).join('')}</ol>`;}
+function markProg(id,c){document.querySelectorAll('#'+id+' li').forEach((li,i)=>li.classList.toggle('on',occ(c).includes(i)));}
+
+/* ---------- PASO 4: el error ---------- */
+const CANDS={
+  w_a3_bug:{ok:true,t:'¡Exacto! La dirección de escritura A3 sale de <code>InstrD[15:12]</code>: el Rd de la instrucción que está <b>en Decode</b>, no de la que está escribiendo en Writeback.'},
+  w_res_wd3:{t:'<code>ResultW</code> es correcto: es el dato que ha leído LDR y llega justo en el ciclo 5. El fallo está en <b>dónde</b> se escribe.'},
+  w_instr:{t:'<code>InstrF</code> lleva la instrucción que está en Fetch: está bien para esa etapa. Busca una señal que use Writeback pero venga de otra etapa.'},
+  w_rd1:{t:'<code>SrcAE</code> pertenece a la instrucción que está en Execute y no interviene en la escritura del banco.'},
+  w_alures:{t:'<code>ALUResultE</code> es de la instrucción en Execute; no participa en la escritura de este ciclo.'},
+  w_rd:{t:'<code>ReadDataW</code> está bien: llega desde M/W junto con la instrucción LDR.'}
+};
+function draw4(){
+  clearHL();
+  const c=state.c4, s4=$('#p4st');
+  $('#p4clk').innerHTML='Ciclo '+c;
+  $('#p4prev').disabled=c<=0; $('#p4next').disabled=c>=10;
+  markProg('p4prog',c);
+  if(c===0){note.innerHTML='Avanza ciclo a ciclo con <b>Siguiente ciclo</b>. Las franjas de color indican qué instrucción hay en cada etapa.';s4.className='box';s4.innerHTML='El cauce está vacío.';$('#p4chal').hidden=true;return;}
+  setTags(tagsFor(c));
+  const o=occ(c), wi=o[4], di=o[1];
+  const writes=wi!==null&&PROG[wi].t!=='str';
+  $('#p4chal').hidden=!( !state.fixed && c>=5 && writes && !state.found );
+  if(!writes){
+    s4.className='box';
+    s4.innerHTML= wi!==null?'<b>'+mnem(PROG[wi])+'</b> está en Writeback pero no escribe registros.':'Todavía ninguna instrucción ha llegado a Writeback: el banco no se escribe.';
+    note.innerHTML='Ciclo '+c+': '+o.filter(x=>x!==null).length+' instrucciones dentro del cauce.';
+    return;
+  }
+  const w=PROG[wi];
+  cls(['w_res','w_res_wd3'],'hl');
+  if(state.fixed){
+    byId('w_wa3').classList.add('good');
+    callout('✓ '+mnem(w)+' escribe en R'+w.rd,true);
+    s4.className='box good';
+    s4.innerHTML='<b>Ciclo '+c+':</b> '+w.asm+' escribe en <b>R'+w.rd+'</b>. La dirección <code>WA3W</code> ha viajado por D/E, E/M y M/W junto al resto de la instrucción.';
+    note.innerHTML='Con <code>WA3</code> segmentado, dato (<code>ResultW</code>) y dirección (<code>WA3W</code>) llegan juntos al banco.';
+  }else{
+    const wrong=di!==null?PROG[di].rd:null;
+    byId('w_a3_bug').classList.add('bad');
+    callout(wrong!==null?'✗ '+mnem(w)+' escribe en R'+wrong+' (debería ser R'+w.rd+')':'✗ A3 indefinida: no hay nada en Decode',false);
+    s4.className='box bad';
+    s4.innerHTML='<b>Ciclo '+c+':</b> '+w.asm+' quiere escribir en <b>R'+w.rd+'</b>, pero el banco escribe en <b>'+(wrong!==null?'R'+wrong:'un registro indefinido')+'</b>. '+(di!==null?'Ese número es el Rd de <code>'+PROG[di].asm+'</code>, que está en Decode.':'');
+    note.innerHTML='<b>Algo va mal en el ciclo '+c+'.</b> El dato correcto llega al puerto WD3, pero se guarda en el registro equivocado.';
+    if(!state.found) buildHits();
+  }
+}
+function buildHits(){
+  const g=byId('hits'); g.innerHTML='';
+  Object.keys(CANDS).forEach(id=>{const src=byId(id);if(!src||src.classList.contains('gone'))return;const p=document.createElementNS('http://www.w3.org/2000/svg','path');p.setAttribute('d',src.getAttribute('d'));p.setAttribute('class','hit');p.dataset.c=id;p.addEventListener('click',()=>pick(id));g.appendChild(p);});
+}
+function pick(id){
+  const k=CANDS[id], fb=$('#p4fb');
+  fb.hidden=false; fb.className='box '+(k.ok?'good':'warn'); fb.innerHTML=k.t;
+  if(k.ok){state.found=true;byId('hits').innerHTML='';$('#p4fix').disabled=false;$('#p4sol').hidden=true;}
+}
+function lab4(){
+  state.c4=0; state.found=false;
+  lab.innerHTML=`
+  <div class="lh">Programa (figura 7.43)</div>
+  ${progList('p4prog')}
+  <div class="row"><button class="btn" id="p4prev">${ICON.prev}Ciclo anterior</button><button class="btn primary" id="p4next">Siguiente ciclo${ICON.next}</button><button class="btn" id="p4to5">Ir al ciclo 5</button><div class="clock" id="p4clk">Ciclo 0</div></div>
+  <div id="p4st" class="box"></div>
+  <div id="p4chal" class="box warn" hidden><b>Reto:</b> toca en el dibujo el cable que tiene la culpa. Los cables candidatos se resaltan al pasar el ratón.
+    <div class="row" style="margin-top:8px"><button class="btn" id="p4sol">Ver la solución</button></div></div>
+  <div id="p4fb" class="box" hidden></div>
+  <div class="row"><button class="btn good" id="p4fix" disabled>Corregir: segmentar WA3</button><button class="btn" id="p4unfix" hidden>Volver a la versión con error</button></div>`;
+  $('#p4prev').onclick=()=>{state.c4=Math.max(0,state.c4-1);draw4();};
+  $('#p4next').onclick=()=>{state.c4=Math.min(10,state.c4+1);draw4();};
+  $('#p4to5').onclick=()=>{state.c4=5;draw4();};
+  $('#p4sol').onclick=()=>pick('w_a3_bug');
+  $('#p4fix').onclick=()=>{state.fixed=true;layout(3);$('#p4fix').hidden=true;$('#p4unfix').hidden=false;$('#p4fb').hidden=true;if(state.c4<5)state.c4=5;draw4();};
+  $('#p4unfix').onclick=()=>{state.fixed=false;state.found=false;layout(4);$('#p4fix').hidden=false;$('#p4fix').disabled=true;$('#p4unfix').hidden=true;$('#p4sol').hidden=false;draw4();};
+  if(state.fixed){$('#p4fix').hidden=true;$('#p4unfix').hidden=false;}
+  draw4();
+}
+
+/* ---------- PASO 5: PC+8 ---------- */
+function draw5(){
+  clearHL();
+  const old=state.pcOld, n=state.c5;
+  layout(5);
+  document.querySelectorAll('#p5seg button').forEach(b=>b.setAttribute('aria-pressed',(b.dataset.v==='old')===old));
+  if(old){cls(['w_pcp4','w_pcp4_d','w_add8_r15'],'hl');byId('ADD8').classList.add('hl');byId('bFD').classList.add('hl');
+    note.innerHTML='<b>Antes (fig. 7.45):</b> PCPlus4F se guarda en F/D y un segundo sumador calcula PCPlus8D = PC + 8 para R15.';}
+  else{cls(['w_pcp4','w_pcp8d'],'hl');
+    note.innerHTML='<b>Después (fig. 7.46):</b> el cable PCPlus4F va directo a R15 sin pasar por F/D. Un sumador de 32 bits y 32 bits de registro menos.';}
+  const pcF=0x1000+4*n, pcD=pcF-4;
+  const h=x=>'0x'+x.toString(16).toUpperCase();
+  setTags([{text:'instr. en '+h(pcF),c:COLS[(n)%6]},{text:'instr. en '+h(pcD),c:COLS[(n-1+6)%6]},null,null,null]);
+  $('#p5clk').innerHTML='Ciclo '+n;
+  $('#p5tab').innerHTML=`<dl class="dl">
+    <dt>En Fetch</dt><dd>instrucción en <code>${h(pcF)}</code> → PCPlus4F = <code>${h(pcF+4)}</code></dd>
+    <dt>En Decode</dt><dd>instrucción en <code>${h(pcD)}</code> → R15 debe valer PC + 8 = <code>${h(pcD+8)}</code></dd>
+    <dt>¿Coinciden?</dt><dd><b style="color:var(--ok)">Sí: ${h(pcF+4)} = ${h(pcD+8)}</b></dd></dl>`;
+}
+function lab5(){
+  state.c5=state.c5||2;
+  lab.innerHTML=`
+  <div class="lh">Compara las dos versiones</div>
+  <div class="seg" id="p5seg"><button data-v="old" aria-pressed="false">Antes · fig. 7.45</button><button data-v="new" aria-pressed="true">Después · fig. 7.46</button></div>
+  <div class="lh">Compruébalo con direcciones reales</div>
+  <div class="row"><button class="btn" id="p5prev">${ICON.prev}Ciclo anterior</button><button class="btn primary" id="p5next">Siguiente ciclo${ICON.next}</button><div class="clock" id="p5clk"></div></div>
+  <div class="box" id="p5tab"></div>
+  <div class="box">Ahorro: <b>1 sumador de 32 bits</b> y <b>32 bits</b> en el registro F/D, que pasa a guardar solo <code>InstrF</code>.</div>
+  <p class="foot">Hay una excepción: cuando el PC se escribe con ResultW (un salto) la igualdad no se cumple. No importa, porque en ese caso se vacía el cauce (lo veréis en 3.4.2, riesgos de control).</p>`;
+  document.querySelectorAll('#p5seg button').forEach(b=>b.onclick=()=>{state.pcOld=b.dataset.v==='old';draw5();});
+  $('#p5prev').onclick=()=>{state.c5=Math.max(1,state.c5-1);draw5();};
+  $('#p5next').onclick=()=>{state.c5=Math.min(12,state.c5+1);draw5();};
+  draw5();
+}
+
+/* ---------- PASO 6: control ---------- */
+const SIG=[
+  {n:'RegSrc',u:'D',w:'multiplexores RA1/RA2',r:[],els:['k_regsrc','RA1MUX','RA2MUX']},
+  {n:'ImmSrc',u:'D',w:'Extend',r:[],els:['k_immsrc','EXT']},
+  {n:'ALUSrc',u:'E',w:'multiplexor SrcB',r:['DE'],els:['k_als_d','k_als_e','SRCB']},
+  {n:'ALUControl',u:'E',w:'ALU',r:['DE'],els:['k_alc_d','k_alc_e','ALU']},
+  {n:'FlagWrite',u:'E',w:'Cond Unit (actualizar NZCV)',r:['DE'],els:['k_fw_d','k_fw_e','COND','k_flagsp','k_flags_e']},
+  {n:'Cond',u:'E',w:'Cond Unit (comprobar la condición)',r:['DE'],els:['k_cond','k_cond_e','COND'],from:'InstrD[31:28]'},
+  {n:'Branch',u:'E',w:'Cond Unit: se combina con PCSrc',r:['DE'],els:['k_br_d','k_br_e','COND'],g:true},
+  {n:'MemWrite',u:'M',w:'WE de la memoria de datos',r:['DE','EM'],els:['k_mw_d','k_mw_e','COND','k_mw_m','k_mw_m2','DM'],g:true},
+  {n:'MemtoReg',u:'W',w:'multiplexor de resultado',r:['DE','EM','MW'],els:['k_mtr_d','k_mtr_e','k_mtr_m','k_mtr_w','RESMUX']},
+  {n:'RegWrite',u:'W',w:'WE3 del banco',r:['DE','EM','MW'],els:['k_rw_d','k_rw_e','COND','k_rw_m','k_rw_m2','k_rw_w','RF'],g:true},
+  {n:'PCSrc',u:'W',w:'multiplexor del PC',r:['DE','EM','MW'],els:['k_pcs_d','k_pcs_e','COND','k_pcs_m','k_pcs_m2','k_pcs_w','PCMUX'],g:true},
+  {n:'WA3',u:'W',w:'A3 del banco',r:['DE','EM','MW'],els:['w_wa3'],data:true}
+];
+function sel6(i){
+  clearHL();
+  document.querySelectorAll('#p6t tbody tr').forEach((tr,j)=>tr.classList.toggle('sel',j===i));
+  if(i===null){note.innerHTML='Toca una fila de la tabla para seguir una señal desde la unidad de control hasta donde se usa.';return;}
+  const s=SIG[i];
+  svg.querySelectorAll('#ctl .c').forEach(c=>c.classList.add('dim'));
+  s.els.forEach(id=>{const el=byId(id);if(!el)return;el.classList.remove('dim');el.classList.add(s.data?'good':(el.classList.contains('blk')&&!el.classList.contains('ctlb')?'ctlhl':'ctlhl'));});
+  if(!s.data&&!s.from)byId('CU').classList.add('ctlhl');
+  s.r.forEach(r=>byId('b'+r).classList.add('ctlhl'));
+  const where={D:'Decode',E:'Execute',M:'Memory',W:'Writeback'}[s.u];
+  note.innerHTML='<b><code>'+s.n+'</code></b> '+(s.data?'(dato, no control)':'')+' sale de '+(s.from?'<code>'+s.from+'</code>':(s.data?'<code>InstrD[15:12]</code>':'la unidad de control en Decode'))+' y se usa en <b>'+where+'</b> ('+s.w+'). '+(s.r.length?'Viaja por '+s.r.map(r=>({DE:'D/E',EM:'E/M',MW:'M/W'})[r]).join(' → ')+'.':'No necesita viajar: se usa en la misma etapa.')+(s.g?' Si la condición no se cumple, la Cond Unit la anula (CondExE = 0).':'');
+}
+function lab6(){
+  const dot='<span class="pip" aria-label="sí"></span>';
+  lab.innerHTML=`
+  <div class="lh">¿Qué transporta cada registro? (toca una fila)</div>
+  <div class="tw"><table class="tv" id="p6t"><thead><tr><th>Señal</th><th>Se usa en</th><th>D/E</th><th>E/M</th><th>M/W</th></tr></thead><tbody>
+  ${SIG.map(s=>`<tr class="${s.data?'data':''}"><td><span class="sn">${s.n}${s.u}</span>${s.g?'<span class="gt">CondEx</span>':''}</td><td><span class="use">${s.u}</span></td>${['DE','EM','MW'].map(r=>`<td>${s.r.includes(r)?dot:''}</td>`).join('')}</tr>`).join('')}
+  </tbody><tfoot><tr><td colspan="2">Bits de control</td><td>14</td><td>4</td><td>3</td></tr></tfoot></table></div>
+  <div class="box">El paquete de control <b>encoge</b> a cada paso: cada registro solo lleva lo que aún queda por usar. RegWrite, MemWrite y PCSrc pasan por la <b>Cond Unit</b>: si la condición de la instrucción (EQ, NE, GT…) no se cumple, se ponen a 0 y la instrucción no tiene efecto.</div>
+  <p class="foot">14 bits en D/E: ALUControl y FlagWrite ocupan 2 bits cada uno y Cond, 4. El nombre de la señal lleva el sufijo de la etapa donde se usa (ALUSrcE, MemWriteM, RegWriteW…).</p>`;
+  lab.querySelectorAll('#p6t tbody tr').forEach((tr,i)=>tr.onclick=()=>sel6(i));
+  sel6(9);
+}
+
+/* ---------- PASO 7: en marcha ---------- */
+function act7(st,p){
+  if(!p)return null;
+  const r=n=>'R'+n;
+  if(st===0)return 'Busca la instrucción en la memoria de instrucciones';
+  if(st===1){if(p.t==='ldr')return 'Lee '+r(p.rn)+' y extiende #'+p.imm;if(p.t==='str')return 'Lee '+r(p.rn)+' y '+r(p.rd)+' (el dato), extiende #'+p.imm;return 'Lee '+r(p.rn)+(p.rm!==undefined?' y '+r(p.rm):' y extiende #'+p.imm);}
+  if(st===2){if(p.t==='ldr'||p.t==='str')return 'ALU: dirección = '+r(p.rn)+' + '+p.imm;return 'ALU: '+r(p.rn)+' '+p.op+' '+(p.rm!==undefined?r(p.rm):'#'+p.imm);}
+  if(st===3){if(p.t==='ldr')return 'Lee la memoria de datos';if(p.t==='str')return 'Escribe '+r(p.rd)+' en la memoria de datos';return null;}
+  if(st===4){if(p.t==='str')return null;return 'Escribe el resultado en '+r(p.rd)+(p.t==='ldr'?' (dato leído)':'');}
+}
+function draw7(){
+  clearHL();
+  const c=state.c7;
+  $('#p7clk').innerHTML='Ciclo '+c;
+  $('#p7prev').disabled=c<=0;$('#p7next').disabled=c>=10;
+  const o=occ(c);
+  if(c>0)setTags(tagsFor(c));
+  // bloques ociosos
+  if(o[3]!==null&&!act7(3,PROG[o[3]]))cls(['DM'],'dim');
+  if(o[3]!==null&&PROG[o[3]].t==='str'){byId('DM').classList.add('hl');byId('w_wd').classList.add('hl');}
+  if(o[3]!==null&&PROG[o[3]].t==='ldr'){byId('DM').classList.add('hl');byId('w_rd').classList.add('hl');}
+  if(o[4]!==null&&PROG[o[4]].t==='str'){cls(['RESMUX'],'dim');cls(['w_res','w_res_wd3','k_rw_w'],'dim');}
+  if(o[4]!==null&&PROG[o[4]].t!=='str'){cls(['w_res_wd3','w_wa3'],'hl');}
+  [0,1,2,3,4].forEach(s=>{if(o[s]===null)STAGES[s].els.forEach(id=>{const e=byId(id);if(e&&id!=='ADD8')e.classList.add('dim');});});
+  // tarjetas
+  $('#p7st').innerHTML=STAGES.map((s,i)=>{const p=o[i]!==null?PROG[o[i]]:null;const a=act7(i,p);return `<div class="sl${p&&!a?' idle':''}" style="${p?'--c:var('+COLS[o[i]]+')':''}"><span class="sk">${s.k} · ${s.en}</span><span>${p?'<span class="si">'+p.asm+'</span>'+(a||'<i>No usa esta etapa: solo la atraviesa</i>'):'<i style="color:var(--muted)">vacía</i>'}</span></div>`;}).join('');
+  // tabla multiciclo
+  const ab=['BI','LR','E','M','ER'];
+  let h='<table class="mc"><thead><tr><th class="rh">Instrucción</th>'+[...Array(10)].map((_,k)=>`<th class="${k+1===c?'cur':''}">${k+1}</th>`).join('')+'</tr></thead><tbody>';
+  PROG.forEach((p,i)=>{h+=`<tr><th class="rh" style="--c:var(${COLS[i]})">${p.asm}</th>`;for(let k=1;k<=10;k++){const s=k-1-i;if(s>=0&&s<5){const idle=!act7(s,p);h+=`<td class="k${idle?' idle':''}${k===c?' cur':''}" style="--c:var(${COLS[i]})">${ab[s]}</td>`;}else h+=`<td class="${k===c?'cur':''}"></td>`;}h+='</tr>';});
+  $('#p7mc').innerHTML=h+'</tbody></table>';
+  const full=o.filter(x=>x!==null).length;
+  if(c===0)note.innerHTML='Pulsa <b>Siguiente ciclo</b> o <b>Reproducir</b>. Cada color es una instrucción.';
+  else if(c<5)note.innerHTML='<b>Ciclo '+c+': llenado del cauce.</b> Hay '+full+' instrucción'+(full>1?'es':'')+' dentro; todavía no ha terminado ninguna.';
+  else if(c<=6)note.innerHTML='<b>Ciclo '+c+': cauce lleno.</b> Cinco instrucciones a la vez, y en cada ciclo termina una: '+PROG[o[4]].asm+'. En ciclos así el CPI es 1.';
+  else note.innerHTML='<b>Ciclo '+c+': vaciado.</b> Ya no entran instrucciones nuevas'+(o[4]!==null?'; termina '+PROG[o[4]].asm:'')+'. 6 instrucciones en 10 ciclos = 6 + 4 de llenado.';
+}
+function lab7(){
+  state.c7=state.c7||0;
+  lab.innerHTML=`
+  <div class="row"><button class="btn" id="p7prev">${ICON.prev}Anterior</button><button class="btn primary" id="p7next">Siguiente ciclo${ICON.next}</button><button class="btn" id="p7play">${ICON.play}<span>Reproducir</span></button><div class="clock" id="p7clk"></div></div>
+  <div class="stl" id="p7st"></div>
+  <div class="lh">Diagrama de múltiples ciclos (BI · LR · E · M · ER)</div>
+  <div class="mcw" id="p7mc"></div>
+  <p class="foot">Las casillas rayadas son etapas que la instrucción atraviesa sin usar: ADD no toca la memoria de datos y STR no escribe registros.</p>`;
+  const stop=()=>{clearInterval(state.timer);state.timer=null;$('#p7play').innerHTML=ICON.play+'<span>Reproducir</span>';};
+  $('#p7prev').onclick=()=>{stop();state.c7=Math.max(0,state.c7-1);draw7();};
+  $('#p7next').onclick=()=>{stop();state.c7=Math.min(10,state.c7+1);draw7();};
+  $('#p7play').onclick=()=>{if(state.timer){stop();return;}if(state.c7>=10)state.c7=0;$('#p7play').innerHTML=ICON.pause+'<span>Pausa</span>';state.timer=setInterval(()=>{state.c7++;draw7();if(state.c7>=10)stop();},1300);state.c7++;draw7();};
+  draw7();
+}
+
+/* ---------- PASO 8: rendimiento ---------- */
+function draw8(){
+  const N=+$('#p8n').value;
+  const tm=N*840, ts=(N+4)*300, sp=tm/ts;
+  const fmt=v=>v>=1e6?(v/1e6).toLocaleString('es-ES',{maximumFractionDigits:2})+' µs':v>=1e3?(v/1e3).toLocaleString('es-ES',{maximumFractionDigits:2})+' ns':v+' ps';
+  $('#p8nv').textContent=N+' instrucciones';
+  $('#p8tiles').innerHTML=`
+    <div class="tile"><div class="tv2">${fmt(tm)}</div><div class="tl">Monociclo: ${N} × 840 ps</div></div>
+    <div class="tile" style="--tc:var(--accent)"><div class="tv2">${fmt(ts)}</div><div class="tl">Segmentado: (${N} + 4) × 300 ps</div></div>
+    <div class="tile" style="--tc:var(--ok)"><div class="tv2">×${sp.toLocaleString('es-ES',{maximumFractionDigits:2})}</div><div class="tl">Aceleración</div></div>`;
+  // gráfica
+  const W=520,H=230,L=40,R=12,T=14,B=30, maxN=100, maxY=5.5;
+  const x=n=>L+(n-1)/(maxN-1)*(W-L-R), y=v=>T+(1-v/maxY)*(H-T-B);
+  let d='',a='';
+  for(let n=1;n<=maxN;n++){const v=840*n/(300*(n+4));d+=(n===1?'M':'L')+x(n).toFixed(1)+' '+y(v).toFixed(1);}
+  a=d+'L'+x(maxN)+' '+y(0)+'L'+x(1)+' '+y(0)+'Z';
+  let g='';
+  [0,1,2,3,4,5].forEach(v=>{g+=`<line class="gr" x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}"/><text class="tx" x="${L-6}" y="${y(v)+3.5}" text-anchor="end">${v}</text>`;});
+  [1,20,40,60,80,100].forEach(n=>{g+=`<text class="tx" x="${x(n)}" y="${H-B+16}" text-anchor="middle">${n}</text>`;});
+  $('#chart8').innerHTML=`${g}<line class="ax" x1="${L}" x2="${W-R}" y1="${y(0)}" y2="${y(0)}"/>
+    <line class="ide" x1="${L}" x2="${W-R}" y1="${y(5)}" y2="${y(5)}"/><text class="ltx" x="${W-R-4}" y="${y(5)-6}" text-anchor="end" fill="var(--over)">IDEAL: 5 ETAPAS = ×5</text>
+    <line class="lim" x1="${L}" x2="${W-R}" y1="${y(2.8)}" y2="${y(2.8)}"/><text class="ltx" x="${W-R-4}" y="${y(2.8)-6}" text-anchor="end" fill="var(--ok)">LÍMITE REAL: 840 / 300 = ×2,8</text>
+    <path class="area" d="${a}"/><path class="crv" d="${d}"/>
+    <circle class="pt" cx="${x(N)}" cy="${y(sp)}" r="5"/>
+    <text class="tx" x="${(L+W-R)/2}" y="${H-2}" text-anchor="middle">número de instrucciones N</text>`;
+}
+function lab8(){
+  lab.innerHTML=`
+  <div class="row"><label for="p8n" class="lh">Programa de</label><span class="mono" id="p8nv"></span></div>
+  <input type="range" id="p8n" min="1" max="100" value="6">
+  <div class="tiles" id="p8tiles"></div>
+  <svg id="chart8" viewBox="0 0 520 230" role="img" aria-label="Aceleración frente al número de instrucciones"></svg>
+  <div class="box">Con hazards de por medio (ejemplo 7.7: CPI = 1,23 en SPECINT2000), 100 000 millones de instrucciones tardan <b>36,9 s</b> en el segmentado frente a <b>84 s</b> en el monociclo: aceleración ≈ 2,3.</div>
+  <div class="box">Siguiente parada: <b>3.4 Gestión de riesgos</b>.</div>`;
+  $('#p8n').oninput=draw8; draw8();
+  clearHL();
+  note.innerHTML='El procesador completo de la figura 7.47. A partir de aquí solo falta resolver los <b>riesgos</b>: anticipación, paradas y vaciado del cauce.';
+}
+
+/* ---------- definición de los pasos ---------- */
+const STEPS=[
+  {t:'Partimos del monociclo',s:'Monociclo',f:'Figura 7.44 (a): el monociclo, estirado para dejar hueco',
+   x:`<p>El monociclo ejecuta cada instrucción en <b>un único ciclo de reloj</b>. Ese ciclo tiene que durar lo que la instrucción más lenta, LDR, que recorre todo el camino de datos: <b>840 ps</b> con los retardos de la tabla 7.5.</p>
+   <p>Reproduce la animación y fíjate en lo que queda detrás de la señal: cuando la instrucción ya ha pasado por un bloque, ese bloque no hace nada útil hasta el siguiente flanco de reloj.</p>
+   <div class="aside">Hemos dibujado el camino de datos <b>estirado</b>, con huecos entre algunos bloques, como en la figura 7.44 (a). Esos huecos los usaremos en el paso 3. De momento dejamos fuera la unidad de control; vuelve en el paso 6.</div>`,
+   leg:[['var(--accent)','trabajando ahora'],['var(--line-strong)','ya ocioso','.35']], init:lab1},
+  {t:'Cortamos el camino en cinco etapas',s:'5 etapas',f:'Las cinco fases de toda instrucción (diapositiva 57)',
+   x:`<p>Todas las instrucciones recorren las mismas fases y en el mismo orden: <b>Fetch</b> (búsqueda), <b>Decode</b> (decodificación y lectura de registros), <b>Execute</b> (ejecución), <b>Memory</b> (memoria) y <b>Writeback</b> (escritura). Usamos los nombres del libro, de los que salen los sufijos F, D, E, M y W de las señales; en los diagramas de clase son BI, LR, E, M y ER.</p>
+   <p>Cada fase usa su propio hardware. Si el hardware de cada fase pudiera trabajar con una instrucción distinta, tendríamos cinco instrucciones a la vez: es la lavadora y la secadora de la diapositiva 52, cada una con una colada distinta.</p>
+   <div class="aside">Las líneas de corte se colocan en los huecos del dibujo. Toca las franjas o las tarjetas para ver qué hardware cae en cada etapa.</div>`,
+   leg:[], init:lab2},
+  {t:'Insertamos los registros de segmentación',s:'Registros',f:'Figura 7.44 (b): cuatro registros separan cinco etapas',
+   x:`<p>En cada corte colocamos un <b>registro de segmentación</b>: F/D, D/E, E/M y M/W. En cada flanco de reloj, cada registro captura lo que ha producido su etapa y se lo entrega a la siguiente. Así cada etapa trabaja con una instrucción diferente.</p>
+   <p>Las señales llevan ahora un <b>sufijo</b> con la etapa en la que están: <code>InstrF</code>, <code>SrcAE</code>, <code>ALUOutM</code>, <code>ResultW</code>… El mismo valor cambia de nombre al cruzar un registro.</p>
+   <p>El ciclo de reloj ya no lo marca la instrucción entera, sino <b>la etapa más lenta</b> más el sobrecoste de su registro.</p>
+   <div class="aside">El banco de registros es especial: se <b>escribe en el flanco de bajada</b>, en la primera mitad del ciclo, y se lee en la segunda. Por eso un valor escrito en W puede leerse en D en el mismo ciclo.</div>`,
+   leg:[['var(--bar)','registro de segmentación']], init:lab3},
+  {t:'¿Encuentras el error?',s:'El error',f:'Figura 7.44 (b) → 7.45: todas las señales de una instrucción avanzan juntas',
+   x:`<p>El diseño del paso anterior tiene un fallo sutil. El libro lo plantea como reto: <i>¿lo encuentras?</i></p>
+   <p>Ejecuta el programa ciclo a ciclo. En el <b>ciclo 5</b>, LDR llega a Writeback con el dato leído de memoria y lo escribe en el banco… ¿en qué registro?</p>
+   <p>La regla que hemos olvidado: <b>todas las señales de una instrucción deben avanzar juntas por el cauce</b>. Si una señal de Writeback llega desde otra etapa, pertenece a otra instrucción.</p>
+   <div class="aside">El libro avisa de otra señal sospechosa: el mux del PC elige entre PCPlus4F (Fetch) y ResultW (Writeback). Ese problema es un <b>riesgo de control</b> y se resuelve en 3.4.2.</div>`,
+   leg:[['var(--bad)','señal de otra etapa'],['var(--ok)','señal corregida']], init:lab4},
+  {t:'Un sumador menos',s:'PC + 8',f:'Figura 7.46: lógica del PC optimizada',
+   x:`<p>En ARM, leer R15 devuelve <b>PC + 8</b>. En la versión anterior, PCPlus4F viaja por F/D y en Decode un segundo sumador le suma otros 4.</p>
+   <p>Pero cuando una instrucción está en Decode, la siguiente ya está en Fetch, en la dirección PC + 4. Su PCPlus4F vale exactamente <b>PC + 8 de la instrucción en Decode</b>. Basta con llevar ese cable directo a R15.</p>
+   <p>Compara las dos versiones y comprueba la igualdad con las direcciones del ejemplo.</p>`,
+   leg:[['var(--accent)','camino de PC + 8']], init:lab5},
+  {t:'El control también viaja',s:'Control',f:'Figura 7.47: procesador segmentado con control',
+   x:`<p>La unidad de control es <b>la misma del monociclo</b>. Está en Decode: lee los campos Op, Funct y Rd de <code>InstrD</code> y genera todas las señales de control.</p>
+   <p>Pero muchas señales se usan más tarde. Igual que pasaba con WA3, tienen que <b>viajar junto a su instrucción</b> por los registros de segmentación. Si no, MemWrite de una instrucción activaría la escritura en memoria de otra.</p>
+   <p>En Execute aparece la <b>Cond Unit</b>: con los flags NZCV (FlagsE) y la condición de la instrucción (CondE) calcula CondExE. Si la condición no se cumple, anula RegWrite, MemWrite y PCSrc. BranchE se une aquí a PCSrc, así que de E/M en adelante solo viaja PCSrcM.</p>
+   <div class="aside">Los flags se guardan junto al registro D/E: la Cond Unit produce <b>Flags'</b>, que vuelve al registro y sale como <b>FlagsE</b> para la siguiente instrucción.</div>`,
+   leg:[['var(--ctl)','señales de control'],['var(--bar)','registro de segmentación']], init:lab6},
+  {t:'El segmentado en marcha',s:'En marcha',f:'Figura 7.43: el cauce en funcionamiento',
+   x:`<p>Ejecutamos el programa de la figura 7.43. Durante los 4 primeros ciclos el cauce se <b>llena</b>; desde el ciclo 5 hay cinco instrucciones dentro y en cada ciclo <b>termina una</b>.</p>
+   <p>Mira el ciclo 6: ORR se busca, AND lee R12 y R13, SUB está en la ALU, ADD atraviesa la memoria sin usarla y LDR escribe R2. Cinco instrucciones distintas, cada una en su propio hardware.</p>
+   <div class="aside">Este programa no tiene dependencias entre instrucciones. Si ADD usara R2, lo leería antes de que LDR lo escribiera: es un <b>riesgo de datos</b> (RAW), el siguiente tema.</div>`,
+   leg:[['var(--accent)','memoria / escritura en uso'],['var(--line-strong)','hardware ocioso','.3']], init:lab7},
+  {t:'¿Cuánto hemos ganado?',s:'Rendimiento',f:'Ejemplos 7.7 y 7.8',
+   x:`<p>En el monociclo, N instrucciones tardan <b>N × 840 ps</b>. En el segmentado, <b>(N + 4) × 300 ps</b>: 4 ciclos para llenar el cauce y luego una instrucción por ciclo.</p>
+   <p>Con muchas instrucciones la aceleración tiende a 840 / 300 = <b>2,8</b>, no a 5. Dos motivos:</p>
+   <ul><li>las etapas no están equilibradas (Decode necesita 300 ps; Execute, solo 235);</li><li>cada etapa paga el sobrecoste de su registro (t<sub>pcq</sub> + t<sub>setup</sub>), no solo una vez por instrucción.</li></ul>
+   <p>Y en programas reales los riesgos añaden ciclos perdidos: el CPI sube por encima de 1.</p>`,
+   leg:[], init:lab8}
+];
+
+/* ---------- navegación ---------- */
+const stepper=$('#stepper');
+stepper.innerHTML=STEPS.map((s,i)=>`<button class="stp" data-i="${i+1}"><span class="n">${i+1}</span><span class="t">${s.s}</span></button>`).join('');
+stepper.querySelectorAll('.stp').forEach(b=>b.onclick=()=>go(+b.dataset.i));
+function go(n,fromHash){
+  n=Math.max(1,Math.min(STEPS.length,n));
+  const prev=state.step;
+  if(state.timer){clearInterval(state.timer);state.timer=null;}
+  if(state.raf){cancelAnimationFrame(state.raf);state.raf=null;}
+  if(n!==4&&prev===4){} // el arreglo se conserva
+  if(n!==5)state.pcOld=false;
+  state.step=n;
+  clearHL();
+  layout(prev===n&&fromHash===undefined?undefined:prev);
+  const S=STEPS[n-1];
+  $('#stepK').textContent='Paso '+n+' de '+STEPS.length;
+  $('#stepT').textContent=S.t;
+  $('#stepF').textContent=S.f;
+  explain.innerHTML=S.x;
+  legend.innerHTML=S.leg.map(([c,t,o])=>`<span><i style="border-color:${c};${o?'opacity:'+o:''}"></i>${t}</span>`).join('');
+  stepper.querySelectorAll('.stp').forEach((b,i)=>{b.classList.toggle('cur',i+1===n);b.classList.toggle('done',i+1<n);});
+  const cur=stepper.querySelector('.stp.cur'); if(cur)cur.scrollIntoView({block:'nearest',inline:'nearest'});
+  $('#prev').disabled=n===1; $('#next').disabled=n===STEPS.length;
+  S.init();
+  if(!fromHash){try{history.replaceState(null,'','#paso-'+n);}catch(e){location.hash='paso-'+n;}}
+}
+$('#prev').onclick=()=>go(state.step-1);
+$('#next').onclick=()=>go(state.step+1);
+document.addEventListener('keydown',e=>{
+  if(e.target.matches('input,textarea,select'))return;
+  if(e.key==='ArrowRight'){go(state.step+1);}
+  else if(e.key==='ArrowLeft'){go(state.step-1);}
+});
+const fromH=()=>{const m=/^#paso-(\d)$/.exec(location.hash);return m?+m[1]:1;};
+window.addEventListener('hashchange',()=>{const n=fromH();if(n!==state.step)go(n,true);});
+state.step=0;
+go(fromH(),true);
+})();
+</script>
+</body>
+</html>
