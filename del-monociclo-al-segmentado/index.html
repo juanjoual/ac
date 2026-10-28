@@ -174,6 +174,13 @@ main.wrap{padding-block:16px 48px;display:flex;flex-direction:column;gap:16px}
 .clock{font:700 26px/1 var(--f-display);font-variant-numeric:tabular-nums;min-width:96px}
 .clock small{font:500 13px var(--f-body);color:var(--muted)}
 input[type=range]{flex:1 1 200px;min-width:0;accent-color:var(--accent)}
+.lab > input[type=range]{flex:0 0 auto;width:100%;margin:0}
+.nctl{display:flex;flex-direction:column;gap:8px;padding:12px 14px;border:1px solid var(--line);border-radius:5px;background:var(--sunk)}
+.nctl .nh{display:flex;align-items:baseline;justify-content:space-between;gap:6px 14px;flex-wrap:wrap}
+.nctl .nbig{font:700 44px/1 var(--f-display);font-variant-numeric:tabular-nums;color:var(--accent)}
+.nctl .nbig small{font:600 19px var(--f-display);color:var(--muted);margin-left:8px;letter-spacing:.02em}
+.nctl input[type=range]{flex:none;width:100%;height:26px;margin:0}
+.nticks{display:flex;justify-content:space-between;font:12px var(--f-mono);color:var(--muted);font-variant-numeric:tabular-nums;margin-top:-4px}
 .box{padding:10px 12px;border-radius:5px;background:var(--sunk);border:1px solid var(--line);font-size:14.5px}
 .box.bad{border-color:color-mix(in srgb,var(--bad) 55%,var(--line));background:color-mix(in srgb,var(--bad) 8%,var(--panel))}
 .box.good{border-color:color-mix(in srgb,var(--ok) 55%,var(--line));background:color-mix(in srgb,var(--ok) 8%,var(--panel))}
@@ -339,8 +346,8 @@ a{color:var(--accent)}
         <div class="fig" id="stepF"></div>
       </div>
       <div class="nav">
-        <button class="btn" id="prev" aria-label="Paso anterior"><svg viewBox="0 0 16 16"><path d="M10.5 2 4.5 8l6 6 1.2-1.2L6.9 8l4.8-4.8z"/></svg>Anterior</button>
-        <button class="btn primary" id="next" aria-label="Paso siguiente">Siguiente<svg viewBox="0 0 16 16"><path d="M5.5 2 4.3 3.2 9.1 8l-4.8 4.8L5.5 14l6-6z"/></svg></button>
+        <button class="btn" id="prev" aria-label="Paso anterior" title="Paso anterior (↑)"><svg viewBox="0 0 16 16"><path d="M10.5 2 4.5 8l6 6 1.2-1.2L6.9 8l4.8-4.8z"/></svg>Anterior</button>
+        <button class="btn primary" id="next" aria-label="Paso siguiente" title="Paso siguiente (↓)">Siguiente<svg viewBox="0 0 16 16"><path d="M5.5 2 4.3 3.2 9.1 8l-4.8 4.8L5.5 14l6-6z"/></svg></button>
       </div>
     </div>
 
@@ -581,7 +588,7 @@ a{color:var(--accent)}
     <div class="lab" id="lab"></div>
   </section>
 
-  <p class="foot">Retardos de la tabla 7.5 y figuras 7.43 a 7.47 de <i>Digital Design and Computer Architecture, ARM Edition</i> (Harris &amp; Harris). Usa las flechas ← → del teclado para cambiar de paso.</p>
+  <p class="foot">Retardos de la tabla 7.5 y figuras 7.43 a 7.47 de <i>Digital Design and Computer Architecture, ARM Edition</i> (Harris &amp; Harris). Teclado: ← → avanzan y retroceden dentro de cada paso (ciclo a ciclo, etapa a etapa…); ↓ pasa al paso siguiente y ↑ vuelve al anterior. Re Pág / Av Pág de los mandos de presentación funcionan como ← →.</p>
 </main>
 
 <script>
@@ -736,6 +743,9 @@ function lab1(){
   btn.onclick=()=>{if(t>=840)t=0;playing=!playing;setBtn();if(playing){last=performance.now();state.raf=requestAnimationFrame(tick);}};
   $('#p1reset').onclick=()=>{playing=false;setBtn();t=0;draw1(0);};
   $('#p1t').oninput=e=>{playing=false;setBtn();t=+e.target.value;draw1(t);};
+  const evAt=()=>t<=0?-1:(t>=840?EV1.length:EV1.findIndex(e=>t>=e.a&&t<e.b));
+  const jump=i=>{playing=false;setBtn();t=i<0?0:(i>=EV1.length?840:(EV1[i].a+EV1[i].b)/2);draw1(t);return true;};
+  state.keys={next:()=>{const i=evAt();return i<EV1.length&&jump(i+1);},prev:()=>{const i=evAt();return i>-1&&jump(i-1);}};
   draw1(0);
 }
 
@@ -764,6 +774,8 @@ function lab2(){
   <div class="strip">${STAGES.map((s,i)=>`<div data-i="${i}" style="width:${(s.t[1]-s.t[0])/840*100}%">${s.k} ${s.t[1]-s.t[0]}</div>`).join('')}<span class="ideal" style="left:20%"><span>reparto ideal: 840 / 5 = 168 ps</span></span></div>
   <div class="box warn">Las etapas no duran lo mismo: la más larga (Fetch, 240 ps) marcará el ritmo. Por eso, aunque cortemos en 5, no iremos 5 veces más rápido.</div>`;
   lab.querySelectorAll('[data-i]').forEach(b=>b.onclick=()=>sel2(+b.dataset.i));
+  const cur2=()=>{const b=lab.querySelector('.stc[aria-pressed="true"]');return b?+b.dataset.i:0;};
+  state.keys={next:()=>{const i=cur2();if(i>=4)return false;sel2(i+1);return true;},prev:()=>{const i=cur2();if(i<=0)return false;sel2(i-1);return true;}};
   sel2(0);
 }
 svg.querySelectorAll('.band').forEach(b=>b.addEventListener('click',()=>{if(state.step===2)sel2(+b.dataset.st);}));
@@ -820,6 +832,8 @@ function lab3(){
   <div class="box">Cada instrucción tarda ahora más en completarse (5 × 300 = 1500 ps de <b>latencia</b>), pero sale una instrucción terminada cada 300 ps: mejora la <b>productividad</b>.</div>
   <p class="foot">La ecuación 7.5 del libro da 260 ps para Execute porque incluye el multiplexor de anticipación (forwarding) que se añade al gestionar riesgos. T<sub>c</sub> sigue siendo 300 ps.</p>`;
   lab.querySelectorAll('#p3t tbody tr').forEach(tr=>tr.onclick=()=>sel3(+tr.dataset.i));
+  const cur3=()=>{const r=lab.querySelector('#p3t tbody tr.sel');return r?+r.dataset.i:-1;};
+  state.keys={next:()=>{const i=cur3();if(i>=4)return false;sel3(i+1);return true;},prev:()=>{const i=cur3();if(i<=0)return false;sel3(i-1);return true;}};
   clearHL();
   note.innerHTML='Han aparecido los 4 <b>registros de segmentación</b>. Toca cualquiera de ellos en el dibujo para ver qué guarda. Las señales cambian de nombre según la etapa: <code>InstrF</code>, <code>SrcAE</code>, <code>ALUOutM</code>, <code>ResultW</code>…';
 }
@@ -901,6 +915,7 @@ function lab4(){
   $('#p4prev').onclick=()=>{state.c4=Math.max(0,state.c4-1);draw4();};
   $('#p4next').onclick=()=>{state.c4=Math.min(10,state.c4+1);draw4();};
   $('#p4to5').onclick=()=>{state.c4=5;draw4();};
+  state.keys={next:()=>{if(state.c4>=10)return false;state.c4++;draw4();return true;},prev:()=>{if(state.c4<=0)return false;state.c4--;draw4();return true;}};
   $('#p4sol').onclick=()=>pick('w_a3_bug');
   $('#p4fix').onclick=()=>{state.fixed=true;layout(3);$('#p4fix').hidden=true;$('#p4unfix').hidden=false;$('#p4fb').hidden=true;if(state.c4<5)state.c4=5;draw4();};
   $('#p4unfix').onclick=()=>{state.fixed=false;state.found=false;layout(4);$('#p4fix').hidden=false;$('#p4fix').disabled=true;$('#p4unfix').hidden=true;$('#p4sol').hidden=false;draw4();};
@@ -940,6 +955,7 @@ function lab5(){
   document.querySelectorAll('#p5seg button').forEach(b=>b.onclick=()=>{state.pcOld=b.dataset.v==='old';draw5();});
   $('#p5prev').onclick=()=>{state.c5=Math.max(1,state.c5-1);draw5();};
   $('#p5next').onclick=()=>{state.c5=Math.min(12,state.c5+1);draw5();};
+  state.keys={next:()=>{if(state.c5>=12)return false;state.c5++;draw5();return true;},prev:()=>{if(state.c5<=1)return false;state.c5--;draw5();return true;}};
   draw5();
 }
 
@@ -980,6 +996,10 @@ function lab6(){
   <div class="box">El paquete de control <b>encoge</b> a cada paso: cada registro solo lleva lo que aún queda por usar. RegWrite, MemWrite y PCSrc pasan por la <b>Cond Unit</b>: si la condición de la instrucción (EQ, NE, GT…) no se cumple, se ponen a 0 y la instrucción no tiene efecto.</div>
   <p class="foot">14 bits en D/E: ALUControl y FlagWrite ocupan 2 bits cada uno y Cond, 4. El nombre de la señal lleva el sufijo de la etapa donde se usa (ALUSrcE, MemWriteM, RegWriteW…).</p>`;
   lab.querySelectorAll('#p6t tbody tr').forEach((tr,i)=>tr.onclick=()=>sel6(i));
+  const cur6=()=>[...lab.querySelectorAll('#p6t tbody tr')].findIndex(tr=>tr.classList.contains('sel'));
+  let kt=false;
+  lab.querySelectorAll('#p6t tbody tr').forEach(tr=>tr.addEventListener('click',()=>{kt=true;}));
+  state.keys={next:()=>{const i=kt?cur6():-1;if(i>=SIG.length-1)return false;kt=true;sel6(i+1);return true;},prev:()=>{if(!kt)return false;const i=cur6();if(i<=0)return false;sel6(i-1);return true;}};
   sel6(9);
 }
 
@@ -1031,6 +1051,7 @@ function lab7(){
   const stop=()=>{clearInterval(state.timer);state.timer=null;$('#p7play').innerHTML=ICON.play+'<span>Reproducir</span>';};
   $('#p7prev').onclick=()=>{stop();state.c7=Math.max(0,state.c7-1);draw7();};
   $('#p7next').onclick=()=>{stop();state.c7=Math.min(10,state.c7+1);draw7();};
+  state.keys={next:()=>{stop();if(state.c7>=10)return false;state.c7++;draw7();return true;},prev:()=>{stop();if(state.c7<=0)return false;state.c7--;draw7();return true;}};
   $('#p7play').onclick=()=>{if(state.timer){stop();return;}if(state.c7>=10)state.c7=0;$('#p7play').innerHTML=ICON.pause+'<span>Pausa</span>';state.timer=setInterval(()=>{state.c7++;draw7();if(state.c7>=10)stop();},1300);state.c7++;draw7();};
   draw7();
 }
@@ -1040,13 +1061,13 @@ function draw8(){
   const N=+$('#p8n').value;
   const tm=N*840, ts=(N+4)*300, sp=tm/ts;
   const fmt=v=>v>=1e6?(v/1e6).toLocaleString('es-ES',{maximumFractionDigits:2})+' µs':v>=1e3?(v/1e3).toLocaleString('es-ES',{maximumFractionDigits:2})+' ns':v+' ps';
-  $('#p8nv').textContent=N+' instrucciones';
+  $('#p8nv').innerHTML=N+'<small>'+(N===1?'instrucción':'instrucciones')+'</small>';
   $('#p8tiles').innerHTML=`
     <div class="tile"><div class="tv2">${fmt(tm)}</div><div class="tl">Monociclo: ${N} × 840 ps</div></div>
     <div class="tile" style="--tc:var(--accent)"><div class="tv2">${fmt(ts)}</div><div class="tl">Segmentado: (${N} + 4) × 300 ps</div></div>
     <div class="tile" style="--tc:var(--ok)"><div class="tv2">×${sp.toLocaleString('es-ES',{maximumFractionDigits:2})}</div><div class="tl">Aceleración</div></div>`;
   // gráfica
-  const W=520,H=230,L=40,R=12,T=14,B=30, maxN=100, maxY=5.5;
+  const W=520,H=230,L=54,R=12,T=14,B=30, maxN=100, maxY=5.5;
   const x=n=>L+(n-1)/(maxN-1)*(W-L-R), y=v=>T+(1-v/maxY)*(H-T-B);
   let d='',a='';
   for(let n=1;n<=maxN;n++){const v=840*n/(300*(n+4));d+=(n===1?'M':'L')+x(n).toFixed(1)+' '+y(v).toFixed(1);}
@@ -1059,17 +1080,24 @@ function draw8(){
     <line class="lim" x1="${L}" x2="${W-R}" y1="${y(2.8)}" y2="${y(2.8)}"/><text class="ltx" x="${W-R-4}" y="${y(2.8)-6}" text-anchor="end" fill="var(--ok)">LÍMITE REAL: 840 / 300 = ×2,8</text>
     <path class="area" d="${a}"/><path class="crv" d="${d}"/>
     <circle class="pt" cx="${x(N)}" cy="${y(sp)}" r="5"/>
-    <text class="tx" x="${(L+W-R)/2}" y="${H-2}" text-anchor="middle">número de instrucciones N</text>`;
+    <text class="tx" x="${(L+W-R)/2}" y="${H-2}" text-anchor="middle">número de instrucciones N</text>
+    <text class="tx" x="0" y="0" text-anchor="middle" transform="translate(13 ${(y(0)+y(maxY))/2}) rotate(-90)">aceleración (× veces)</text>`;
 }
 function lab8(){
   lab.innerHTML=`
-  <div class="row"><label for="p8n" class="lh">Programa de</label><span class="mono" id="p8nv"></span></div>
-  <input type="range" id="p8n" min="1" max="100" value="6">
+  <div class="nctl">
+    <div class="nh"><label for="p8n" class="lh">Tamaño del programa (N)</label><output id="p8nv" class="nbig" for="p8n"></output></div>
+    <input type="range" id="p8n" min="1" max="100" value="6">
+    <div class="nticks" aria-hidden="true"><span>1</span><span>25</span><span>50</span><span>75</span><span>100</span></div>
+  </div>
   <div class="tiles" id="p8tiles"></div>
   <svg id="chart8" viewBox="0 0 520 230" role="img" aria-label="Aceleración frente al número de instrucciones"></svg>
   <div class="box">Con hazards de por medio (ejemplo 7.7: CPI = 1,23 en SPECINT2000), 100 000 millones de instrucciones tardan <b>36,9 s</b> en el segmentado frente a <b>84 s</b> en el monociclo: aceleración ≈ 2,3.</div>
   <div class="box">Siguiente parada: <b>3.4 Gestión de riesgos</b>.</div>`;
   $('#p8n').oninput=draw8; draw8();
+  const PRE=[1,2,4,6,10,20,50,100],inp=$('#p8n');
+  const setN=v=>{inp.value=v;draw8();return true;};
+  state.keys={next:()=>{const v=PRE.find(x=>x>+inp.value);return v!==undefined&&setN(v);},prev:()=>{const v=[...PRE].reverse().find(x=>x<+inp.value);return v!==undefined&&setN(v);}};
   clearHL();
   note.innerHTML='El procesador completo de la figura 7.47. A partir de aquí solo falta resolver los <b>riesgos</b>: anticipación, paradas y vaciado del cauce.';
 }
@@ -1175,15 +1203,20 @@ function go(n,fromHash){
   stepper.querySelectorAll('.stp').forEach((b,i)=>{b.classList.toggle('cur',i+1===n);b.classList.toggle('done',i+1<n);});
   const cur=stepper.querySelector('.stp.cur'); if(cur)cur.scrollIntoView({block:'nearest',inline:'nearest'});
   $('#prev').disabled=n===1; $('#next').disabled=n===STEPS.length;
+  state.keys=null;
   S.init();
   if(!fromHash){try{history.replaceState(null,'','#paso-'+n);}catch(e){location.hash='paso-'+n;}}
 }
 $('#prev').onclick=()=>go(state.step-1);
 $('#next').onclick=()=>go(state.step+1);
 document.addEventListener('keydown',e=>{
-  if(e.target.matches('input,textarea,select'))return;
-  if(e.key==='ArrowRight'){go(state.step+1);}
-  else if(e.key==='ArrowLeft'){go(state.step-1);}
+  if(e.altKey||e.ctrlKey||e.metaKey)return;
+  if(e.target.matches('textarea,select,input:not([type=range])'))return;
+  if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();go(state.step+(e.key==='ArrowDown'?1:-1));return;}
+  const fwd=e.key==='ArrowRight'||e.key==='PageDown', back=e.key==='ArrowLeft'||e.key==='PageUp';
+  if(!fwd&&!back)return;
+  e.preventDefault();
+  const k=state.keys; if(k)(fwd?k.next:k.prev)();
 });
 const fromH=()=>{const m=/^#paso-(\d)$/.exec(location.hash);return m?+m[1]:1;};
 window.addEventListener('hashchange',()=>{const n=fromH();if(n!==state.step)go(n,true);});
