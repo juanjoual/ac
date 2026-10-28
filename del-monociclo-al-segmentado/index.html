@@ -175,6 +175,8 @@ main.wrap{padding-block:16px 48px;display:flex;flex-direction:column;gap:16px}
 .clock small{font:500 13px var(--f-body);color:var(--muted)}
 input[type=range]{flex:1 1 200px;min-width:0;accent-color:var(--accent)}
 .lab > input[type=range]{flex:0 0 auto;width:100%;margin:0}
+.khint{font-size:13px;color:var(--muted);display:inline-flex;align-items:center;gap:6px}
+kbd{font:600 11.5px var(--f-mono);padding:1px 6px;border:1px solid var(--line-strong);border-bottom-width:2px;border-radius:4px;background:var(--panel);color:var(--ink)}
 .nctl{display:flex;flex-direction:column;gap:8px;padding:12px 14px;border:1px solid var(--line);border-radius:5px;background:var(--sunk)}
 .nctl .nh{display:flex;align-items:baseline;justify-content:space-between;gap:6px 14px;flex-wrap:wrap}
 .nctl .nbig{font:700 44px/1 var(--f-display);font-variant-numeric:tabular-nums;color:var(--accent)}
@@ -588,7 +590,7 @@ a{color:var(--accent)}
     <div class="lab" id="lab"></div>
   </section>
 
-  <p class="foot">Retardos de la tabla 7.5 y figuras 7.43 a 7.47 de <i>Digital Design and Computer Architecture, ARM Edition</i> (Harris &amp; Harris). Teclado: ← → avanzan y retroceden dentro de cada paso (ciclo a ciclo, etapa a etapa…); ↓ pasa al paso siguiente y ↑ vuelve al anterior. Re Pág / Av Pág de los mandos de presentación funcionan como ← →.</p>
+  <p class="foot">Retardos de la tabla 7.5 y figuras 7.43 a 7.47 de <i>Digital Design and Computer Architecture, ARM Edition</i> (Harris &amp; Harris). Teclado: ← → avanzan y retroceden dentro de cada paso (ciclo a ciclo, etapa a etapa…); ↓ pasa al paso siguiente y ↑ vuelve al anterior. En los pasos 4 y 5, Espacio aplica el arreglo o cambia de versión. Re Pág / Av Pág de los mandos de presentación funcionan como ← →.</p>
 </main>
 
 <script>
@@ -911,11 +913,12 @@ function lab4(){
   <div id="p4chal" class="box warn" hidden><b>Reto:</b> toca en el dibujo el cable que tiene la culpa. Los cables candidatos se resaltan al pasar el ratón.
     <div class="row" style="margin-top:8px"><button class="btn" id="p4sol">Ver la solución</button></div></div>
   <div id="p4fb" class="box" hidden></div>
-  <div class="row"><button class="btn good" id="p4fix" disabled>Corregir: segmentar WA3</button><button class="btn" id="p4unfix" hidden>Volver a la versión con error</button></div>`;
+  <div class="row"><button class="btn good" id="p4fix" disabled>Corregir: segmentar WA3</button><button class="btn" id="p4unfix" hidden>Volver a la versión con error</button><span class="khint"><kbd>Espacio</kbd> corrige / deshace</span></div>`;
   $('#p4prev').onclick=()=>{state.c4=Math.max(0,state.c4-1);draw4();};
   $('#p4next').onclick=()=>{state.c4=Math.min(10,state.c4+1);draw4();};
   $('#p4to5').onclick=()=>{state.c4=5;draw4();};
-  state.keys={next:()=>{if(state.c4>=10)return false;state.c4++;draw4();return true;},prev:()=>{if(state.c4<=0)return false;state.c4--;draw4();return true;}};
+  state.keys={next:()=>{if(state.c4>=10)return false;state.c4++;draw4();return true;},prev:()=>{if(state.c4<=0)return false;state.c4--;draw4();return true;},
+    toggle:()=>{if(state.fixed){$('#p4unfix').onclick();}else{if(!state.found)pick('w_a3_bug');$('#p4fix').onclick();}}};
   $('#p4sol').onclick=()=>pick('w_a3_bug');
   $('#p4fix').onclick=()=>{state.fixed=true;layout(3);$('#p4fix').hidden=true;$('#p4unfix').hidden=false;$('#p4fb').hidden=true;if(state.c4<5)state.c4=5;draw4();};
   $('#p4unfix').onclick=()=>{state.fixed=false;state.found=false;layout(4);$('#p4fix').hidden=false;$('#p4fix').disabled=true;$('#p4unfix').hidden=true;$('#p4sol').hidden=false;draw4();};
@@ -946,7 +949,7 @@ function lab5(){
   state.c5=state.c5||2;
   lab.innerHTML=`
   <div class="lh">Compara las dos versiones</div>
-  <div class="seg" id="p5seg"><button data-v="old" aria-pressed="false">Antes · fig. 7.45</button><button data-v="new" aria-pressed="true">Después · fig. 7.46</button></div>
+  <div class="row"><div class="seg" id="p5seg"><button data-v="old" aria-pressed="false">Antes · fig. 7.45</button><button data-v="new" aria-pressed="true">Después · fig. 7.46</button></div><span class="khint"><kbd>Espacio</kbd> cambia de versión</span></div>
   <div class="lh">Compruébalo con direcciones reales</div>
   <div class="row"><button class="btn" id="p5prev">${ICON.prev}Ciclo anterior</button><button class="btn primary" id="p5next">Siguiente ciclo${ICON.next}</button><div class="clock" id="p5clk"></div></div>
   <div class="box" id="p5tab"></div>
@@ -955,7 +958,8 @@ function lab5(){
   document.querySelectorAll('#p5seg button').forEach(b=>b.onclick=()=>{state.pcOld=b.dataset.v==='old';draw5();});
   $('#p5prev').onclick=()=>{state.c5=Math.max(1,state.c5-1);draw5();};
   $('#p5next').onclick=()=>{state.c5=Math.min(12,state.c5+1);draw5();};
-  state.keys={next:()=>{if(state.c5>=12)return false;state.c5++;draw5();return true;},prev:()=>{if(state.c5<=1)return false;state.c5--;draw5();return true;}};
+  state.keys={next:()=>{if(state.c5>=12)return false;state.c5++;draw5();return true;},prev:()=>{if(state.c5<=1)return false;state.c5--;draw5();return true;},
+    toggle:()=>{state.pcOld=!state.pcOld;draw5();}};
   draw5();
 }
 
@@ -1212,6 +1216,7 @@ $('#next').onclick=()=>go(state.step+1);
 document.addEventListener('keydown',e=>{
   if(e.altKey||e.ctrlKey||e.metaKey)return;
   if(e.target.matches('textarea,select,input:not([type=range])'))return;
+  if(e.key===' '||e.key==='Spacebar'){const k=state.keys;if(k&&k.toggle){e.preventDefault();if(document.activeElement&&document.activeElement.blur)document.activeElement.blur();k.toggle();}return;}
   if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();go(state.step+(e.key==='ArrowDown'?1:-1));return;}
   const fwd=e.key==='ArrowRight'||e.key==='PageDown', back=e.key==='ArrowLeft'||e.key==='PageUp';
   if(!fwd&&!back)return;
