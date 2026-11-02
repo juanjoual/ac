@@ -280,7 +280,17 @@ table.tv .gt{font:700 9.5px var(--f-display);letter-spacing:.08em;color:var(--ct
 table.tv .pip{display:inline-block;width:12px;height:12px;border-radius:2px;background:var(--ctl)}
 table.tv .use{font:700 11px var(--f-display);letter-spacing:.06em;padding:1px 6px;border-radius:3px;background:color-mix(in srgb,var(--ctl) 16%,var(--panel));color:var(--ctl)}
 table.tv tfoot td{font:600 12.5px var(--f-mono);color:var(--muted);border-bottom:0}
-table.tv tr.data .sn{color:var(--muted)} table.tv tr.data .pip{background:var(--wire)}
+table.tv tr.data .pip{background:var(--wire)}
+table.tv .bt{display:inline-block;min-width:26px;padding:1px 6px;border-radius:3px;font:600 12px var(--f-mono);font-variant-numeric:tabular-nums}
+table.tv .bt.c{background:color-mix(in srgb,var(--ctl) 15%,var(--panel));color:var(--ctl)}
+table.tv .bt.d{background:color-mix(in srgb,var(--accent) 13%,var(--panel));color:var(--accent)}
+table.tv .bt.s{border:1px dashed var(--ctl);color:var(--ctl)}
+table.tv .bt.q{min-width:14px;width:14px;height:14px;padding:0;vertical-align:middle}
+table.tv .bt.c.q{background:var(--ctl)} table.tv .bt.d.q{background:var(--accent)}
+table.tv tbody tr.grp{cursor:default}
+table.tv tbody tr.grp:hover{background:none}
+table.tv tr.grp th{text-align:left;background:var(--panel);color:var(--muted);font:600 11px var(--f-display);letter-spacing:.12em;text-transform:uppercase;padding-top:10px}
+table.tv tfoot tr.tot td{color:var(--ink);font-weight:700;border-top:2px solid var(--line-strong)}
 
 /* Diagrama multiciclo (paso 7) */
 .mcw{overflow-x:auto;border:1px solid var(--line);border-radius:5px}
@@ -590,7 +600,7 @@ a{color:var(--accent)}
     <div class="lab" id="lab"></div>
   </section>
 
-  <p class="foot">Retardos de la tabla 7.5 y figuras 7.43 a 7.47 de <i>Digital Design and Computer Architecture, ARM Edition</i> (Harris &amp; Harris). Teclado: ← → avanzan y retroceden dentro de cada paso (ciclo a ciclo, etapa a etapa…); ↓ pasa al paso siguiente y ↑ vuelve al anterior. En los pasos 4 y 5, Espacio aplica el arreglo o cambia de versión. Re Pág / Av Pág de los mandos de presentación funcionan como ← →.</p>
+  <p class="foot">Retardos de la tabla 7.5 y figuras 7.43 a 7.47 de <i>Digital Design and Computer Architecture, ARM Edition</i> (Harris &amp; Harris). Teclado: ← → avanzan y retroceden dentro de cada paso (ciclo a ciclo, etapa a etapa…); ↓ pasa al paso siguiente y ↑ vuelve al anterior. En los pasos 4, 5 y 6, Espacio aplica el arreglo, cambia de versión o muestra la solución. Re Pág / Av Pág de los mandos de presentación funcionan como ← →.</p>
 </main>
 
 <script>
@@ -965,46 +975,80 @@ function lab5(){
 
 /* ---------- PASO 6: control ---------- */
 const SIG=[
-  {n:'RegSrc',u:'D',w:'multiplexores RA1/RA2',r:[],els:['k_regsrc','RA1MUX','RA2MUX']},
-  {n:'ImmSrc',u:'D',w:'Extend',r:[],els:['k_immsrc','EXT']},
-  {n:'ALUSrc',u:'E',w:'multiplexor SrcB',r:['DE'],els:['k_als_d','k_als_e','SRCB']},
-  {n:'ALUControl',u:'E',w:'ALU',r:['DE'],els:['k_alc_d','k_alc_e','ALU']},
-  {n:'FlagWrite',u:'E',w:'Cond Unit (actualizar NZCV)',r:['DE'],els:['k_fw_d','k_fw_e','COND','k_flagsp','k_flags_e']},
-  {n:'Cond',u:'E',w:'Cond Unit (comprobar la condición)',r:['DE'],els:['k_cond','k_cond_e','COND'],from:'InstrD[31:28]'},
-  {n:'Branch',u:'E',w:'Cond Unit: se combina con PCSrc',r:['DE'],els:['k_br_d','k_br_e','COND'],g:true},
-  {n:'MemWrite',u:'M',w:'WE de la memoria de datos',r:['DE','EM'],els:['k_mw_d','k_mw_e','COND','k_mw_m','k_mw_m2','DM'],g:true},
-  {n:'MemtoReg',u:'W',w:'multiplexor de resultado',r:['DE','EM','MW'],els:['k_mtr_d','k_mtr_e','k_mtr_m','k_mtr_w','RESMUX']},
-  {n:'RegWrite',u:'W',w:'WE3 del banco',r:['DE','EM','MW'],els:['k_rw_d','k_rw_e','COND','k_rw_m','k_rw_m2','k_rw_w','RF'],g:true},
-  {n:'PCSrc',u:'W',w:'multiplexor del PC',r:['DE','EM','MW'],els:['k_pcs_d','k_pcs_e','COND','k_pcs_m','k_pcs_m2','k_pcs_w','PCMUX'],g:true},
-  {n:'WA3',u:'W',w:'A3 del banco',r:['DE','EM','MW'],els:['w_wa3'],data:true}
+  {grp:'Datos',n:'Instr',nm:'InstrD',u:'D',w:'campos de la instrucción para el banco, Extend y la unidad de control',r:['FD'],b:32,els:['w_instr','bus'],from:'de la memoria de instrucciones',data:true},
+  {grp:'Datos',n:'RD1',nm:'SrcAE',u:'E',w:'entrada A de la ALU',r:['DE'],b:32,els:['w_rd1','RF','ALU'],from:'del puerto RD1 del banco de registros',data:true},
+  {grp:'Datos',n:'RD2',nm:'WriteDataE/M',u:'M',w:'SrcB en Execute si ALUSrc = 0, y dato para la memoria en Memory',r:['DE','EM'],b:32,els:['w_rd2','w_wd','RF','DM'],from:'del puerto RD2 del banco de registros',data:true},
+  {grp:'Datos',n:'ExtImm',nm:'ExtImmE',u:'E',w:'entrada 1 del multiplexor SrcB',r:['DE'],b:32,els:['w_ext_out','EXT','SRCB'],from:'de Extend',data:true},
+  {grp:'Datos',n:'ALUResult',nm:'ALUOutM/W',u:'W',w:'dirección de memoria en Memory y resultado en Writeback',r:['EM','MW'],b:32,els:['w_alures','w_aluout','ALU','DM','RESMUX'],from:'de la ALU',data:true},
+  {grp:'Datos',n:'ReadData',nm:'ReadDataW',u:'W',w:'entrada 1 del multiplexor de resultado',r:['MW'],b:32,els:['w_rd','DM','RESMUX'],from:'de la memoria de datos',data:true},
+  {grp:'Datos',n:'WA3',nm:'WA3E/M/W',u:'W',w:'A3 del banco',r:['DE','EM','MW'],b:4,els:['w_wa3'],from:'de <code>InstrD[15:12]</code>',data:true},
+  {grp:'Control',n:'RegSrc',u:'D',w:'multiplexores RA1/RA2',r:[],b:2,els:['k_regsrc','RA1MUX','RA2MUX']},
+  {grp:'Control',n:'ImmSrc',u:'D',w:'Extend',r:[],b:2,els:['k_immsrc','EXT']},
+  {grp:'Control',n:'ALUSrc',u:'E',w:'multiplexor SrcB',r:['DE'],b:1,els:['k_als_d','k_als_e','SRCB']},
+  {grp:'Control',n:'ALUControl',u:'E',w:'ALU',r:['DE'],b:2,els:['k_alc_d','k_alc_e','ALU']},
+  {grp:'Control',n:'FlagWrite',u:'E',w:'Cond Unit (actualizar NZCV)',r:['DE'],b:2,els:['k_fw_d','k_fw_e','COND','k_flagsp','k_flags_e']},
+  {grp:'Control',n:'Cond',u:'E',w:'Cond Unit (comprobar la condición)',r:['DE'],b:4,els:['k_cond','k_cond_e','COND'],from:'de <code>InstrD[31:28]</code>'},
+  {grp:'Control',n:'Branch',u:'E',w:'Cond Unit: se combina con PCSrc',r:['DE'],b:1,els:['k_br_d','k_br_e','COND'],g:true},
+  {grp:'Control',n:'MemWrite',u:'M',w:'WE de la memoria de datos',r:['DE','EM'],b:1,els:['k_mw_d','k_mw_e','COND','k_mw_m','k_mw_m2','DM'],g:true},
+  {grp:'Control',n:'MemtoReg',u:'W',w:'multiplexor de resultado',r:['DE','EM','MW'],b:1,els:['k_mtr_d','k_mtr_e','k_mtr_m','k_mtr_w','RESMUX']},
+  {grp:'Control',n:'RegWrite',u:'W',w:'WE3 del banco',r:['DE','EM','MW'],b:1,els:['k_rw_d','k_rw_e','COND','k_rw_m','k_rw_m2','k_rw_w','RF'],g:true},
+  {grp:'Control',n:'PCSrc',u:'W',w:'multiplexor del PC',r:['DE','EM','MW'],b:1,els:['k_pcs_d','k_pcs_e','COND','k_pcs_m','k_pcs_m2','k_pcs_w','PCMUX'],g:true},
+  {grp:'Estado',n:'Flags',nm:'Flags′ → FlagsE',u:'E',w:'Cond Unit',r:[],b:4,loop:true,els:['k_flagsp','k_flags_e','COND','k_aluflags'],
+   note:'<b><code>Flags′ → FlagsE</code></b> no viaja con la instrucción: son los 4 bits NZCV del <b>registro de estado</b>. La Cond Unit calcula Flags′ a partir de ALUFlags cuando FlagWriteE lo pide y la condición se cumple; la instrucción siguiente, al llegar a Execute, lee FlagsE para comprobar su propia condición. El libro dibuja este registro junto a D/E, pero no forma parte del paquete de la instrucción.'}
 ];
+const REGS=['FD','DE','EM','MW'], RNAME={FD:'F/D',DE:'D/E',EM:'E/M',MW:'M/W'};
+const bitsOf=(r,data)=>SIG.filter(s=>!!s.data===data&&s.r.includes(r)).reduce((a,s)=>a+s.b,0);
+const sigName=s=>s.nm||(s.n+s.u);
 function sel6(i){
   clearHL();
-  document.querySelectorAll('#p6t tbody tr').forEach((tr,j)=>tr.classList.toggle('sel',j===i));
-  if(i===null){note.innerHTML='Toca una fila de la tabla para seguir una señal desde la unidad de control hasta donde se usa.';return;}
+  document.querySelectorAll('#p6t tbody tr.sig').forEach(tr=>tr.classList.toggle('sel',+tr.dataset.i===i));
+  if(i===null){note.innerHTML='Toca una fila de la tabla para seguir una señal desde donde se genera hasta donde se usa.';return;}
   const s=SIG[i];
   svg.querySelectorAll('#ctl .c').forEach(c=>c.classList.add('dim'));
-  s.els.forEach(id=>{const el=byId(id);if(!el)return;el.classList.remove('dim');el.classList.add(s.data?'good':(el.classList.contains('blk')&&!el.classList.contains('ctlb')?'ctlhl':'ctlhl'));});
-  if(!s.data&&!s.from)byId('CU').classList.add('ctlhl');
-  s.r.forEach(r=>byId('b'+r).classList.add('ctlhl'));
+  s.els.forEach(id=>{const el=byId(id);if(!el)return;el.classList.remove('dim');el.classList.add(s.data?(el.classList.contains('blk')?'hl':'good'):'ctlhl');});
+  if(!s.data&&!s.from&&!s.loop)byId('CU').classList.add('ctlhl');
+  s.r.forEach(r=>byId('b'+r).classList.add(s.data?'hl':'ctlhl'));
+  if(s.loop)byId('bDE').classList.add('ctlhl');
+  if(s.note){note.innerHTML=s.note;return;}
   const where={D:'Decode',E:'Execute',M:'Memory',W:'Writeback'}[s.u];
-  note.innerHTML='<b><code>'+s.n+'</code></b> '+(s.data?'(dato, no control)':'')+' sale de '+(s.from?'<code>'+s.from+'</code>':(s.data?'<code>InstrD[15:12]</code>':'la unidad de control en Decode'))+' y se usa en <b>'+where+'</b> ('+s.w+'). '+(s.r.length?'Viaja por '+s.r.map(r=>({DE:'D/E',EM:'E/M',MW:'M/W'})[r]).join(' → ')+'.':'No necesita viajar: se usa en la misma etapa.')+(s.g?' Si la condición no se cumple, la Cond Unit la anula (CondExE = 0).':'');
+  note.innerHTML='<b><code>'+sigName(s)+'</code></b>'+(s.data?' (dato)':'')+(state.sol6?', '+s.b+' bit'+(s.b>1?'s':''):'')+'. Sale '+(s.from||'de la unidad de control en Decode')+' y se usa en <b>'+where+'</b>: '+s.w+'. '+(s.r.length?'Viaja por '+s.r.map(r=>RNAME[r]).join(' → ')+'.':'No necesita viajar: se usa en la misma etapa.')+(s.g?' Si la condición no se cumple, la Cond Unit la anula (CondExE = 0).':'');
 }
 function lab6(){
-  const dot='<span class="pip" aria-label="sí"></span>';
+  const foot=(lbl,f,c)=>`<tr class="${c||''}"><td colspan="2">${lbl}</td>${REGS.map(r=>`<td>${f(r)}</td>`).join('')}</tr>`;
   lab.innerHTML=`
-  <div class="lh">¿Qué transporta cada registro? (toca una fila)</div>
-  <div class="tw"><table class="tv" id="p6t"><thead><tr><th>Señal</th><th>Se usa en</th><th>D/E</th><th>E/M</th><th>M/W</th></tr></thead><tbody>
-  ${SIG.map(s=>`<tr class="${s.data?'data':''}"><td><span class="sn">${s.n}${s.u}</span>${s.g?'<span class="gt">CondEx</span>':''}</td><td><span class="use">${s.u}</span></td>${['DE','EM','MW'].map(r=>`<td>${s.r.includes(r)?dot:''}</td>`).join('')}</tr>`).join('')}
-  </tbody><tfoot><tr><td colspan="2">Bits de control</td><td>14</td><td>4</td><td>3</td></tr></tfoot></table></div>
+  <div class="lh">Contenido y longitud de cada registro (toca una fila)</div>
+  <div class="tw" id="p6tw"></div>
+  <div class="row"><button class="btn" id="p6sol"></button><span class="khint"><kbd>Espacio</kbd> muestra u oculta la solución</span></div>
   <div class="box">El paquete de control <b>encoge</b> a cada paso: cada registro solo lleva lo que aún queda por usar. RegWrite, MemWrite y PCSrc pasan por la <b>Cond Unit</b>: si la condición de la instrucción (EQ, NE, GT…) no se cumple, se ponen a 0 y la instrucción no tiene efecto.</div>
-  <p class="foot">14 bits en D/E: ALUControl y FlagWrite ocupan 2 bits cada uno y Cond, 4. El nombre de la señal lleva el sufijo de la etapa donde se usa (ALUSrcE, MemWriteM, RegWriteW…).</p>`;
-  lab.querySelectorAll('#p6t tbody tr').forEach((tr,i)=>tr.onclick=()=>sel6(i));
-  const cur6=()=>[...lab.querySelectorAll('#p6t tbody tr')].findIndex(tr=>tr.classList.contains('sel'));
+  <p class="foot" id="p6foot"></p>`;
   let kt=false;
-  lab.querySelectorAll('#p6t tbody tr').forEach(tr=>tr.addEventListener('click',()=>{kt=true;}));
-  state.keys={next:()=>{const i=kt?cur6():-1;if(i>=SIG.length-1)return false;kt=true;sel6(i+1);return true;},prev:()=>{if(!kt)return false;const i=cur6();if(i<=0)return false;sel6(i-1);return true;}};
-  sel6(9);
+  const cur6=()=>{const t=lab.querySelector('#p6t tbody tr.sig.sel');return t?+t.dataset.i:-1;};
+  const render=()=>{
+    const sol=!!state.sol6, sel=cur6();
+    let grp='',rows='';
+    SIG.forEach((s,i)=>{
+      if(s.grp!==grp){grp=s.grp;rows+=`<tr class="grp"><th colspan="6">${grp}</th></tr>`;}
+      const cls=s.loop?'s':(s.data?'d':'c');
+      const chip=sol?`<span class="bt ${cls}">${s.b}</span>`:`<span class="bt ${cls} q" aria-label="sí"></span>`;
+      rows+=`<tr class="sig ${s.data?'data':''}" data-i="${i}"><td><span class="sn">${sigName(s)}</span>${s.g?'<span class="gt">CondEx</span>':''}</td><td><span class="use">${s.u}</span></td>${REGS.map(r=>`<td>${s.r.includes(r)?chip:(s.loop&&r==='DE'?`<span class="bt s" title="registro de estado, aparte del paquete de la instrucción">↺${sol?' '+s.b:''}</span>`:'')}</td>`).join('')}</tr>`;
+    });
+    const tf=sol
+      ? foot('Datos',r=>bitsOf(r,true))+foot('Control',r=>bitsOf(r,false))+foot('Longitud total',r=>bitsOf(r,true)+bitsOf(r,false),'tot')
+      : `<tr class="tot"><td colspan="2">Longitud total</td>${REGS.map(()=>'<td>?</td>').join('')}</tr>`;
+    $('#p6tw').innerHTML=`<table class="tv" id="p6t"><thead><tr><th>Señal</th><th>Se usa en</th>${REGS.map(r=>`<th>${RNAME[r]}</th>`).join('')}</tr></thead><tbody>${rows}</tbody><tfoot>${tf}</tfoot></table>`;
+    $('#p6sol').innerHTML=sol?'Ocultar solución':'Ver solución';
+    $('#p6sol').classList.toggle('primary',!sol);
+    $('#p6foot').innerHTML=sol
+      ? 'ALUControl, FlagWrite, RegSrc e ImmSrc ocupan 2 bits y Cond, 4. Los totales no incluyen los 4 bits de flags (↺): el libro los dibuja junto a D/E, pero son el registro de estado y no viajan con la instrucción; si se cuentan, D/E tendría 118 bits. F/D tiene 32 bits en esta versión; con el segundo sumador de la fig. 7.45 guardaba también PCPlus4F y tenía 64.'
+      : '<b>Ejercicio 3.5:</b> determina la capacidad de cada registro de segmentación. La tabla marca qué lleva cada registro; con «Ver solución» aparecen los bits de cada señal y los totales.';
+    lab.querySelectorAll('#p6t tbody tr.sig').forEach(tr=>tr.onclick=()=>{kt=true;sel6(+tr.dataset.i);});
+    if(sel>=0)sel6(sel);
+  };
+  const toggle=()=>{state.sol6=!state.sol6;render();};
+  $('#p6sol').onclick=toggle;
+  state.keys={next:()=>{const i=kt?cur6():-1;if(i>=SIG.length-1)return false;kt=true;sel6(i+1);return true;},prev:()=>{if(!kt)return false;const i=cur6();if(i<=0)return false;sel6(i-1);return true;},toggle};
+  render();
+  sel6(SIG.findIndex(s=>s.n==='RegWrite'));
 }
 
 /* ---------- PASO 7: en marcha ---------- */

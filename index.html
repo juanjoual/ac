@@ -18,7 +18,7 @@
       --paper: #f2f4f8; --panel: #ffffff; --sunk: #f7f8fb;
       --ink: #152033; --muted: #566377; --line: #d6dce5; --line-strong: #9aa6b8;
       --accent: #2f6195; --accent-ink: #ffffff;
-      --i0: #2563c4; --i1: #cf5f1c; --i2: #2c8a4d; --i3: #c02f80; --i4: #6a4bd0; --i5: #a67a0e;
+      --i0: #2563c4; --i1: #cf5f1c; --i2: #2c8a4d; --i3: #c02f80; --i4: #6a4bd0; --i5: #a67a0e; --i6: #11809a;
       --f-display: "Barlow Condensed", "Arial Narrow", sans-serif;
       --f-body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
       --f-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
@@ -29,7 +29,7 @@
         --paper: #0e131b; --panel: #151c27; --sunk: #111821;
         --ink: #e2e8f1; --muted: #95a2b6; --line: #273244; --line-strong: #56637a;
         --accent: #7fa8de; --accent-ink: #0b1224;
-        --i0: #6aa2ec; --i1: #f2935c; --i2: #5fc187; --i3: #ea72b8; --i4: #a38bf2; --i5: #e2b24b;
+        --i0: #6aa2ec; --i1: #f2935c; --i2: #5fc187; --i3: #ea72b8; --i4: #a38bf2; --i5: #e2b24b; --i6: #4dc1d2;
         color-scheme: dark;
       }
     }
@@ -212,6 +212,50 @@
       font-size: 13.5px; color: var(--muted);
     }
     footer b { color: var(--ink); font-weight: 600; }
+
+    /* Easter egg: algo asoma por encima del pie */
+    /* El sprite se carga de fuera (56×56 con fondo blanco y 8 px de margen):
+       se muestra a ×2 y se recorta al dibujo con background-position.
+       En claro, multiply funde el blanco con el fondo de la página;
+       en oscuro se deja como una pequeña pantalla clara. */
+    footer { position: relative; }
+    .egg {
+      --cw: 78px; --ch: 80px; --bp: -16px -16px;
+      position: absolute;
+      bottom: 100%;
+      right: max(16px, calc(50% - 560px + 180px));
+      width: var(--cw);
+      height: var(--ch);
+      overflow: hidden;
+      display: block;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .spr {
+      display: block;
+      width: var(--cw);
+      height: var(--ch);
+      background: url("https://img.pokemondb.net/sprites/red-blue/normal/pikachu-color.png") no-repeat var(--bp) / 112px 112px;
+      image-rendering: pixelated;
+      mix-blend-mode: multiply;
+      transform: translateY(68%);
+      opacity: .14;
+      filter: grayscale(1);
+      transition: transform .35s cubic-bezier(.3, 1.6, .5, 1), opacity .25s, filter .25s;
+    }
+    .egg:hover .spr, .egg:focus-visible .spr {
+      transform: translateY(0);
+      opacity: 1;
+      filter: none;
+    }
+    .egg:focus-visible { outline: none; }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) .egg { --cw: 94px; --ch: 96px; --bp: -8px -8px; }
+      :root:not([data-theme="light"]) .spr { mix-blend-mode: normal; border-radius: 6px; opacity: .07; }
+      :root:not([data-theme="light"]) .egg:is(:hover, :focus-visible) .spr { opacity: 1; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .spr { transition: none; }
+    }
   </style>
 </head>
 <body>
@@ -242,6 +286,7 @@
   </main>
 
   <footer>
+    <a class="egg" id="egg" href="game-boy-arm/" aria-label="Demo secreta"><span class="spr"></span></a>
     <div class="wrap">
       <span><b>Arquitectura de Computadores</b> · Grado en Ingeniería Informática</span>
       <span>Universidad de Almería</span>
@@ -252,7 +297,7 @@
     /* =========================================================
        EDITA AQUÍ TUS DEMOS
        - carpeta: nombre de la carpeta en el repo (sin "/" delante)
-       - color: i0 a i5 (la franja de color de la tarjeta)
+       - color: i0 a i6 (la franja de color de la tarjeta)
        Para añadir una demo, copia un bloque { ... } y cámbialo.
        ========================================================= */
     const DEMOS = [
@@ -283,6 +328,13 @@
         descripcion: "Construye el procesador segmentado en 8 pasos a partir del camino de datos monociclo, como en la sección 7.5: cortes en etapas, registros de segmentación y unidad de control. Ves cómo baja el ciclo de 840 ps a 300 ps y ejecutas ejemplos en cada paso.",
         etiquetas: ["Segmentación", "Camino de datos", "Paso a paso"],
         color: "i3"
+      },
+      {
+        carpeta: "riesgos-segmentado",
+        titulo: "Riesgos del segmentado",
+        descripcion: "Continuación de la demo anterior: detecta los riesgos de datos y de control en el mismo camino de datos y añade, pieza a pieza, la unidad de riesgos que los resuelve con anticipación, bloqueos y vaciados. Del CPI ideal de 1 al 1,23 de SPECINT2000, siguiendo la sección 7.5.3.",
+        etiquetas: ["Segmentación", "Riesgos", "Hazard Unit"],
+        color: "i6"
       },
       {
         carpeta: "monociclo-multiciclo-segmentado",

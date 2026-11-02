@@ -1,0 +1,1267 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>Riesgos del segmentado</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@400;600&family=Source+Sans+3:wght@400;600;700&display=swap">
+<style>
+/* Layout: continuación de «Del monociclo al segmentado» — misma barra de pasos, un único camino de datos (fig. 7.58) que va ganando hardware, y debajo explicación + laboratorio con simulador del cauce */
+:root{
+  --paper:#f2f4f8; --panel:#ffffff; --sunk:#f7f8fb; --ink:#152033; --muted:#566377; --line:#d6dce5; --line-strong:#9aa6b8;
+  --accent:#2148c9; --accent-ink:#ffffff;
+  --ok:#0a8273; --over:#b47600; --bad:#c0392b; --ctl:#7a3fc0;
+  --wire:#6f7b8e; --bar:#28324a; --bar-ink:#ffffff; --band:#e8ecf3;
+  --i0:#2563c4; --i1:#cf5f1c; --i2:#2c8a4d; --i3:#c02f80; --i4:#6a4bd0; --i5:#a67a0e;
+  --f-display:"Barlow Condensed","Arial Narrow",sans-serif;
+  --f-body:"Source Sans 3","Segoe UI",system-ui,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --paper:#0e131b; --panel:#151c27; --sunk:#111821; --ink:#e2e8f1; --muted:#95a2b6; --line:#273244; --line-strong:#56637a;
+  --accent:#7d9fff; --accent-ink:#0b1224;
+  --ok:#35c4b2; --over:#f0b42a; --bad:#ff6e62; --ctl:#b590ff;
+  --wire:#7f8ca1; --bar:#c3cde0; --bar-ink:#0e131b; --band:#18202d;
+  --i0:#6aa2ec; --i1:#f2935c; --i2:#5fc187; --i3:#ea72b8; --i4:#a38bf2; --i5:#e2b24b;
+  color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --paper:#0e131b; --panel:#151c27; --sunk:#111821; --ink:#e2e8f1; --muted:#95a2b6; --line:#273244; --line-strong:#56637a;
+  --accent:#7d9fff; --accent-ink:#0b1224;
+  --ok:#35c4b2; --over:#f0b42a; --bad:#ff6e62; --ctl:#b590ff;
+  --wire:#7f8ca1; --bar:#c3cde0; --bar-ink:#0e131b; --band:#18202d;
+  --i0:#6aa2ec; --i1:#f2935c; --i2:#5fc187; --i3:#ea72b8; --i4:#a38bf2; --i5:#e2b24b;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--paper);color:var(--ink);font:15px/1.5 var(--f-body);-webkit-font-smoothing:antialiased}
+.wrap{max-width:1380px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0}
+h2{font-size:26px;font-weight:700;letter-spacing:.01em;line-height:1.1}
+p{margin:0}
+code,.mono{font-family:var(--f-mono);font-size:.88em}
+sub{font-size:.72em}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.top{border-bottom:1px solid var(--line);background:var(--panel)}
+.top .wrap{padding-block:24px 18px;display:flex;flex-wrap:wrap;gap:18px 40px;align-items:flex-end;justify-content:space-between}
+.top .intro{min-width:0;flex:1 1 520px}
+.eyebrow{font:600 12.5px var(--f-display);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+h1{font-size:clamp(32px,4.4vw,50px);line-height:1;font-weight:700;margin-top:6px}
+.lede{margin-top:10px;max-width:72ch;color:var(--muted)}
+.lede a{color:var(--accent)}
+.hstat{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap}
+.hstat .lab{width:100%}
+.hstat .big{font:700 42px/1 var(--f-display);font-variant-numeric:tabular-nums}
+.hstat .big small{font-size:20px;color:var(--muted);font-weight:600}
+.hstat .arrow{font:600 26px/1 var(--f-display);color:var(--muted);padding-bottom:6px}
+.hstat .big.after{color:var(--bad)}
+
+.steps{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:color-mix(in srgb,var(--paper) 92%,transparent);backdrop-filter:blur(6px);border-bottom:1px solid var(--line)}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--paper)}
+.steps .wrap{display:flex;gap:6px;overflow-x:auto;padding-block:10px;scrollbar-width:thin}
+.stp{flex:1 0 auto;display:flex;align-items:center;gap:8px;padding:6px 10px 6px 6px;border:1px solid var(--line);border-radius:5px;background:var(--panel);cursor:pointer;text-align:left;min-width:0}
+.stp:hover{border-color:var(--accent)}
+.stp .n{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font:700 13px var(--f-display);border:1px solid var(--line-strong);color:var(--muted);flex-shrink:0}
+.stp .t{font:600 14.5px var(--f-display);letter-spacing:.02em;white-space:nowrap}
+.stp.done .n{background:color-mix(in srgb,var(--accent) 14%,var(--panel));border-color:var(--accent);color:var(--accent)}
+.stp.cur{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 9%,var(--panel))}
+.stp.cur .n{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+
+main.wrap{padding-block:16px 48px;display:flex;flex-direction:column;gap:16px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:16px;min-width:0}
+.head{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:flex-end;justify-content:space-between;margin-bottom:12px}
+.head .ti{min-width:0;flex:1 1 400px}
+.head .k{font:600 12.5px var(--f-display);letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+.head .fig{font-size:13.5px;color:var(--muted);margin-top:3px}
+.nav{display:flex;gap:6px}
+.btn{border:1px solid var(--line-strong);background:var(--panel);border-radius:5px;padding:6px 12px;font-weight:600;font-size:13.5px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{filter:brightness(1.08);color:var(--accent-ink)}
+.btn.good{border-color:var(--ok);color:var(--ok)}
+.btn:disabled{opacity:.4;cursor:default;pointer-events:none}
+.btn svg{width:14px;height:14px;fill:currentColor}
+
+/* Camino de datos */
+.dpbox{overflow-x:auto;border:1px solid var(--line);border-radius:5px;background:var(--sunk)}
+#dp{display:block;width:100%;min-width:880px;height:auto;user-select:none}
+#dp .gone{display:none}
+#dp .band{fill:transparent;transition:fill .3s}
+#dp .band.alt{fill:var(--band)}
+#dp .band.occ{fill:color-mix(in srgb,var(--c) 12%,transparent)}
+#dp .band.flu{fill:color-mix(in srgb,var(--bad) 13%,transparent)}
+#dp .tag rect{fill:var(--panel);stroke:var(--line);transition:fill .25s,stroke .25s}
+#dp .tag text{fill:var(--muted);font:700 12px var(--f-display);letter-spacing:.1em;text-anchor:middle;text-transform:uppercase}
+#dp .tag.occ rect{fill:color-mix(in srgb,var(--c) 22%,var(--panel));stroke:var(--c)}
+#dp .tag.occ text{fill:var(--ink);font:600 11.5px var(--f-mono);letter-spacing:0;text-transform:none}
+#dp .tag.bub rect{fill:var(--sunk);stroke:var(--line-strong);stroke-dasharray:4 3}
+#dp .tag.bub text{fill:var(--muted);font:italic 600 11.5px var(--f-body);letter-spacing:0;text-transform:none}
+#dp .tag.flu rect{fill:color-mix(in srgb,var(--bad) 16%,var(--panel));stroke:var(--bad)}
+#dp .tag.flu text{fill:var(--bad);text-decoration:line-through}
+#dp .w{fill:none;stroke:var(--wire);stroke-width:1.6;stroke-linejoin:round;stroke-linecap:round;transition:stroke .2s,opacity .2s}
+#dp .w.hl{stroke:var(--accent);stroke-width:3}
+#dp .w.good{stroke:var(--ok);stroke-width:3.4;stroke-dasharray:9 6;animation:flow .5s linear infinite}
+#dp .w.bad{stroke:var(--bad);stroke-width:3.4;stroke-dasharray:7 4;animation:flow .5s linear infinite}
+#dp .w.dim,#dp .hz.dim{opacity:.18}
+#dp .hz{fill:none;stroke:var(--ctl);stroke-width:1.3;opacity:.75}
+#dp .hz.on{stroke-width:3.4;opacity:1;stroke-dasharray:8 5;animation:flowup .5s linear infinite}
+@keyframes flow{to{stroke-dashoffset:-15}}
+@keyframes flowup{to{stroke-dashoffset:13}}
+#dp .blk rect,#dp .blk polygon{fill:var(--panel);stroke:var(--line-strong);stroke-width:1.4;transition:fill .2s,stroke .2s,opacity .2s}
+#dp .blk text{fill:var(--ink);font:600 12.5px var(--f-display);text-anchor:middle;letter-spacing:.02em}
+#dp .blk .pt{fill:var(--muted);font:500 9px var(--f-mono);letter-spacing:0}
+#dp .blk .pt.s{text-anchor:start} #dp .blk .pt.e{text-anchor:end}
+#dp .blk.hl rect,#dp .blk.hl polygon{fill:color-mix(in srgb,var(--accent) 22%,var(--panel));stroke:var(--accent);stroke-width:2.6}
+#dp .blk.good rect,#dp .blk.good polygon{fill:color-mix(in srgb,var(--ok) 22%,var(--panel));stroke:var(--ok);stroke-width:2.6}
+#dp .blk.bad rect,#dp .blk.bad polygon{fill:color-mix(in srgb,var(--bad) 18%,var(--panel));stroke:var(--bad);stroke-width:2.6}
+#dp .blk.dim{opacity:.25}
+#dp .blk.hzu rect{fill:color-mix(in srgb,var(--ctl) 8%,var(--panel));stroke:var(--ctl);stroke-width:1.6}
+#dp .blk.hzu.off{opacity:.3}
+#dp .blk.hzu text.ttl{fill:var(--ctl);font:700 13px var(--f-display);letter-spacing:.08em;text-anchor:start;text-transform:uppercase}
+#dp .bar rect{fill:var(--bar);stroke:none;transition:fill .2s,stroke .2s}
+#dp .bar text{fill:var(--bar-ink);font:700 10.5px var(--f-display);letter-spacing:.1em;text-anchor:middle}
+#dp .bar.hold rect{fill:var(--ctl)}
+#dp .bar.clr rect{fill:var(--bad)}
+#dp .bar .ck{fill:none;stroke:var(--bar-ink);stroke-width:1.2}
+#dp .wl{fill:var(--muted);font:500 9.5px var(--f-mono);paint-order:stroke;stroke:var(--sunk);stroke-width:3px}
+#dp .wl.cl{fill:var(--ctl)}
+#dp .wl.e{text-anchor:end} #dp .wl.m{text-anchor:middle}
+#dp .wl.on{fill:var(--ctl);font-weight:600}
+#dp .dot{fill:var(--wire)}
+#dp .pill rect{fill:var(--panel);stroke:var(--line-strong);stroke-width:1}
+#dp .pill text{fill:var(--muted);font:500 9.5px var(--f-mono);text-anchor:middle}
+#dp .pill.on rect{fill:color-mix(in srgb,var(--ctl) 22%,var(--panel));stroke:var(--ctl);stroke-width:1.6}
+#dp .pill.on text{fill:var(--ink);font-weight:600}
+#dp #callout rect{fill:var(--panel);stroke:var(--bad);stroke-width:1.6}
+#dp #callout text{fill:var(--bad);font:600 12.5px var(--f-mono);text-anchor:middle}
+#dp #callout.good rect{stroke:var(--ok)} #dp #callout.good text{fill:var(--ok)}
+#dp #callout.ctl rect{stroke:var(--ctl)} #dp #callout.ctl text{fill:var(--ctl)}
+.note{margin-top:10px;padding:9px 12px;border-radius:5px;background:var(--sunk);border:1px solid var(--line);border-left:4px solid var(--accent);font-size:14.5px;min-height:2.9em}
+.note.bad{border-left-color:var(--bad)} .note.good{border-left-color:var(--ok)} .note.ctl{border-left-color:var(--ctl)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:8px;font-size:13px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.legend i{display:inline-block;width:22px;height:0;border-top:3px solid}
+
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);gap:16px;align-items:start}
+@media (max-width:1000px){.two{grid-template-columns:minmax(0,1fr)}}
+.explain{display:flex;flex-direction:column;gap:10px;max-width:68ch;min-width:0}
+.explain p{font-size:15.5px}
+.explain .aside{font-size:14px;color:var(--muted);padding:10px 12px;border:1px dashed var(--line-strong);border-radius:5px}
+.explain .aside b{color:var(--ink)}
+.explain ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px}
+.lab{display:flex;flex-direction:column;gap:12px;min-width:0}
+.lh{font:600 12px var(--f-display);letter-spacing:.11em;text-transform:uppercase;color:var(--muted)}
+.row{display:flex;gap:8px 12px;flex-wrap:wrap;align-items:center}
+.clock{font:700 26px/1 var(--f-display);font-variant-numeric:tabular-nums;min-width:96px}
+.khint{font-size:13px;color:var(--muted);display:inline-flex;align-items:center;gap:6px}
+kbd{font:600 11.5px var(--f-mono);padding:1px 6px;border:1px solid var(--line-strong);border-bottom-width:2px;border-radius:4px;background:var(--panel);color:var(--ink)}
+.box{padding:10px 12px;border-radius:5px;background:var(--sunk);border:1px solid var(--line);font-size:14.5px}
+.box.bad{border-color:color-mix(in srgb,var(--bad) 55%,var(--line));background:color-mix(in srgb,var(--bad) 8%,var(--panel))}
+.box.good{border-color:color-mix(in srgb,var(--ok) 55%,var(--line));background:color-mix(in srgb,var(--ok) 8%,var(--panel))}
+.box.warn{border-color:color-mix(in srgb,var(--over) 55%,var(--line));background:color-mix(in srgb,var(--over) 8%,var(--panel))}
+.seg{display:inline-flex;border:1px solid var(--line-strong);border-radius:5px;overflow:hidden;background:var(--sunk);flex-wrap:wrap}
+.seg button{border:0;background:none;padding:6px 12px;font-weight:600;font-size:13.5px;cursor:pointer;border-right:1px solid var(--line)}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed=true]{background:var(--accent);color:var(--accent-ink)}
+.segl{font-size:13px;color:var(--muted);font-weight:600}
+
+/* Programa */
+.prog{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:3px;font:13px var(--f-mono)}
+.prog li{display:flex;gap:10px;align-items:center;padding:3px 8px;border-radius:4px;border-left:4px solid var(--c)}
+.prog li .a{color:var(--muted);font-size:11.5px;min-width:3.4em}
+.prog li .lbl{color:var(--accent);font-weight:600}
+.prog li.on{background:color-mix(in srgb,var(--c) 12%,var(--panel))}
+.prog li.nop{color:var(--muted);border-left-style:dashed}
+.prog li.ins{background:color-mix(in srgb,var(--over) 12%,var(--panel));color:var(--ink)}
+/* NOP huecos */
+.slot{display:flex;align-items:center;gap:6px;padding-left:12px}
+.slot button{border:1px dashed var(--line-strong);background:none;border-radius:4px;font:600 11.5px var(--f-mono);color:var(--muted);padding:1px 8px;cursor:pointer}
+.slot button:hover{border-color:var(--accent);color:var(--accent)}
+.slot .nopb{border-style:solid;border-color:var(--over);color:var(--over);background:color-mix(in srgb,var(--over) 10%,var(--panel))}
+
+/* Diagrama multiciclo */
+.mcw{overflow:auto;border:1px solid var(--line);border-radius:5px;max-height:460px}
+table.mc{border-collapse:separate;border-spacing:0;font:11.5px var(--f-mono);min-width:100%}
+table.mc th,table.mc td{border-bottom:1px solid var(--line);border-right:1px solid color-mix(in srgb,var(--line) 60%,transparent);height:28px;padding:0 2px;text-align:center;min-width:36px;white-space:nowrap}
+table.mc thead th{background:var(--sunk);color:var(--muted);font-weight:600;position:sticky;top:0;z-index:2}
+table.mc th.cur{background:var(--accent);color:var(--accent-ink)}
+table.mc .rh{position:sticky;left:0;background:var(--panel);text-align:left;padding:0 10px 0 8px;border-left:4px solid var(--c,var(--line));font-weight:600;z-index:1}
+table.mc thead .rh{background:var(--sunk);border-left-color:transparent;z-index:3}
+table.mc .rh .a{color:var(--muted);font-weight:400;font-size:10.5px;margin-right:6px}
+table.mc .rh.bub{font-style:italic;color:var(--muted);font-family:var(--f-body);font-weight:600}
+table.mc .rh.fl{color:var(--muted);text-decoration:line-through}
+table.mc .rh.err{color:var(--bad)}
+table.mc .rh.nop{color:var(--muted);font-weight:400}
+table.mc td.k{background:color-mix(in srgb,var(--c) 20%,var(--panel));color:color-mix(in srgb,var(--c) 75%,var(--ink));font-weight:600}
+table.mc td.k.idle{background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--c) 12%,var(--panel)) 0 4px,var(--panel) 4px 8px);color:var(--muted)}
+table.mc td.k.stl{background:repeating-linear-gradient(90deg,color-mix(in srgb,var(--ctl) 22%,var(--panel)) 0 3px,var(--panel) 3px 6px);color:var(--ctl);box-shadow:inset 0 0 0 1.5px var(--ctl)}
+table.mc td.k.fl{background:color-mix(in srgb,var(--bad) 14%,var(--panel));color:var(--bad);text-decoration:line-through}
+table.mc td.k.bb{background:repeating-linear-gradient(135deg,var(--sunk) 0 4px,var(--panel) 4px 8px);color:var(--muted);font-style:italic}
+table.mc td.k.bad{box-shadow:inset 0 0 0 2px var(--bad);color:var(--bad)}
+table.mc td.k.fw{box-shadow:inset 0 0 0 2px var(--ok)}
+table.mc td i.fw{font-style:normal;font-size:9.5px;color:var(--ok);margin-left:2px}
+table.mc td i.st{font-style:normal;font-size:9.5px;color:var(--bad);margin-left:1px}
+table.mc td.k.cur{outline:2px solid var(--accent);outline-offset:-2px}
+table.mc td.cur:not(.k){background:color-mix(in srgb,var(--accent) 8%,transparent)}
+.mkeys{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12.5px;color:var(--muted)}
+.mkeys span{display:inline-flex;align-items:center;gap:6px}
+.mkeys i{display:inline-block;width:18px;height:12px;border-radius:2px}
+
+/* Señales de la unidad de riesgos */
+.sigt{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:6px}
+.sg{padding:6px 9px;border-radius:5px;border:1px solid var(--line);background:var(--sunk);display:flex;flex-direction:column;gap:1px;min-width:0}
+.sg .n{font:600 11.5px var(--f-mono);color:var(--muted);overflow-wrap:anywhere}
+.sg .v{font:700 17px/1.1 var(--f-mono);font-variant-numeric:tabular-nums}
+.sg.on{border-color:var(--ctl);background:color-mix(in srgb,var(--ctl) 12%,var(--panel))}
+.sg.on .v{color:var(--ctl)}
+.sg.gd{border-color:var(--ok);background:color-mix(in srgb,var(--ok) 10%,var(--panel))}
+.sg.gd .v{color:var(--ok)}
+.code{margin:0;padding:10px 12px;border-radius:5px;background:var(--sunk);border:1px solid var(--line);font:12.5px/1.75 var(--f-mono);overflow-x:auto;white-space:pre}
+.code .ln{display:block;padding:0 6px;margin:0 -6px;border-radius:3px}
+.code .ln.on{background:color-mix(in srgb,var(--ok) 18%,var(--panel));color:var(--ink);font-weight:600}
+.code .ln.onc{background:color-mix(in srgb,var(--ctl) 18%,var(--panel));color:var(--ink);font-weight:600}
+.code .cm{color:var(--muted)}
+.code .val{color:var(--ctl);font-weight:600}
+
+.reads{display:flex;flex-direction:column;gap:5px}
+.rd{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:6px 10px;border-radius:5px;border:1px solid var(--line);border-left:4px solid var(--c,var(--line));font-size:14px;background:var(--panel)}
+.rd .s{font:700 12px var(--f-display);letter-spacing:.08em;text-transform:uppercase;padding:2px 8px;border-radius:3px;white-space:nowrap}
+.rd .s.ok{background:color-mix(in srgb,var(--ok) 16%,var(--panel));color:var(--ok)}
+.rd .s.bad{background:color-mix(in srgb,var(--bad) 16%,var(--panel));color:var(--bad)}
+.rd .s.pend{background:var(--sunk);color:var(--muted)}
+.rd code{font-weight:600}
+
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}
+.tile{padding:10px 12px;border-radius:5px;background:var(--sunk);border:1px solid var(--line);border-top:3px solid var(--tc,var(--line-strong))}
+.tile .tv2{font:700 28px/1.05 var(--f-display);font-variant-numeric:tabular-nums}
+.tile .tl{font-size:12.5px;color:var(--muted);margin-top:2px}
+
+/* Laboratorio */
+.edit{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+@media (max-width:620px){.edit{grid-template-columns:minmax(0,1fr)}}
+textarea#src{width:100%;min-height:230px;resize:vertical;border:1px solid var(--line-strong);border-radius:5px;background:var(--sunk);padding:8px 10px;font:13px/1.55 var(--f-mono);tab-size:8}
+select#preset{border:1px solid var(--line-strong);border-radius:5px;background:var(--panel);padding:6px 8px;font-weight:600;font-size:13.5px;max-width:100%}
+.err{color:var(--bad);font:600 13px var(--f-mono)}
+.eqs{margin:0;padding:10px 12px;border-radius:5px;background:var(--sunk);border:1px solid var(--line);font:12.5px/1.8 var(--f-mono);overflow-x:auto;white-space:pre}
+.eqs .v1{color:var(--ctl);font-weight:700}
+.eqs .v0{color:var(--muted)}
+
+/* Rendimiento */
+.sl8{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,2fr) 56px;gap:4px 12px;align-items:center;font-size:14px}
+.sl8 output{font:600 13px var(--f-mono);text-align:right;font-variant-numeric:tabular-nums}
+.sl8 input{width:100%;accent-color:var(--accent);margin:0}
+@media (max-width:520px){.sl8{grid-template-columns:minmax(0,1fr) 56px}.sl8 input{grid-column:1 / -1;grid-row:auto}}
+.cpibar{display:flex;height:34px;border-radius:4px;overflow:hidden;border:1px solid var(--line)}
+.cpibar div{display:flex;align-items:center;justify-content:center;font:600 11.5px var(--f-mono);white-space:nowrap;overflow:hidden;min-width:0;transition:flex-basis .25s}
+.cpibar .b0{background:color-mix(in srgb,var(--accent) 26%,var(--panel))}
+.cpibar .b1{background:repeating-linear-gradient(90deg,color-mix(in srgb,var(--ctl) 30%,var(--panel)) 0 3px,var(--panel) 3px 6px);color:var(--ctl)}
+.cpibar .b2{background:color-mix(in srgb,var(--bad) 22%,var(--panel));color:var(--bad)}
+.formula{padding:10px 12px;border-radius:5px;background:var(--sunk);border:1px solid var(--line);font:13px/1.7 var(--f-mono);overflow-x:auto}
+.formula .res{color:var(--accent);font-weight:600}
+a{color:var(--accent)}
+.foot{color:var(--muted);font-size:13px;padding-top:4px}
+@media (prefers-reduced-motion: reduce){#dp *{animation:none!important;transition:none!important}}
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <div class="intro">
+      <div class="eyebrow">Tema 3 · 3.4 Gestión de riesgos · ARM</div>
+      <h1>Riesgos del segmentado</h1>
+      <p class="lede">Continuación de <a href="https://juanjoual.github.io/ac/del-monociclo-al-segmentado/">Del monociclo al segmentado</a>. El cauce ya funciona, pero las instrucciones se pisan entre sí. Seguimos la sección 7.5.3 del Harris &amp; Harris: detectamos cada riesgo en el mismo camino de datos y le añadimos, pieza a pieza, la unidad que lo resuelve.</p>
+    </div>
+    <div class="hstat" aria-label="CPI del procesador segmentado">
+      <div class="lab eyebrow">CPI · ideal → SPECINT2000 (ej. 7.7)</div>
+      <div class="big">1</div>
+      <div class="arrow">→</div>
+      <div class="big after">1,23</div>
+    </div>
+  </div>
+</header>
+
+<nav class="steps" aria-label="Pasos"><div class="wrap" id="stepper"></div></nav>
+
+<main class="wrap">
+  <section class="panel">
+    <div class="head">
+      <div class="ti">
+        <div class="k" id="stepK">Paso 1 de 8</div>
+        <h2 id="stepT">Riesgos de datos</h2>
+        <div class="fig" id="stepF"></div>
+      </div>
+      <div class="nav">
+        <button class="btn" id="prev" aria-label="Paso anterior" title="Paso anterior (↑)"><svg viewBox="0 0 16 16"><path d="M10.5 2 4.5 8l6 6 1.2-1.2L6.9 8l4.8-4.8z"/></svg>Anterior</button>
+        <button class="btn primary" id="next" aria-label="Paso siguiente" title="Paso siguiente (↓)">Siguiente<svg viewBox="0 0 16 16"><path d="M5.5 2 4.3 3.2 9.1 8l-4.8 4.8L5.5 14l6-6z"/></svg></button>
+      </div>
+    </div>
+
+    <div class="dpbox">
+<svg id="dp" viewBox="0 100 1180 484" role="img" aria-labelledby="dpTitle">
+<title id="dpTitle">Camino de datos del procesador ARM segmentado con unidad de riesgos</title>
+<g id="bands">
+  <rect class="band" data-st="0" x="0" y="100" width="252" height="484"/>
+  <rect class="band alt" data-st="1" x="266" y="100" width="300" height="484"/>
+  <rect class="band" data-st="2" x="580" y="100" width="220" height="484"/>
+  <rect class="band alt" data-st="3" x="814" y="100" width="192" height="484"/>
+  <rect class="band" data-st="4" x="1020" y="100" width="160" height="484"/>
+</g>
+
+<g id="wires">
+  <!-- Fetch -->
+  <path class="w" id="w_pcmux_pc" data-show="1-5" d="M34 290H68"/>
+  <path class="w" id="w_pcmux_br" data-show="6-" d="M34 290H39V300H44"/>
+  <path class="w" id="w_br_pc" data-show="6-" d="M58 290H68"/>
+  <path class="w" id="w_pc_im" d="M100 290H124"/>
+  <path class="w" id="w_pc_add" d="M110 290V378H140"/>
+  <path class="w" id="w_four" d="M126 396H140"/>
+  <path class="w" id="w_pcp4" d="M176 386H188V432H12V304H20"/>
+  <path class="w" id="w_pcp8" d="M188 398H476V380"/>
+  <path class="w" id="w_instr" d="M216 290H252"/>
+  <!-- Decode -->
+  <path class="w" id="w_instr_d" d="M266 290H280"/>
+  <path class="w" id="bus" d="M280 232V452"/>
+  <path class="w" id="w_ra1" d="M280 243H362"/>
+  <path class="w" id="w_ra2" d="M280 297H362"/>
+  <path class="w" id="w_ext_in" d="M280 423H346"/>
+  <path class="w" id="w_rd1" d="M492 250H566"/>
+  <path class="w" id="w_rd2" d="M492 320H566"/>
+  <path class="w" id="w_ext_out" d="M436 423H566"/>
+  <!-- Execute -->
+  <path class="w" id="w_srca_d" data-show="1-2" d="M580 250H680"/>
+  <path class="w" id="w_srcb_d" data-show="1-2" d="M580 320H596V328H640"/>
+  <path class="w" id="w_rd1e" data-show="3-" d="M580 250H588V234H606"/>
+  <path class="w" id="w_rd2e" data-show="3-" d="M580 320H588V312H606"/>
+  <path class="w" id="w_fa_out" data-show="3-" d="M620 250H680"/>
+  <path class="w" id="w_fb_out" data-show="3-" d="M620 328H640"/>
+  <path class="w" id="w_ext_e" d="M580 423H634V346H640"/>
+  <path class="w" id="w_srcb" d="M654 336H680"/>
+  <path class="w" id="w_alures" d="M740 291H800"/>
+  <path class="w" id="w_br" data-show="6-" d="M760 291V146H40V276H44"/>
+  <path class="w" id="w_wd" d="M630 328V436H846V350H860"/>
+  <!-- Memory -->
+  <path class="w" id="w_aluoutm" d="M814 291H860"/>
+  <path class="w" id="w_byp" d="M836 291V396H1006"/>
+  <path class="w" id="w_dm_rd" d="M980 284H1006"/>
+  <!-- Writeback -->
+  <path class="w" id="w_rdw" d="M1020 284H1080"/>
+  <path class="w" id="w_aluoutw" d="M1020 396H1066V316H1080"/>
+  <path class="w" id="w_res" d="M1096 300H1150V516"/>
+  <path class="w" id="w_res_wd3" d="M1150 502H330V366H362"/>
+  <path class="w" id="w_res_pc" d="M1150 516H4V276H20"/>
+  <path class="w" id="w_wa3" d="M280 452H1036V474H340V344H362"/>
+  <!-- Anticipación -->
+  <path class="w" id="w_fm_t" data-show="3-" d="M836 396V488H600V344"/>
+  <path class="w" id="w_fm_a" data-show="3-" d="M600 344V266H606"/>
+  <path class="w" id="w_fm_b" data-show="3-" d="M600 344H606"/>
+  <path class="w" id="w_fw_t" data-show="3-" d="M594 502V328"/>
+  <path class="w" id="w_fw_a" data-show="3-" d="M594 328V250H606"/>
+  <path class="w" id="w_fw_b" data-show="3-" d="M594 328H606"/>
+</g>
+
+<!-- Señales de la unidad de riesgos -->
+<g id="hzw">
+  <path class="hz" id="s_stallf" data-show="4-" d="M85 540V316"/>
+  <path class="hz" id="s_stalld" data-show="4-" d="M256 540V384"/>
+  <path class="hz" id="s_flushd" data-show="6-" d="M262 540V384"/>
+  <path class="hz" id="s_flushe" data-show="4-" d="M573 540V460"/>
+  <path class="hz" id="s_fae" data-show="3-" d="M613 226V214"/>
+  <path class="hz" id="s_fbe" data-show="3-" d="M613 352V364"/>
+  <path class="hz" id="s_pcsrcw" d="M27 316V326"/>
+  <path class="hz" id="s_bte" data-show="6-" d="M51 264V256"/>
+</g>
+
+<g id="blocks">
+  <g class="blk" id="PCMUX"><polygon points="20,262 34,270 34,310 20,318"/><text class="pt" x="27" y="279">1</text><text class="pt" x="27" y="307">0</text></g>
+  <g class="blk" id="BRMUX" data-show="6-"><polygon points="44,262 58,270 58,310 44,318"/><text class="pt" x="51" y="279">1</text><text class="pt" x="51" y="303">0</text></g>
+  <g class="blk" id="PC"><rect x="68" y="265" width="32" height="50" rx="3"/><text x="84" y="294">PC</text><text class="pt" data-show="4-" x="84" y="311">EN</text></g>
+  <g class="blk" id="IM"><rect x="124" y="230" width="92" height="120" rx="3"/><text x="170" y="284">Memoria de</text><text x="170" y="300">instrucciones</text><text class="pt s" x="128" y="294">A</text><text class="pt e" x="212" y="294">RD</text></g>
+  <g class="blk" id="ADD4"><rect x="140" y="366" width="36" height="40" rx="4"/><text x="158" y="391">+</text></g>
+  <g class="blk" id="RF"><rect x="362" y="210" width="130" height="170" rx="3"/><text x="427" y="290">Banco de</text><text x="427" y="306">registros</text>
+    <text class="pt s" x="366" y="247">A1</text><text class="pt s" x="366" y="301">A2</text><text class="pt s" x="366" y="348">A3</text><text class="pt s" x="366" y="370">WD3</text>
+    <text class="pt e" x="488" y="254">RD1</text><text class="pt e" x="488" y="324">RD2</text><text class="pt" x="472" y="375">R15</text></g>
+  <g class="blk" id="EXT"><rect x="346" y="406" width="90" height="34" rx="3"/><text x="391" y="427">Extend</text></g>
+  <g class="blk" id="FWDA" data-show="3-"><polygon points="606,222 620,230 620,270 606,278"/><text class="pt" x="613" y="237">00</text><text class="pt" x="613" y="253">01</text><text class="pt" x="613" y="269">10</text></g>
+  <g class="blk" id="FWDB" data-show="3-"><polygon points="606,300 620,308 620,348 606,356"/><text class="pt" x="613" y="315">00</text><text class="pt" x="613" y="331">01</text><text class="pt" x="613" y="347">10</text></g>
+  <g class="blk" id="SRCB"><polygon points="640,316 654,324 654,350 640,358"/><text class="pt" x="647" y="331">0</text><text class="pt" x="647" y="350">1</text></g>
+  <g class="blk" id="ALU"><polygon points="680,222 740,256 740,326 680,360 680,302 692,291 680,280"/><text x="718" y="295">ALU</text></g>
+  <g class="blk" id="DM"><rect x="860" y="236" width="120" height="140" rx="3"/><text x="920" y="318">Memoria</text><text x="920" y="334">de datos</text>
+    <text class="pt s" x="864" y="295">A</text><text class="pt s" x="864" y="354">WD</text><text class="pt e" x="976" y="288">RD</text></g>
+  <g class="blk" id="RESMUX"><polygon points="1080,270 1096,278 1096,322 1080,330"/><text class="pt" x="1088" y="288">1</text><text class="pt" x="1088" y="320">0</text></g>
+  <g class="blk hzu" id="HZU" data-show="3-"><rect x="70" y="540" width="1094" height="38" rx="5"/><text class="ttl" x="300" y="564">Unidad de riesgos · Hazard Unit</text></g>
+</g>
+
+<g id="pills" data-show="3-">
+  <g class="pill" id="pFAE"><rect x="610" y="549" width="94" height="20" rx="3"/><text x="657" y="562.5">ForwardAE</text></g>
+  <g class="pill" id="pFBE"><rect x="710" y="549" width="94" height="20" rx="3"/><text x="757" y="562.5">ForwardBE</text></g>
+  <g class="pill" id="pMatch"><rect x="822" y="549" width="54" height="20" rx="3"/><text x="849" y="562.5">Match</text></g>
+  <g class="pill" id="pRWM"><rect x="880" y="549" width="68" height="20" rx="3"/><text x="914" y="562.5">RegWriteM</text></g>
+  <g class="pill" id="pRWW"><rect x="952" y="549" width="68" height="20" rx="3"/><text x="986" y="562.5">RegWriteW</text></g>
+  <g class="pill" id="pMTR" data-show="4-"><rect x="1024" y="549" width="66" height="20" rx="3"/><text x="1057" y="562.5">MemtoRegE</text></g>
+  <g class="pill" id="pBTE" data-show="6-"><rect x="1094" y="549" width="66" height="20" rx="3"/><text x="1127" y="562.5">BranchTkE</text></g>
+</g>
+
+<g id="bars">
+  <g class="bar" id="bFD"><rect x="252" width="14" y="222" height="162" rx="2"/><text x="259" y="352" dy="3.5" transform="rotate(-90 259 352)">F/D</text></g>
+  <g class="bar" id="bDE"><rect x="566" width="14" y="200" height="260" rx="2"/><text x="573" y="428" dy="3.5" transform="rotate(-90 573 428)">D/E</text></g>
+  <g class="bar" id="bEM"><rect x="800" width="14" y="200" height="260" rx="2"/><text x="807" y="428" dy="3.5" transform="rotate(-90 807 428)">E/M</text></g>
+  <g class="bar" id="bMW"><rect x="1006" width="14" y="200" height="260" rx="2"/><text x="1013" y="428" dy="3.5" transform="rotate(-90 1013 428)">M/W</text></g>
+</g>
+
+<g id="dots">
+  <circle class="dot" cx="110" cy="290" r="3"/>
+  <circle class="dot" cx="188" cy="398" r="3"/>
+  <circle class="dot" cx="280" cy="290" r="3"/>
+  <circle class="dot" cx="280" cy="243" r="3"/>
+  <circle class="dot" cx="280" cy="297" r="3"/>
+  <circle class="dot" cx="280" cy="423" r="3"/>
+  <circle class="dot" cx="630" cy="328" r="3"/>
+  <circle class="dot" cx="836" cy="291" r="3"/>
+  <circle class="dot" cx="1150" cy="502" r="3"/>
+  <circle class="dot" data-show="6-" cx="760" cy="291" r="3"/>
+  <circle class="dot" data-show="3-" cx="836" cy="396" r="3"/>
+  <circle class="dot" data-show="3-" cx="594" cy="502" r="3"/>
+  <circle class="dot" data-show="3-" cx="600" cy="344" r="3"/>
+  <circle class="dot" data-show="3-" cx="594" cy="328" r="3"/>
+</g>
+
+<g id="labels">
+  <text class="wl" x="102" y="284">PCF</text>
+  <text class="wl e" x="250" y="284">InstrF</text>
+  <text class="wl" x="178" y="380">PCPlus4F</text>
+  <text class="wl" x="300" y="394">PCPlus8D → R15</text>
+  <text class="wl e" x="122" y="400">4</text>
+  <text class="wl" x="284" y="239">19:16 RA1D</text>
+  <text class="wl" x="284" y="293">3:0 RA2D</text>
+  <text class="wl" x="284" y="419">23:0</text>
+  <text class="wl" x="284" y="448">15:12 WA3D</text>
+  <text class="wl" x="584" y="448">WA3E</text>
+  <text class="wl" x="818" y="448">WA3M</text>
+  <text class="wl" x="1024" y="448">WA3W</text>
+  <text class="wl" x="496" y="246">RD1</text>
+  <text class="wl" x="496" y="316">RD2</text>
+  <text class="wl" x="440" y="419">ExtImm</text>
+  <text class="wl" x="584" y="419">ExtImmE</text>
+  <text class="wl" x="626" y="246">SrcAE</text>
+  <text class="wl" x="657" y="350">SrcBE</text>
+  <text class="wl" x="636" y="432">WriteDataE</text>
+  <text class="wl" x="818" y="432">WriteDataM</text>
+  <text class="wl" x="744" y="287">ALUResultE</text>
+  <text class="wl" x="818" y="287">ALUOutM</text>
+  <text class="wl" x="1024" y="280">ReadDataW</text>
+  <text class="wl" x="1024" y="392">ALUOutW</text>
+  <text class="wl" x="1100" y="296">ResultW</text>
+  <text class="wl m" x="700" y="471">WA3W → A3</text>
+  <text class="wl m" x="700" y="499">ResultW → WD3</text>
+  <text class="wl m" x="700" y="513">ResultW → PC'</text>
+  <text class="wl m" data-show="3-" x="700" y="485">ALUOutM (anticipación)</text>
+  <text class="wl m" data-show="6-" x="400" y="143">ALUResultE → PC' (destino del salto)</text>
+  <text class="wl cl m" id="l_pcsrcw" x="27" y="336">PCSrcW</text>
+  <text class="wl cl m" data-show="3-" id="l_fae" x="613" y="210">ForwardAE</text>
+  <text class="wl cl m" data-show="3-" id="l_fbe" x="613" y="374">ForwardBE</text>
+  <text class="wl cl m" data-show="6-" id="l_bte" x="56" y="252">BranchTakenE</text>
+  <text class="wl cl e" data-show="4-" id="l_stallf" x="81" y="532">StallF</text>
+  <text class="wl cl e" data-show="4-" id="l_stalld" x="252" y="532">StallD · EN</text>
+  <text class="wl cl" data-show="6-" id="l_flushd" x="266" y="532">FlushD · CLR</text>
+  <text class="wl cl" data-show="4-" id="l_flushe" x="577" y="532">FlushE · CLR</text>
+</g>
+
+<g id="tags">
+  <g class="tag" data-st="0"><rect x="6" y="106" width="240" height="22" rx="3"/><text x="126" y="121">Fetch · BI</text></g>
+  <g class="tag" data-st="1"><rect x="272" y="106" width="288" height="22" rx="3"/><text x="416" y="121">Decode · LR</text></g>
+  <g class="tag" data-st="2"><rect x="586" y="106" width="208" height="22" rx="3"/><text x="690" y="121">Execute · E</text></g>
+  <g class="tag" data-st="3"><rect x="820" y="106" width="180" height="22" rx="3"/><text x="910" y="121">Memory · M</text></g>
+  <g class="tag" data-st="4"><rect x="1026" y="106" width="148" height="22" rx="3"/><text x="1100" y="121">Writeback · ER</text></g>
+</g>
+
+<g id="callout" class="gone"><rect x="300" y="160" width="440" height="24" rx="4"/><text x="520" y="176.5"></text></g>
+</svg>
+    </div>
+    <div class="note" id="note" aria-live="polite"></div>
+    <div class="legend" id="legend"></div>
+  </section>
+
+  <section class="panel two">
+    <article class="explain" id="explain"></article>
+    <div class="lab" id="lab"></div>
+  </section>
+
+  <p class="foot">Figuras 7.48 a 7.58, ejemplos 7.7 y 7.8 y ejercicios 7.30 y 7.31 de <i>Digital Design and Computer Architecture, ARM Edition</i> (Harris &amp; Harris); ejercicio 3.8 y ejemplo del bucle de las diapositivas del Tema 3. Teclado: ← → avanzan y retroceden ciclo a ciclo; ↓ pasa al paso siguiente y ↑ vuelve al anterior; Espacio reproduce o pausa. Re Pág / Av Pág de los mandos de presentación funcionan como ← →.</p>
+</main>
+
+<script>
+(function(){
+"use strict";
+/* ================= Motor: ensamblador, intérprete y simulador del cauce ================= */
+const CONDS=['EQ','NE','CS','HS','CC','LO','MI','PL','VS','VC','HI','LS','GE','LT','GT','LE','AL'];
+const DPOPS=['ADD','SUB','RSB','AND','ORR','EOR','BIC','LSL','LSR','ASR','MOV','MVN'];
+const CMPOPS=['CMP','CMN','TST','TEQ'];
+function regOf(s){s=(s||'').trim().toUpperCase();if(s==='SP')return 13;if(s==='LR')return 14;if(s==='PC')return 15;const m=/^R(\d{1,2})$/.exec(s);return m&&+m[1]<16?+m[1]:null;}
+function immOf(s){s=(s||'').trim();if(s[0]!=='#')return null;const v=s.slice(1).trim();const n=/^-?0x/i.test(v)?parseInt(v,16):parseInt(v,10);return isNaN(n)?null:n;}
+function splitOps(s){const o=[];let d=0,cur='';for(const ch of s){if(ch==='[')d++;if(ch===']')d--;if(ch===','&&d===0){o.push(cur.trim());cur='';}else cur+=ch;}if(cur.trim())o.push(cur.trim());return o;}
+function parseProg(text){
+  const prog=[],labels={},errs=[];
+  text.split(/\r?\n/).forEach((raw,ln)=>{
+    let s=raw.replace(/(;|@|\/\/).*$/,'').trim();
+    let m;
+    while(s&&(m=/^([A-Za-z_]\w*)\s*:\s*/.exec(s))){labels[m[1].toLowerCase()]=prog.length;pendLbl.push(m[1]);s=s.slice(m[0].length);}
+    if(!s)return;
+    const sp=s.search(/\s/);const mn=(sp<0?s:s.slice(0,sp)).toUpperCase();const rest=sp<0?'':s.slice(sp+1).trim();
+    const ops=splitOps(rest);
+    const I={mn,asm:(mn+' '+ops.join(', ')).trim(),ln:ln+1,srcA:null,srcB:null,dst:null,imm:null,t:null,lbl:pendLbl.splice(0).join(', ')||null};
+    const err=msg=>errs.push('Línea '+(ln+1)+': '+msg);
+    const op2=(x,role)=>{const r=regOf(x);if(r!==null){I[role]=r;return true;}const v=immOf(x);if(v!==null){I.imm=v;return true;}err('operando no válido «'+x+'»');return false;};
+    let base=mn,S=false;
+    if(mn==='NOP'){I.t='nop';I.asm='NOP';}
+    else if(mn==='BL'||/^BL(EQ|NE|GT|LT|GE|LE)$/.test(mn)||mn==='BX'){err(mn+' no está admitido en este simulador');return;}
+    else if(mn[0]==='B'&&mn!=='BIC'&&mn!=='BICS'&&(mn==='B'||CONDS.includes(mn.slice(1)))){
+      I.t='b';I.cond=mn==='B'?'AL':mn.slice(1);I.label=(ops[0]||'').trim();if(!I.label)err('falta la etiqueta de destino');
+    }
+    else if(CMPOPS.includes(mn)){I.t='cmp';I.op=mn;if(ops.length!==2){err('se esperan 2 operandos');return;}I.srcA=regOf(ops[0]);if(I.srcA===null){err('registro no válido');return;}op2(ops[1],'srcB');}
+    else if(/^(LDR|STR)B?$/.test(mn)){
+      I.t=mn.slice(0,3)==='LDR'?'ldr':'str';const rd=regOf(ops[0]);if(rd===null||ops.length<2){err('formato: '+mn+' Rd, [Rn, #imm]');return;}
+      const a=ops.slice(1).join(',').trim();
+      if(I.t==='ldr'&&a[0]==='='){I.lit=a.slice(1).trim();I.dst=rd;}
+      else{const mm=/^\[\s*(\w+)\s*(?:,\s*(#[^\]]+))?\]$/.exec(a);if(!mm){err('dirección no válida «'+a+'»');return;}I.srcA=regOf(mm[1]);if(I.srcA===null){err('registro base no válido');return;}I.imm=mm[2]?immOf(mm[2]):0;if(I.imm===null){err('desplazamiento no válido');return;}
+        if(I.t==='ldr')I.dst=rd;else I.srcB=rd;}
+    }
+    else{
+      if(mn.endsWith('S')&&DPOPS.includes(mn.slice(0,-1))){base=mn.slice(0,-1);S=true;}
+      if(!DPOPS.includes(base)){err('instrucción no admitida «'+mn+'»');return;}
+      I.t='dp';I.op=base;I.S=S;
+      if(base==='MOV'||base==='MVN'){if(ops.length!==2){err('se esperan 2 operandos');return;}I.dst=regOf(ops[0]);if(I.dst===null){err('registro destino no válido');return;}op2(ops[1],'srcB');}
+      else{let o=ops;if(o.length===2)o=[o[0],o[0],o[1]];if(o.length!==3){err('se esperan 3 operandos');return;}I.dst=regOf(o[0]);I.srcA=regOf(o[1]);if(I.dst===null||I.srcA===null){err('registro no válido');return;}op2(o[2],'srcB');}
+    }
+    if(I.dst===15){err('las escrituras en R15 (PC) no están admitidas en el simulador');return;}
+    if(I.srcA===15)I.srcA=null; if(I.srcB===15)I.srcB=null; // R15 se lee como PC+8: nunca es un riesgo de datos
+    prog.push(I);
+  });
+  if(pendLbl.length)pendLbl.length=0;
+  prog.forEach((I,i)=>{I.pc=i;if(I.t==='b'){const t=labels[I.label.toLowerCase()];I.target=t===undefined?prog.length:t;I.ext=t===undefined;}});
+  return {prog,labels,errs};
+}
+const pendLbl=[];
+function condOk(c,f){switch(c){case'EQ':return f.Z;case'NE':return!f.Z;case'CS':case'HS':return f.C;case'CC':case'LO':return!f.C;case'MI':return f.N;case'PL':return!f.N;case'VS':return f.V;case'VC':return!f.V;case'HI':return f.C&&!f.Z;case'LS':return!f.C||f.Z;case'GE':return f.N===f.V;case'LT':return f.N!==f.V;case'GT':return!f.Z&&f.N===f.V;case'LE':return f.Z||f.N!==f.V;default:return true;}}
+function runRef(prog,limit){
+  limit=limit||160;
+  const R=new Array(16).fill(0),f={N:false,Z:false,C:false,V:false},mem=new Map(),lit={};let nl=0x1000;
+  const trace=[];let pc=0,trunc=false;
+  const setNZ=r=>{f.N=(r>>>31)===1;f.Z=(r>>>0)===0;};
+  const add=(a,b,s)=>{a>>>=0;b>>>=0;const r=(a+b)>>>0;if(s){setNZ(r);f.C=a+b>0xFFFFFFFF;f.V=(((a^r)&(b^r))>>>31)===1;}return r;};
+  const sub=(a,b,s)=>{a>>>=0;b>>>=0;const r=(a-b)>>>0;if(s){setNZ(r);f.C=a>=b;f.V=(((a^b)&(a^r))>>>31)===1;}return r;};
+  while(pc<prog.length){
+    if(trace.length>=limit){trunc=true;break;}
+    const I=prog[pc];const t={pc,taken:false};R[15]=pc*4+8;
+    const A=I.srcA!==null?R[I.srcA]:0, B=I.srcB!==null?R[I.srcB]:(I.imm||0);
+    if(I.t==='dp'){let r;switch(I.op){
+      case'ADD':r=add(A,B,I.S);break;case'SUB':r=sub(A,B,I.S);break;case'RSB':r=sub(B,A,I.S);break;
+      case'AND':r=(A&B)>>>0;break;case'ORR':r=(A|B)>>>0;break;case'EOR':r=(A^B)>>>0;break;case'BIC':r=(A&~B)>>>0;break;
+      case'LSL':r=(A<<(B&31))>>>0;break;case'LSR':r=(A>>>(B&31))>>>0;break;case'ASR':r=(A>>(B&31))>>>0;break;
+      case'MOV':r=B>>>0;break;case'MVN':r=(~B)>>>0;break;}
+      if(I.S&&!['ADD','SUB','RSB'].includes(I.op))setNZ(r);R[I.dst]=r;t.val=r;}
+    else if(I.t==='cmp'){if(I.op==='CMP')sub(A,B,true);else if(I.op==='CMN')add(A,B,true);else if(I.op==='TST')setNZ((A&B)>>>0);else setNZ((A^B)>>>0);}
+    else if(I.t==='ldr'){let v;if(I.lit!==undefined){const n=/^-?(0x)?[0-9a-f]+$/i.test(I.lit)?parseInt(I.lit):NaN;if(!isNaN(n))v=n>>>0;else{if(!(I.lit in lit)){lit[I.lit]=nl;nl+=0x100;}v=lit[I.lit];}}
+      else v=mem.get((A+I.imm)>>>0)||0;R[I.dst]=v>>>0;t.val=v>>>0;}
+    else if(I.t==='str'){mem.set((A+I.imm)>>>0,R[I.srcB]);}
+    if(I.t==='b'&&condOk(I.cond,f)){t.taken=true;t.target=I.target;pc=I.target;}else pc++;
+    trace.push(t);
+  }
+  return {trace,trunc,regs:R.slice(0,15)};
+}
+/* Inserción de NOP por el compilador (cauce sin unidad de riesgos, salto resuelto en E) */
+function insertNops(prog){
+  const out=[];const mk=()=>({t:'nop',mn:'NOP',asm:'NOP',srcA:null,srcB:null,dst:null,ins:true,lbl:null});
+  const idx=[];
+  prog.forEach(I=>{
+    let need=0;[I.srcA,I.srcB].forEach(r=>{if(r===null)return;for(let d=1;d<=2;d++){const p=out[out.length-d];if(p&&p.dst===r){need=Math.max(need,3-d);break;}}});
+    for(let i=0;i<need;i++)out.push(mk());
+    const c=Object.assign({},I);idx[I.pc]=out.length;out.push(c);
+    if(I.t==='b'){out.push(mk());out.push(mk());}
+  });
+  out.forEach((I,i)=>{I.pc=i;});
+  out.forEach(I=>{if(I.t==='b'){I.target=I.ext?out.length:idx[I.target];}});
+  // la etiqueta queda en la instrucción; los NOP previos se ejecutan solo al entrar por arriba
+  return out;
+}
+/* Simulador ciclo a ciclo con las ecuaciones de la unidad de riesgos (fig. 7.58)
+   o = {fwd, stall, br:'E'|'W'|'stallW'|'none'}  ('none': salto en E sin vaciado, sin unidad) */
+function simulate(prog,trace,o){
+  const rows=[],cyc=[];let pcF=0,k=0,wrong=false,done=0,last=0;
+  const isL=x=>x&&x.kind==='ins';
+  const wr=x=>isL(x)&&x.I.dst!==null;
+  const fetch=()=>{
+    if(wrong){if(pcF>=prog.length)return null;const r={kind:'ins',id:rows.length,pc:pcF,I:prog[pcF],k:-1,wrong:true,cells:{}};rows.push(r);pcF++;return r;}
+    if(k>=trace.length)return null;
+    const t=trace[k];const r={kind:'ins',id:rows.length,pc:t.pc,I:prog[t.pc],k,wrong:false,taken:t.taken,target:t.target,cells:{}};rows.push(r);k++;
+    pcF=t.pc+1;if(t.taken)wrong=true;return r;
+  };
+  if(!trace.length)return {rows,cyc,cycles:0,stats:{}};
+  let S={F:fetch(),D:null,E:null,M:null,W:null};
+  const ST=['F','D','E','M','W'];
+  for(let c=1;c<=700;c++){
+    ST.forEach(st=>{const x=S[st];if(x&&x.cells){x.cells[c]={st,stall:x.lastSt===st};x.lastSt=st;}});
+    const {F,D,E,M,W}=S;const sig={},ev={};
+    sig.RA1E=isL(E)?E.I.srcA:null;sig.RA2E=isL(E)?E.I.srcB:null;
+    sig.WA3M=wr(M)?M.I.dst:null;sig.WA3W=wr(W)?W.I.dst:null;
+    sig.RegWriteM=wr(M)?1:0;sig.RegWriteW=wr(W)?1:0;
+    sig.M1EM=+(sig.RA1E!==null&&sig.RA1E===sig.WA3M);sig.M1EW=+(sig.RA1E!==null&&sig.RA1E===sig.WA3W);
+    sig.M2EM=+(sig.RA2E!==null&&sig.RA2E===sig.WA3M);sig.M2EW=+(sig.RA2E!==null&&sig.RA2E===sig.WA3W);
+    const fcode=(m,w)=>m&&sig.RegWriteM?'10':(w&&sig.RegWriteW?'01':'00');
+    sig.ForwardAE=o.fwd?fcode(sig.M1EM,sig.M1EW):'00';sig.ForwardBE=o.fwd?fcode(sig.M2EM,sig.M2EW):'00';
+    if(o.fwd&&isL(E)){
+      [['A','ForwardAE','RA1E'],['B','ForwardBE','RA2E']].forEach(([op,s,ra])=>{const v=sig[s];if(v==='00')return;const from=v==='10'?'M':'W';
+        E.cells[c]['f'+op]=from;(ev.fwd=ev.fwd||[]).push({op,from,reg:sig[ra],src:from==='M'?M:W});
+        if(from==='M'&&M.I.t==='ldr'){E.cells[c].trouble=true;ev.trouble={reg:sig[ra],ld:M,who:E};}});
+    }
+    // lectura de registros en Decode (sin anticipación: se queda con lo que lee aquí)
+    if(isL(D)){
+      const reads=[];[D.I.srcA,D.I.srcB].forEach((r,j)=>{if(r===null)return;const wE=wr(E)&&E.I.dst===r?E:null,wM=wr(M)&&M.I.dst===r?M:null,wW=wr(W)&&W.I.dst===r?W:null;
+        const by=wE||wM;reads.push({r,op:j?'B':'A',by,half:!by&&wW?W:null});});
+      ev.reads=reads;
+      if(!o.fwd){const bad=reads.filter(x=>x.by);if(bad.length){D.cells[c].stale=bad.map(x=>x.r);ev.stale=bad.map(x=>({reg:x.r,op:x.op,by:x.by,who:D}));}}
+    }
+    sig.RA1D=isL(D)?D.I.srcA:null;sig.RA2D=isL(D)?D.I.srcB:null;sig.WA3E=wr(E)?E.I.dst:null;
+    sig.MemtoRegE=isL(E)&&E.I.t==='ldr'?1:0;
+    sig.M12DE=+(sig.WA3E!==null&&(sig.RA1D===sig.WA3E||sig.RA2D===sig.WA3E));
+    sig.LDRstall=o.stall?(sig.M12DE&&sig.MemtoRegE?1:0):0;
+    sig.BranchTakenE=+((o.br==='E'||o.br==='none')&&isL(E)&&!E.wrong&&!!E.taken);
+    sig.PCSrcW=+((o.br==='W'||o.br==='stallW')&&isL(W)&&!W.wrong&&!!W.taken);
+    sig.FlushD=0;sig.FlushE=0;let redirect=null,sq=[];
+    if(sig.BranchTakenE){redirect=E.target;if(o.br==='E'){sig.FlushD=1;sig.FlushE=1;sq=[F,D];}}
+    if(sig.PCSrcW){redirect=W.target;if(o.br==='W')sq=[F,D,E,M];}
+    sig.StallF=sig.LDRstall;sig.StallD=sig.LDRstall;sig.FlushE=sig.FlushE||sig.LDRstall;
+    sig.PCWrPendingF=0;
+    sq.forEach(x=>{if(isL(x)){x.cells[c].flush=true;x.squashed=c;}});ev.squash=sq.filter(isL);
+    ev.redirect=redirect;
+    if(isL(W)&&!W.wrong)done++;
+    cyc[c]={S:{...S},sig,ev};
+    if(done>=trace.length){last=c;break;}
+    const B=()=>({kind:'bubble'});const sqd=x=>x&&x.squashed?B():x;
+    const N={};N.W=sqd(M);N.M=sqd(E);
+    if(sig.FlushE){if(sig.LDRstall){const r={kind:'bubble',id:rows.length,cells:{},stallb:true};rows.push(r);N.E=r;}else N.E=B();}else N.E=sqd(D);
+    N.D=sig.FlushD?B():(sig.StallD?D:sqd(F));
+    if(redirect!==null){pcF=redirect;wrong=false;}
+    if(sig.StallF)N.F=F;
+    else if(o.br==='stallW'&&[N.D,N.E,N.M,N.W].some(x=>isL(x)&&x.I.t==='b'&&!x.wrong))N.F=null;
+    else N.F=fetch();
+    S=N;
+  }
+  const st={cycles:last,instr:trace.filter(t=>prog[t.pc].t!=='nop').length,nops:trace.filter(t=>prog[t.pc].t==='nop').length,stalls:0,flushed:0,fwd:0,stale:0,wrongExec:0,trouble:0,taken:0};
+  for(let c=1;c<=last;c++){const e=cyc[c].ev,s=cyc[c].sig;if(s.LDRstall)st.stalls++;st.flushed+=e.squash.length;if(e.fwd)st.fwd+=e.fwd.length;if(e.stale)st.stale+=e.stale.length;if(e.trouble)st.trouble++;}
+  rows.forEach(r=>{if(r.kind==='ins'&&r.wrong&&!r.squashed){r.wexec=true;if(r.I.t!=='nop')st.wrongExec++;}});
+  st.taken=trace.filter(t=>t.taken).length;
+  return {rows,cyc,cycles:last,stats:st};
+}
+
+/* ================= Interfaz ================= */
+const $=s=>document.querySelector(s);
+const svg=$('#dp');
+const byId=id=>svg.querySelector('#'+id);
+const note=$('#note'), lab=$('#lab'), explain=$('#explain'), legend=$('#legend');
+const ICON={
+  play:'<svg viewBox="0 0 16 16"><path d="M4 2.5v11l9-5.5z"/></svg>',
+  pause:'<svg viewBox="0 0 16 16"><path d="M4 2.5h3v11H4zM9 2.5h3v11H9z"/></svg>',
+  prev:'<svg viewBox="0 0 16 16"><path d="M10.5 2 4.5 8l6 6 1.2-1.2L6.9 8l4.8-4.8z"/></svg>',
+  next:'<svg viewBox="0 0 16 16"><path d="M5.5 2 4.3 3.2 9.1 8l-4.8 4.8L5.5 14l6-6z"/></svg>',
+  reset:'<svg viewBox="0 0 16 16"><path d="M8 2.5a5.5 5.5 0 1 1-5.2 3.7l1.5.5A3.9 3.9 0 1 0 8 4.1V6L4.8 3.3 8 .6z"/></svg>'
+};
+const COLS=['--i0','--i1','--i2','--i3','--i4','--i5'];
+const ST=['F','D','E','M','W'];
+const AB={F:'BI',D:'LR',E:'E',M:'M',W:'ER'};
+const STAGE_ELS=[
+  ['PC','IM','ADD4','w_pc_im','w_pc_add','w_four','w_instr'],
+  ['RF','EXT','w_ra1','w_ra2','w_ext_in','w_rd1','w_rd2','w_ext_out','bus','w_instr_d'],
+  ['ALU','SRCB','FWDA','FWDB','w_srcb','w_alures','w_ext_e','w_srca_d','w_srcb_d','w_rd1e','w_rd2e','w_fa_out','w_fb_out'],
+  ['DM','w_aluoutm','w_byp','w_dm_rd'],
+  ['RESMUX','w_rdw','w_aluoutw','w_res']
+];
+const R=r=>r===null||r===undefined?'—':'R'+r;
+const state={step:1,timer:null,v:null,keys:null};
+const colOf=x=>x.I.t==='nop'?'--line-strong':COLS[x.pc%6];
+const mn=x=>x.I.mn;
+const hex=n=>'0x'+n.toString(16).toUpperCase().padStart(2,'0');
+
+/* ---------- dibujo ---------- */
+const HLC=['hl','good','bad','dim','on','hold','clr','occ','bub','flu','off'];
+function clearHL(){
+  svg.querySelectorAll('.w,.blk,.bar,.band,.tag,.hz,.pill,.wl').forEach(el=>el.classList.remove(...HLC));
+  svg.querySelectorAll('.band,.tag').forEach(el=>el.style.removeProperty('--c'));
+  const co=byId('callout');co.classList.add('gone');co.classList.remove('good','ctl');
+  setTags(null);
+  pillText();
+}
+function cls(ids,c,on=true){ids.forEach(id=>{const el=byId(id);if(el)el.classList.toggle(c,on);});}
+const TAGDEF=['Fetch · BI','Decode · LR','Execute · E','Memory · M','Writeback · ER'];
+function setTags(arr){
+  svg.querySelectorAll('#tags .tag').forEach((g,i)=>{
+    const t=g.querySelector('text');const band=svg.querySelector('.band[data-st="'+i+'"]');const v=arr&&arr[i];
+    g.classList.remove('occ','bub','flu');band.classList.remove('occ','flu');
+    if(!v){t.textContent=TAGDEF[i];return;}
+    t.textContent=v.text;
+    if(v.bub){g.classList.add('bub');return;}
+    g.classList.add('occ');g.style.setProperty('--c','var('+v.c+')');band.classList.add('occ');band.style.setProperty('--c','var('+v.c+')');
+    if(v.flu){g.classList.add('flu');band.classList.add('flu');}
+  });
+}
+function callout(text,kind){const co=byId('callout');co.classList.remove('gone','good','ctl');if(kind)co.classList.add(kind);const t=co.querySelector('text');t.textContent=text;const w=Math.min(860,text.length*7.7+28);const r=co.querySelector('rect');r.setAttribute('width',w);r.setAttribute('x',520-w/2);}
+const PILLDEF={pFAE:'ForwardAE',pFBE:'ForwardBE'};
+function pillText(vals){Object.keys(PILLDEF).forEach(id=>{byId(id).querySelector('text').textContent=PILLDEF[id]+(vals&&vals[id]?' = '+vals[id]:'');});}
+function inRange(spec,s){const [a,b]=spec.split('-');const lo=+a,hi=b===''?99:(b===undefined?lo:+b);return s>=lo&&s<=hi;}
+function layout(){
+  const s=state.step;
+  svg.querySelectorAll('[data-show]').forEach(el=>el.classList.toggle('gone',!inRange(el.dataset.show,s)));
+  svg.setAttribute('viewBox',s>=3&&s<=7?'0 100 1180 484':'0 100 1180 428');
+}
+
+function paint(sim,c,o){
+  clearHL();
+  if(o&&o.noHU)byId('HZU').classList.add('off');
+  const sn=sim&&sim.cyc[c];
+  if(!sn)return;
+  const {S,sig,ev}=sn;const live=x=>x&&x.kind==='ins';
+  setTags(ST.map(st=>{const x=S[st];if(!x)return null;if(x.kind==='bubble')return{text:'burbuja',bub:true};const fl=x.cells[c]&&x.cells[c].flush;return{text:(fl?'✕ ':'')+x.I.asm,c:colOf(x),flu:fl};}));
+  const dimmed=new Set();
+  ST.forEach((st,i)=>{const x=S[st];if(!live(x)||x.I.t==='nop')STAGE_ELS[i].forEach(id=>dimmed.add(id));});
+  const lit=new Set();
+  const L=(ids,c2)=>ids.forEach(id=>{const el=byId(id);if(el&&!el.classList.contains('gone')){el.classList.add(c2);lit.add(id);}});
+  const W=S.W,M=S.M,E=S.E,D=S.D;
+  if(live(W)&&W.I.dst!==null){L(['w_res','w_res_wd3','w_wa3',W.I.t==='ldr'?'w_rdw':'w_aluoutw','RESMUX'],'hl');lit.add('RF');}
+  if(live(M)&&M.I.t==='ldr')L(['DM','w_dm_rd'],'hl');
+  if(live(M)&&M.I.t==='str')L(['DM','w_wd'],'hl');
+  if(live(M)&&M.I.t!=='ldr'&&M.I.t!=='str')dimmed.add('DM');
+  let co=null;
+  // anticipación
+  const pv={};
+  (ev.fwd||[]).forEach(f=>{
+    const k=ev.trouble&&f.from==='M'&&f.src.I.t==='ldr'?'bad':'good';
+    const ids=f.from==='M'?['w_fm_t',f.op==='A'?'w_fm_a':'w_fm_b','w_byp','w_aluoutm']:['w_fw_t',f.op==='A'?'w_fw_a':'w_fw_b','w_res'];
+    L(ids.concat([f.op==='A'?'FWDA':'FWDB',f.op==='A'?'w_fa_out':'w_fb_out']),k);
+    L([f.op==='A'?'s_fae':'s_fbe',f.op==='A'?'l_fae':'l_fbe',f.op==='A'?'pFAE':'pFBE'],'on');
+    pv[f.op==='A'?'pFAE':'pFBE']=f.from==='M'?'10':'01';
+    if(!co&&k==='good')co=['✓ '+R(f.reg)+' se anticipa desde '+(f.from==='M'?'M (ALUOutM)':'W (ResultW)')+' a '+mn(E),'good'];
+  });
+  pillText(pv);
+  if(!o.noHU&&state.step>=3){if(sig.M1EM||sig.M1EW||sig.M2EM||sig.M2EW||sig.M12DE)L(['pMatch'],'on');if(sig.RegWriteM)L(['pRWM'],'on');if(sig.RegWriteW)L(['pRWW'],'on');if(sig.MemtoRegE)L(['pMTR'],'on');}
+  if(ev.reads&&!o.fwd){ev.reads.filter(r=>r.half).forEach(r=>{L([r.op==='A'?'w_ra1':'w_ra2',r.op==='A'?'w_rd1':'w_rd2'],'good');co=['✓ '+mn(D)+' lee '+R(r.r)+' nuevo: '+mn(r.half)+' lo escribe en la 1.ª mitad','good'];});}
+  if(sig.LDRstall){L(['s_stallf','s_stalld','s_flushe','l_stallf','l_stalld','l_flushe','pMTR','pMatch'],'on');byId('bFD').classList.add('hold');byId('bDE').classList.add('clr');byId('PC').classList.add('hl');lit.add('PC');
+    co=['⏸ Parada: '+mn(D)+' espera en LR; entra una burbuja en E','ctl'];}
+  if(sig.BranchTakenE){L(['w_br','BRMUX','w_br_pc'],'good');L(['s_bte','l_bte','pBTE'],'on');
+    if(sig.FlushD){L(['s_flushd','s_flushe','l_flushd','l_flushe'],'on');byId('bFD').classList.add('clr');byId('bDE').classList.add('clr');co=['↺ '+mn(E)+' tomado en E: FlushD y FlushE vacían 2 instrucciones','bad'];}
+    else co=['✗ Salto tomado, pero nadie vacía las 2 instrucciones siguientes','bad'];}
+  if(sig.PCSrcW){L(['w_res_pc','PCMUX','w_res'],'good');L(['s_pcsrcw','l_pcsrcw'],'on');
+    co=[o.br==='W'?'↺ '+mn(W)+' tomado en ER: se vacían las 4 instrucciones siguientes':'✓ '+mn(W)+' escribe el PC en ER: el cauce sigue en el destino',o.br==='W'?'bad':'good'];}
+  if(o.br==='stallW'&&!S.F&&[D,E,M,W].some(x=>live(x)&&x.I.t==='b')&&!sig.PCSrcW)co=['⏸ No se busca nada hasta que el salto llegue a ER','ctl'];
+  if(ev.stale){ev.stale.forEach(s=>{L([s.op==='A'?'w_ra1':'w_ra2',s.op==='A'?'w_rd1':'w_rd2','RF'],'bad');});const s=ev.stale[0];co=['✗ '+mn(D)+' lee '+R(s.reg)+' antiguo: '+mn(s.by)+' aún está en '+(s.by===E?'E':'M'),'bad'];}
+  if(ev.trouble){L(['ALU'],'bad');co=['✗ '+mn(E)+' necesita '+R(ev.trouble.reg)+' ya, y LDR no lo tiene hasta el final de M','bad'];}
+  if(ev.squash&&ev.squash.length){ev.squash.forEach(x=>{const i=ST.indexOf(x.cells[c].st);svg.querySelector('.band[data-st="'+i+'"]').classList.add('flu');});}
+  dimmed.forEach(id=>{if(!lit.has(id)){const el=byId(id);if(el)el.classList.add('dim');}});
+  if(co)callout(co[0],co[1]==='bad'?null:co[1]);
+}
+
+/* ---------- descripción del ciclo ---------- */
+function describe(sim,c,o){
+  if(!sim||!sim.cycles)return['El programa está vacío.',''];
+  if(c===0)return['Pulsa <b>Siguiente ciclo</b> (o <kbd>→</kbd>) para avanzar. Cada color es una instrucción; las franjas indican en qué etapa está cada una.',''];
+  const {S,sig,ev}=sim.cyc[c];const live=x=>x&&x.kind==='ins';const out=[];let k='';
+  const nm=x=>'<code>'+x.I.asm+'</code>';
+  if(ev.stale){ev.stale.forEach(s=>out.push(nm(s.who)+' lee '+R(s.reg)+' en LR, pero '+nm(s.by)+' aún está en '+(s.by===S.E?'E':'M')+' y no lo ha escrito: obtiene el valor <b>antiguo</b>.'));k='bad';}
+  if(ev.trouble){out.push(nm(ev.trouble.who)+' necesita '+R(ev.trouble.reg)+' al <b>principio</b> de este ciclo, pero LDR lo lee de memoria al <b>final</b> de M. Anticipar no basta: el valor que llega es incorrecto.');k='bad';}
+  if(ev.reads&&!o.fwd)ev.reads.filter(r=>r.half).forEach(r=>out.push(nm(S.D)+' lee '+R(r.r)+' en la 2.ª mitad del ciclo, justo después de que '+nm(r.half)+' lo escriba en la 1.ª: valor <b>correcto</b>.'));
+  (ev.fwd||[]).forEach(f=>{if(ev.trouble&&f.from==='M'&&f.src.I.t==='ldr')return;out.push('Anticipación: '+R(f.reg)+' llega a Src'+f.op+'E de '+nm(S.E)+' desde <b>'+(f.from==='M'?'M</b> (ALUOutM, Forward'+f.op+'E = 10)':'W</b> (ResultW, Forward'+f.op+'E = 01)')+'.');if(!k)k='good';});
+  if(sig.LDRstall){out.push('LDR está en E (MemtoRegE = 1) y su destino '+R(sig.WA3E)+' coincide con una fuente de '+nm(S.D)+': <b>StallF = StallD = FlushE = 1</b>. PC y F/D conservan su valor y D/E se vacía (burbuja).');k='ctl';}
+  if(sig.BranchTakenE){out.push(o.br==='E'?nm(S.E)+' se decide en E: <b>tomado</b>. BranchTakenE elige ALUResultE como siguiente PC y FlushD/FlushE vacían las dos instrucciones buscadas por error.':nm(S.E)+' se toma en E, pero sin unidad de riesgos nadie vacía las dos instrucciones ya buscadas: se ejecutan.');k='bad';}
+  if(sig.PCSrcW){out.push(o.br==='W'?nm(S.W)+' llega a ER y se toma (PCSrcW = 1): se vacían las 4 instrucciones buscadas detrás. Penalización: 4 ciclos.':nm(S.W)+' escribe el PC en ER (PCSrcW = 1). El ciclo siguiente se busca el destino.');k=o.br==='W'?'bad':'ctl';}
+  if(o.br==='stallW'&&!S.F&&[S.D,S.E,S.M,S.W].some(x=>live(x)&&x.I.t==='b')&&!sig.PCSrcW){out.push('El cauce no busca instrucciones: espera a saber si el salto se toma.');k='ctl';}
+  if(!out.length){const n=ST.filter(s=>live(S[s])).length;const w=S.W;out.push(n+' instrucci'+(n===1?'ón':'ones')+' en el cauce'+(live(w)&&!w.wrong?'; termina <code>'+w.I.asm+'</code>':'')+'. Sin riesgos en este ciclo.');}
+  if(c===sim.cycles)out.push('Fin: <b>'+sim.cycles+' ciclos</b>.');
+  return['<b>Ciclo '+c+'.</b> '+out.join(' '),k];
+}
+
+/* ---------- diagrama de múltiples ciclos ---------- */
+function idle(x,st){const t=x.I.t;if(t==='nop')return st!=='F';if(st==='M')return t!=='ldr'&&t!=='str';if(st==='W')return t==='str'||t==='cmp'||t==='b';return false;}
+function mcHTML(sim,c,o){
+  const N=sim.cycles;if(!N)return'';
+  let h='<table class="mc"><thead><tr><th class="rh">Instrucción</th>';
+  for(let k=1;k<=N;k++)h+=`<th class="${k===c?'cur':''}">${k}</th>`;
+  h+='</tr></thead><tbody>';
+  sim.rows.forEach(x=>{
+    if(!Object.keys(x.cells).length)return;
+    if(x.kind==='bubble'){h+='<tr><th class="rh bub" style="--c:var(--line-strong)">burbuja (parada)</th>';}
+    else{const cl=x.squashed?'fl':(x.wexec&&x.I.t!=='nop'?'err':(x.I.t==='nop'?'nop':''));
+      const a=o.addr?o.addr(x.pc):hex(x.pc*4);
+      h+=`<tr><th class="rh ${cl}" style="--c:var(${colOf(x)})" title="${x.squashed?'Vaciada (flush)':(x.wexec&&x.I.t!=='nop'?'Camino equivocado: se ejecuta por error':'')}"><span class="a">${a}</span>${x.wexec&&x.I.t!=='nop'?'✗ ':''}${x.I.asm}</th>`;}
+    for(let k=1;k<=N;k++){
+      const e=x.cells[k];const cur=k===c?' cur':'';
+      if(!e){h+=`<td class="${cur.trim()}"></td>`;continue;}
+      let cl='k',txt=AB[e.st],tip=[];
+      if(x.kind==='bubble'){cl+=' bb';tip.push('burbuja: no hace nada');}
+      else{
+        if(idle(x,e.st))cl+=' idle';
+        if(e.stall){cl+=' stl';tip.push('parada: repite etapa');}
+        if(e.flush){cl+=' fl';txt='✕';tip.push('vaciada (flush)');}
+        if(e.fA||e.fB){cl+=' fw';const s=[e.fA?'A←'+e.fA:'',e.fB?'B←'+e.fB:''].filter(Boolean).join(' ');txt+='<i class="fw">'+s+'</i>';tip.push('anticipación '+s);}
+        if(e.stale){cl+=' bad';txt+='<i class="st">!</i>';tip.push('lee '+e.stale.map(R).join(', ')+' antiguo');}
+        if(e.trouble){cl+=' bad';txt+='<i class="st">!</i>';tip.push('el dato de LDR no está listo');}
+      }
+      h+=`<td class="${cl}${cur}" style="--c:var(${x.kind==='bubble'?'--line-strong':colOf(x)})" title="Ciclo ${k} · ${AB[e.st]}${tip.length?' · '+tip.join(' · '):''}">${txt}</td>`;
+    }
+    h+='</tr>';
+  });
+  return h+'</tbody></table>';
+}
+const MKEYS=`<div class="mkeys"><span><i style="background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--i0) 14%,var(--panel)) 0 3px,var(--panel) 3px 6px)"></i>etapa sin uso</span><span><i style="box-shadow:inset 0 0 0 2px var(--ok)"></i>anticipación (A/B ← M/W)</span><span><i style="box-shadow:inset 0 0 0 2px var(--bad)"></i>lee un valor incorrecto</span><span><i style="background:repeating-linear-gradient(90deg,color-mix(in srgb,var(--ctl) 30%,var(--panel)) 0 3px,var(--panel) 3px 6px)"></i>parada</span><span><i style="background:color-mix(in srgb,var(--bad) 18%,var(--panel))"></i>vaciada</span></div>`;
+
+function progHTML(prog,o){
+  return '<ol class="prog" id="plist">'+prog.map((I,i)=>`<li data-pc="${i}" class="${I.t==='nop'?'nop':''}${I.ins?' ins':''}" style="--c:var(${I.t==='nop'?'--line-strong':COLS[i%6]})"><span class="a">${o&&o.addr?o.addr(i):hex(i*4)}</span>${I.lbl?'<span class="lbl">'+I.lbl+':</span>':''}${I.asm}</li>`).join('')+'</ol>';
+}
+function markProg(sim,c){const sn=sim&&sim.cyc[c];const on=new Set();if(sn)ST.forEach(s=>{const x=sn.S[s];if(x&&x.kind==='ins')on.add(x.pc);});document.querySelectorAll('#plist li[data-pc]').forEach(li=>li.classList.toggle('on',on.has(+li.dataset.pc)));}
+
+/* ---------- vista genérica: simulación + controles de ciclo ---------- */
+function runnerHTML(){return `<div class="row"><button class="btn" id="rPrev">${ICON.prev}Anterior</button><button class="btn primary" id="rNext">Siguiente ciclo${ICON.next}</button><button class="btn" id="rPlay">${ICON.play}<span>Reproducir</span></button><button class="btn" id="rReset" aria-label="Volver al ciclo 0" title="Volver al ciclo 0">${ICON.reset}</button><div class="clock" id="rClk"></div></div>`;}
+function stopPlay(){if(state.timer){clearInterval(state.timer);state.timer=null;}const b=$('#rPlay');if(b)b.innerHTML=ICON.play+'<span>Reproducir</span>';}
+function bindRunner(){
+  const v=state.v;
+  $('#rPrev').onclick=()=>{stopPlay();setC(v.c-1);};
+  $('#rNext').onclick=()=>{stopPlay();setC(v.c+1);};
+  $('#rReset').onclick=()=>{stopPlay();setC(0);};
+  $('#rPlay').onclick=togglePlay;
+  state.keys={next:()=>{stopPlay();return setC(v.c+1);},prev:()=>{stopPlay();return setC(v.c-1);},toggle:togglePlay};
+}
+function togglePlay(){const v=state.v;if(state.timer){stopPlay();return;}if(v.c>=v.sim.cycles)setC(0);$('#rPlay').innerHTML=ICON.pause+'<span>Pausa</span>';state.timer=setInterval(()=>{if(state.v!==v){stopPlay();return;}setC(v.c+1);if(v.c>=v.sim.cycles)stopPlay();},1200);setC(v.c+1);}
+function setC(c){const v=state.v;if(!v||!v.sim)return false;c=Math.max(0,Math.min(v.sim.cycles,c));if(c===v.c&&v.drawn)return false;v.c=c;redraw();return true;}
+function redraw(){
+  const v=state.v;v.drawn=true;
+  paint(v.sim,v.c,v.o);
+  const clk=$('#rClk');if(clk)clk.innerHTML='Ciclo '+v.c+'<small style="font:500 13px var(--f-body);color:var(--muted)"> / '+v.sim.cycles+'</small>';
+  if($('#rPrev'))$('#rPrev').disabled=v.c<=0;if($('#rNext'))$('#rNext').disabled=v.c>=v.sim.cycles;
+  const mc=$('#mc');if(mc){mc.innerHTML=mcHTML(v.sim,v.c,v.o);const cur=mc.querySelector('th.cur');if(cur){const box=mc;const l=cur.offsetLeft-box.clientWidth/2;if(cur.offsetLeft<box.scrollLeft+160||cur.offsetLeft>box.scrollLeft+box.clientWidth-40)box.scrollLeft=Math.max(0,l);}}
+  markProg(v.sim,v.c);
+  const [t,k]=describe(v.sim,v.c,v.o);note.innerHTML=t;note.className='note'+(k?' '+k:'');
+  if(v.after)v.after(v.sim.cyc[v.c],v.c);
+}
+function makeView(prog,o,after){
+  const trace=runRef(prog).trace;
+  const sim=simulate(prog,trace,o);
+  return {prog,o,sim,c:0,after};
+}
+function segHTML(id,opts,cur){return `<div class="seg" id="${id}" role="group">${opts.map(([v,t])=>`<button data-v="${v}" aria-pressed="${v===cur}">${t}</button>`).join('')}</div>`;}
+function bindSeg(id,fn){document.querySelectorAll('#'+id+' button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#'+id+' button').forEach(x=>x.setAttribute('aria-pressed',x===b));fn(b.dataset.v);});}
+const P=t=>parseProg(t).prog;
+
+/* ---------- paneles de señales ---------- */
+const sgc=(n,v,on,gd)=>`<div class="sg${on?' on':''}${gd?' gd':''}"><span class="n">${n}</span><span class="v">${v}</span></div>`;
+function readsPanel(sim,c,o){
+  const rows=sim.rows.filter(x=>x.kind==='ins'&&!x.wrong&&!x.squashed);const items=[];
+  rows.forEach((x,ix)=>{
+    const dC=Object.keys(x.cells).map(Number).filter(k=>x.cells[k].st==='D');if(!dC.length)return;const rd=Math.max(...dC);
+    [x.I.srcA,x.I.srcB].forEach((r,j)=>{if(r===null)return;let w=null;for(let i=ix-1;i>=0;i--){if(rows[i].I.dst===r){w=rows[i];break;}}if(!w)return;
+      const wc=+Object.keys(w.cells).find(k=>w.cells[k].st==='W');
+      const eC=Object.keys(x.cells).map(Number).find(k=>x.cells[k].st==='E');const f=eC&&x.cells[eC]['f'+(j?'B':'A')];
+      let s,cl;if(c<rd){s='pendiente';cl='pend';}else if(f){s='anticipado de '+f;cl='ok';}else if(rd<wc){s='antiguo';cl='bad';}else if(rd===wc){s='nuevo · ½ ciclo';cl='ok';}else{s='nuevo';cl='ok';}
+      items.push(`<div class="rd" style="--c:var(${colOf(x)})"><span><code>${x.I.mn}</code> lee <code>${R(r)}</code> en el ciclo ${rd} · <code>${w.I.mn}</code> lo escribe en el ciclo ${wc}</span><span class="s ${cl}">${s}</span></div>`);});
+  });
+  return items.length?items.join(''):'<div class="box">No hay dependencias entre instrucciones.</div>';
+}
+function fwdPanel(sn){
+  const s=sn?sn.sig:{};const z=k=>sn?s[k]:'—';
+  const a=sn?s.ForwardAE:'',b=sn?s.ForwardBE:'';
+  const ln=(code,on,txt)=>`<span class="ln${on?' on':''}">${txt}</span>`;
+  return `<div class="sigt">${sgc('RA1E',R(s.RA1E))}${sgc('RA2E',R(s.RA2E))}${sgc('WA3M',R(s.WA3M))}${sgc('WA3W',R(s.WA3W))}${sgc('RegWriteM',z('RegWriteM'),s.RegWriteM)}${sgc('RegWriteW',z('RegWriteW'),s.RegWriteW)}</div>
+  <div class="sigt">${sgc('Match_1E_M',z('M1EM'),s.M1EM)}${sgc('Match_1E_W',z('M1EW'),s.M1EW)}${sgc('Match_2E_M',z('M2EM'),s.M2EM)}${sgc('Match_2E_W',z('M2EW'),s.M2EW)}</div>
+  <pre class="code">${ln(0,a==='10','if (Match_1E_M · RegWriteM) ForwardAE = 10; <span class="cm">// SrcAE = ALUOutM</span>')}${ln(0,a==='01','else if (Match_1E_W · RegWriteW) ForwardAE = 01; <span class="cm">// SrcAE = ResultW</span>')}${ln(0,a==='00'&&sn,'else ForwardAE = 00; <span class="cm">// SrcAE del banco</span>')}</pre>
+  <div class="sigt">${sgc('ForwardAE',sn?a:'—',a&&a!=='00',false)}${sgc('ForwardBE',sn?b:'—',b&&b!=='00',false)}</div>`;
+}
+function stallPanel(sn,o){
+  const s=sn?sn.sig:{};const z=k=>sn?s[k]:'—';const on=sn&&s.LDRstall;
+  return `<div class="sigt">${sgc('RA1D',R(s.RA1D))}${sgc('RA2D',R(s.RA2D))}${sgc('WA3E',R(s.WA3E))}${sgc('MemtoRegE',z('MemtoRegE'),s.MemtoRegE)}</div>
+  <pre class="code"><span class="ln${sn&&s.M12DE?' onc':''}">Match_12D_E = (RA1D == WA3E) + (RA2D == WA3E) <span class="val">= ${z('M12DE')}</span></span><span class="ln${on?' onc':''}">LDRstall    = Match_12D_E · MemtoRegE${o.stall?'':' <span class="cm">// desconectado</span>'} <span class="val">= ${sn?(o.stall?s.LDRstall:'—'):'—'}</span></span><span class="ln${on?' onc':''}">StallF = StallD = FlushE = LDRstall</span></pre>
+  <div class="sigt">${sgc('StallF',z('StallF'),s.StallF)}${sgc('StallD',z('StallD'),s.StallD)}${sgc('FlushE',z('FlushE'),s.FlushE)}</div>`;
+}
+function eqPanel(sn,o){
+  const s=sn?sn.sig:{};const V=k=>sn?`<span class="${s[k]?'v1':'v0'}">${s[k]}</span>`:'<span class="v0">—</span>';
+  if(o&&o.noHU)return '<pre class="eqs"><span class="v0">Sin unidad de riesgos: todas las señales valen 0.\nLos saltos se deciden en E, pero nada vacía el cauce.</span></pre>';
+  return `<pre class="eqs">Match_12D_E  = (RA1D == WA3E) + (RA2D == WA3E)   ${V('M12DE')}
+LDRstall     = Match_12D_E · MemtoRegE            ${V('LDRstall')}
+PCWrPendingF = PCSrcD + PCSrcE + PCSrcM           ${V('PCWrPendingF')}
+StallD       = LDRstall                           ${V('StallD')}
+StallF       = LDRstall + PCWrPendingF            ${V('StallF')}
+FlushE       = LDRstall + BranchTakenE            ${V('FlushE')}
+FlushD       = PCWrPendingF + PCSrcW + BranchTakenE ${V('FlushD')}
+ForwardAE    = ${sn?'<span class="'+(s.ForwardAE!=='00'?'v1':'v0')+'">'+s.ForwardAE+'</span>':'<span class="v0">—</span>'}    ForwardBE = ${sn?'<span class="'+(s.ForwardBE!=='00'?'v1':'v0')+'">'+s.ForwardBE+'</span>':'<span class="v0">—</span>'}</pre>`;
+}
+function tilesHTML(list){return '<div class="tiles">'+list.map(([v,l,c])=>`<div class="tile"${c?` style="--tc:var(${c})"`:''}><div class="tv2">${v}</div><div class="tl">${l}</div></div>`).join('')+'</div>';}
+const nf=(x,d=2)=>x.toLocaleString('es-ES',{maximumFractionDigits:d,minimumFractionDigits:0});
+
+/* ---------- programas ---------- */
+const P48=`ADD R1, R4, R5
+AND R8, R1, R3
+ORR R9, R6, R1
+SUB R10, R1, R7`;
+const PDEMO=`ADD R1, R4, R5
+AND R8, R1, R3
+ORR R9, R6, R1
+SUB R10, R1, R7
+ADD R11, R8, R9
+ADD R12, R7, #20
+SUB R0, R12, R2
+ORR R2, R5, R6
+AND R3, R7, R8
+ADD R4, R0, R11
+ADD R5, R9, R10
+SUB R6, R4, R2`;
+const PLDR=`LDR R1, [R4, #40]
+AND R8, R1, R3
+ORR R9, R6, R1
+SUB R10, R1, R7
+LDR R2, [R0, #8]
+ADD R11, R8, R9
+ADD R12, R2, R10
+LDR R3, [R12, #4]
+STR R3, [R0, #12]
+ORR R5, R11, R12
+SUB R6, R5, R3
+ADD R7, R6, #1`;
+function cpiTiles(sim,extra){const n=sim.stats.instr,c=sim.cycles;return tilesHTML([[c,'ciclos = '+n+' + 4 de llenado'+(c-n-4?' + '+(c-n-4):''),'--accent'],[nf(c/n),'CPI = ciclos / '+n],[nf((c-4)/n),'CPI sin contar el llenado',(c-4)/n<=1.0001?'--ok':'--over']].concat(extra||[]));}
+const P48b=`ADD R1, R4, R5
+SUB R1, R1, R2
+AND R8, R1, R3
+ORR R9, R6, R1`;
+const P52=`LDR R1, [R4, #40]
+AND R8, R1, R3
+ORR R9, R6, R1
+SUB R10, R1, R7`;
+const P55T=`B destino
+AND R8, R1, R3
+ORR R9, R6, R1
+SUB R10, R1, R7
+SUB R11, R1, R8
+destino: ADD R12, R3, R4`;
+const P55N=`BEQ destino   ; Z = 0: no se cumple
+AND R8, R1, R3
+ORR R9, R6, R1
+SUB R10, R1, R7
+SUB R11, R1, R8`;
+const ADDR55=i=>hex([0x20,0x24,0x28,0x2C,0x30,0x64][i]??(0x20+i*4));
+const PRESETS=[
+  ['Programa de la demo (pasos 1 a 3)',PDEMO],
+  ['Programa con LDR (paso 4)',PLDR],
+  ['Figura 7.48 · RAW entre instrucciones de datos',P48],
+  ['Figura 7.52 · RAW con LDR',P52],
+  ['Figura 7.55 · salto tomado',P55T],
+  ['Ejercicio 7.28',`MOV R1, #42
+SUB R0, R1, #5
+LDR R3, [R0, #18]
+STR R4, [R1, #63]
+ORR R2, R0, R3`],
+  ['Ejercicio 7.29',`ADD R0, R4, R5
+SUB R1, R6, R7
+AND R2, R0, R1
+ORR R3, R2, R5
+LSL R4, R2, R3`],
+  ['Ejercicio 7.30',`ADD R0, R4, R9
+SUB R0, R0, R2
+LDR R1, [R0, #60]
+AND R2, R1, R0`],
+  ['Ejercicio 7.31',`ADD R0, R11, R5
+LDR R2, [R1, #45]
+SUB R5, R0, R2
+AND R5, R2, R5`],
+  ['Ejercicio 3.8 (diapositivas)',`LDR R3, [R3, #10]
+SUB R2, R3, R2
+ADD R7, R2, R7
+STR R1, [R2, #0]
+ADD R3, R1, R0
+SUB R5, R7, R7
+SUB R0, R7, R7`],
+  ['Bucle de las diapositivas 92–96',`        MOV R5, #2
+        LDR R6, =ARRAY
+loop:   LDR R8, [R6]
+        ADD R8, R8, R1
+        STR R8, [R6]
+        ADD R5, R5, #-1
+        ADD R6, R6, #4
+        CMP R5, #0
+        BNE loop`],
+  ['Ejercicio 3.4 (bucle con BGT)',`        ADD R3, R3, #10
+        SUB R2, R2, R2
+        ADD R7, R7, R7
+        SUB R1, R1, R1
+loop:   CMP R2, R3
+        BGT fin
+        ADD R1, R1, R2
+        ADD R2, R2, #1
+        B loop
+fin:    STR R1, [R0, #4]`]
+];
+
+/* ---------- PASO 1: RAW ---------- */
+function lab1(){
+  const v=makeView(P(PDEMO),{fwd:false,stall:false,br:'none',noHU:true},()=>{$('#pReads').innerHTML=readsPanel(v.sim,v.c,v.o);});
+  state.v=v;
+  lab.innerHTML=`<div class="lh">Programa (figura 7.48 y ocho instrucciones más)</div>${progHTML(v.prog)}${cpiTiles(v.sim)}${runnerHTML()}
+  <div class="lh">¿Qué valor lee cada instrucción dependiente?</div><div class="reads" id="pReads"></div>
+  <div class="lh">Diagrama de múltiples ciclos</div><div class="mcw" id="mc"></div>${MKEYS}`;
+  bindRunner();redraw();
+}
+/* ---------- PASO 2: NOP ---------- */
+function lab2(){
+  const base=PDEMO.split('\n');const G=base.length-1;
+  if(!state.nops||state.nops.length!==G)state.nops=new Array(G).fill(0);
+  const np=insertNops(P(PDEMO));const best=new Array(G).fill(0);{let j=-1,run=0;np.forEach(I=>{if(I.ins){run++;return;}if(j>=0)best[j]=run;run=0;j++;});}
+  const MIN=best.reduce((a,b)=>a+b,0);
+  const build=()=>{const lines=[];base.forEach((l,i)=>{lines.push(l);if(i<G)for(let k=0;k<state.nops[i];k++)lines.push('NOP');});const p=P(lines.join('\n'));return p;};
+  const render=()=>{
+    const prog=build();const c0=state.v?state.v.c:0;
+    const v=makeView(prog,{fwd:false,stall:false,br:'none',noHU:true},()=>{});state.v=v;v.c=Math.min(c0,v.sim.cycles);
+    let h='<ol class="prog" id="plist">';let pc=0;
+    base.forEach((l,i)=>{h+=`<li data-pc="${pc}" style="--c:var(${COLS[pc%6]})"><span class="a">${hex(pc*4)}</span>${prog[pc].asm}</li>`;pc++;
+      if(i<G){for(let k=0;k<state.nops[i];k++){h+=`<li data-pc="${pc}" class="nop ins" style="--c:var(--line-strong)"><span class="a">${hex(pc*4)}</span>NOP</li>`;pc++;}
+        h+=`<li class="slot">${state.nops[i]<2?`<button data-g="${i}" data-d="1">+ NOP</button>`:''}${state.nops[i]>0?`<button data-g="${i}" data-d="-1">− NOP</button>`:''}</li>`;}});
+    h+='</ol>';
+    const st=v.sim.stats;const ok=st.stale===0;const tot=state.nops.reduce((a,b)=>a+b,0);
+    $('#p2prog').innerHTML=h;
+    $('#p2st').className='box '+(ok?(tot===MIN?'good':'warn'):'bad');
+    $('#p2st').innerHTML=ok?(tot===MIN?'<b>¡Correcto con el mínimo!</b> '+MIN+' NOP. Sin riesgos, pero el programa tarda <b>'+v.sim.cycles+' ciclos</b> en vez de 16.':'Sin riesgos, pero con <b>'+tot+' NOP</b>: basta con '+MIN+'. '+v.sim.cycles+' ciclos.')
+      :'<b>Quedan '+st.stale+' lecturas incorrectas.</b> '+(tot?'Revisa las distancias: cada instrucción que lee debe ir al menos 3 posiciones después de la que escribe.':'Añade NOP en los huecos.');
+    const n=12,c=v.sim.cycles;
+    $('#p2tiles').innerHTML=tilesHTML([[c,'ciclos = '+n+' + '+tot+' NOP + 4','--accent'],[tot,'NOP añadidos','--over'],[nf(c/n),'CPI = ciclos / '+n+' útiles'],[nf((c-4)/n),'CPI sin contar el llenado',c-4===n?'--ok':'--over']]);
+    $('#p2prog').querySelectorAll('button').forEach(b=>b.onclick=()=>{const g=+b.dataset.g;state.nops[g]=Math.max(0,Math.min(2,state.nops[g]+ +b.dataset.d));render();});
+    bindRunner();redraw();
+  };
+  lab.innerHTML=`<div class="lh">Programa: pulsa los huecos para añadir o quitar NOP</div><div id="p2prog"></div>
+  <div id="p2st" class="box"></div><div id="p2tiles"></div>
+  <div class="row"><button class="btn good" id="p2sol">Ver la solución</button><button class="btn" id="p2clr">Quitar todos los NOP</button></div>
+  ${runnerHTML()}<div class="lh">Diagrama de múltiples ciclos</div><div class="mcw" id="mc"></div>${MKEYS}`;
+  $('#p2sol').onclick=()=>{state.nops=best.slice();render();};
+  $('#p2clr').onclick=()=>{state.nops=new Array(G).fill(0);render();};
+  state.v=null;render();
+}
+/* ---------- PASO 3: anticipación ---------- */
+function lab3(){
+  const which=state.p3||'a';
+  const v=makeView(P(which==='a'?PDEMO:P48b),{fwd:true,stall:false,br:'E'},(sn)=>{$('#p3hz').innerHTML=fwdPanel(sn);});
+  state.v=v;
+  lab.innerHTML=`<div class="row"><span class="segl">Programa</span>${segHTML('p3seg',[['a','Programa de la demo'],['b','Prioridad de M sobre W']],which)}</div>
+  ${progHTML(v.prog)}${cpiTiles(v.sim)}${runnerHTML()}
+  <div class="lh">Unidad de riesgos · anticipación (operando A; B es igual con Match_2E)</div><div id="p3hz" style="display:flex;flex-direction:column;gap:8px"></div>
+  <div class="lh">Diagrama de múltiples ciclos</div><div class="mcw" id="mc"></div>${MKEYS}`;
+  bindSeg('p3seg',x=>{state.p3=x;lab3();});
+  bindRunner();redraw();
+}
+/* ---------- PASO 4: parada ---------- */
+function lab4(){
+  const m=state.p4||'f';const o={fwd:true,stall:m==='s',br:'E'};
+  const v=makeView(P(PLDR),o,(sn)=>{$('#p4hz').innerHTML=stallPanel(sn,o);});
+  state.v=v;
+  lab.innerHTML=`<div class="row"><span class="segl">Unidad de riesgos</span>${segHTML('p4seg',[['f','Solo anticipación'],['s','Anticipación + parada']],m)}</div>
+  ${progHTML(v.prog)}${m==='s'?cpiTiles(v.sim):''}${runnerHTML()}
+  <div id="p4res" class="box ${m==='s'?'good':'bad'}">${m==='s'?v.sim.stats.stalls+' paradas: AND espera un ciclo en LR y recibe R1 anticipado desde W en el ciclo 5; más abajo, STR espera al dato de LDR R3. ADD R12 usa R2 dos instrucciones después de su LDR y no necesita parar.':'En el ciclo 4 AND usa en la ALU un R1 que aún no existe, y STR tiene el mismo problema más adelante. Avanza hasta esos ciclos y luego activa la parada.'}</div>
+  <div class="lh">Detección de la parada por LDR</div><div id="p4hz" style="display:flex;flex-direction:column;gap:8px"></div>
+  <div class="lh">Diagrama de múltiples ciclos</div><div class="mcw" id="mc"></div>${MKEYS}`;
+  bindSeg('p4seg',x=>{const c=state.v.c;state.p4=x;lab4();setC(c);});
+  bindRunner();
+  state.keys.toggle2=()=>{const c=state.v.c;state.p4=m==='s'?'f':'s';lab4();setC(c);};
+  redraw();
+}
+/* ---------- PASO 5 y 6: saltos ---------- */
+function brLab(step){
+  const strat=step===5?(state.p5||'W'):(state.p6||'E');const tk=state.tk||'t';
+  const o={fwd:true,stall:true,br:strat,addr:ADDR55};
+  const v=makeView(P(tk==='t'?P55T:P55N),o,(sn)=>{
+    const s=sn?sn.sig:{};const z=k=>sn?s[k]:'—';
+    $('#brhz').innerHTML=`<div class="sigt">${strat==='E'?sgc('BranchTakenE',z('BranchTakenE'),s.BranchTakenE)+sgc('FlushD',z('FlushD'),s.FlushD)+sgc('FlushE',z('FlushE'),s.FlushE):sgc('PCSrcW',z('PCSrcW'),s.PCSrcW)+sgc('Vaciadas este ciclo',sn?sn.ev.squash.length:'—',sn&&sn.ev.squash.length)}</div>`;
+  });
+  state.v=v;
+  const n=v.sim.stats.instr;const lost=v.sim.cycles-(n+4);
+  const segs=step===5?[['stallW','Parar el cauce'],['W','Predecir «no tomado»']]:[['W','Decidir en ER'],['E','Decidir en E']];
+  lab.innerHTML=`<div class="row"><span class="segl">Estrategia</span>${segHTML('brseg',segs,strat)}</div>
+  <div class="row"><span class="segl">El salto</span>${segHTML('tkseg',[['t','se toma (B)'],['n','no se toma (BEQ con Z = 0)']],tk)}</div>
+  ${progHTML(v.prog,o)}
+  ${tilesHTML([[v.sim.cycles,'ciclos','--accent'],[lost,'ciclos perdidos por el salto',lost?'--bad':'--ok'],[v.sim.stats.flushed,'instrucciones vaciadas']])}
+  ${runnerHTML()}<div id="brhz"></div>
+  <div class="lh">Diagrama de múltiples ciclos</div><div class="mcw" id="mc"></div>${MKEYS}`;
+  bindSeg('brseg',x=>{const c=state.v.c;if(step===5)state.p5=x;else state.p6=x;brLab(step);setC(c);});
+  bindSeg('tkseg',x=>{state.tk=x;brLab(step);});
+  bindRunner();redraw();
+}
+/* ---------- PASO 7: laboratorio ---------- */
+function lab7(){
+  state.p7=state.p7||{src:PRESETS[10][1],mode:'hu',preset:10};
+  const L=state.p7;
+  lab.innerHTML=`<div class="row"><label class="segl" for="preset">Ejemplo</label><select id="preset">${PRESETS.map((p,i)=>`<option value="${i}"${i===L.preset?' selected':''}>${p[0]}</option>`).join('')}<option value="-1"${L.preset===-1?' selected':''}>Mi programa</option></select></div>
+  <div class="edit"><div style="display:flex;flex-direction:column;gap:6px;min-width:0"><label class="lh" for="src">Código ARM (editable)</label><textarea id="src" spellcheck="false" autocapitalize="off" autocorrect="off"></textarea><div class="err" id="perr" hidden></div></div>
+  <div style="display:flex;flex-direction:column;gap:6px;min-width:0"><div class="lh" id="plh">Lo que se ejecuta</div><div id="p7prog"></div></div></div>
+  <div class="row"><span class="segl">Procesador</span>${segHTML('mseg',[['none','Sin gestión de riesgos'],['nop','NOP del compilador'],['hu','Unidad de riesgos']],L.mode)}</div>
+  <div id="p7tiles"></div><div id="p7res"></div>
+  ${runnerHTML()}
+  <div class="lh">Diagrama de múltiples ciclos</div><div class="mcw" id="mc"></div>${MKEYS}`;
+  const ta=$('#src');ta.value=L.src;
+  let tmr=null;
+  ta.addEventListener('input',()=>{L.src=ta.value;L.preset=-1;$('#preset').value='-1';clearTimeout(tmr);tmr=setTimeout(build,350);});
+  $('#preset').onchange=e=>{const i=+e.target.value;if(i<0)return;L.preset=i;L.src=PRESETS[i][1];ta.value=L.src;build();};
+  bindSeg('mseg',x=>{L.mode=x;build(true);});
+  build();
+  function build(keepC){
+    const c0=keepC&&state.v?state.v.c:0;
+    const p=parseProg(L.src);const pe=$('#perr');
+    if(p.errs.length||!p.prog.length){pe.hidden=false;pe.textContent=p.errs.length?p.errs.slice(0,3).join(' · '):'Escribe al menos una instrucción.';if(!p.prog.length||p.errs.length)return;}
+    pe.hidden=true;
+    const tr=runRef(p.prog);
+    const np=insertNops(p.prog);
+    const simN=simulate(np,runRef(np).trace,{fwd:false,stall:false,br:'none'});
+    const simH=simulate(p.prog,tr.trace,{fwd:true,stall:true,br:'E'});
+    const simX=simulate(p.prog,tr.trace,{fwd:false,stall:false,br:'none'});
+    const prog=L.mode==='nop'?np:p.prog;
+    const o=L.mode==='hu'?{fwd:true,stall:true,br:'E'}:{fwd:false,stall:false,br:'none',noHU:true};
+    const sim=L.mode==='nop'?simN:(L.mode==='hu'?simH:simX);
+    const v={prog,o,sim,c:Math.min(c0,sim.cycles),after:(sn)=>{const e=$('#eqs');if(e)e.innerHTML=eqPanel(sn,o);}};
+    state.v=v;
+    $('#plh').textContent=L.mode==='nop'?'Código con NOP insertados ('+np.filter(i=>i.ins).length+')':'Programa ensamblado';
+    $('#p7prog').innerHTML=progHTML(prog);
+    const n=simH.stats.instr;
+    $('#p7tiles').innerHTML=tilesHTML([[simN.cycles,'ciclos con NOP · CPI '+nf(simN.cycles/n),'--over'],[simH.cycles,'ciclos con unidad · CPI '+nf(simH.cycles/n),'--accent'],['×'+nf(simN.cycles/simH.cycles),'aceleración de la unidad','--ok'],[n,'instrucciones ejecutadas'+(tr.trunc?' (cortado)':'')]]);
+    const s=simH.stats,x=simX.stats;
+    let r;
+    if(L.mode==='none')r=(x.stale||x.wrongExec)?`<div class="box bad"><b>Este código falla sin gestión de riesgos:</b> ${x.stale} lectura${x.stale===1?'':'s'} de un valor antiguo${x.wrongExec?' y '+x.wrongExec+' instrucci'+(x.wrongExec===1?'ón':'ones')+' ejecutada'+(x.wrongExec===1?'':'s')+' por error tras un salto':''}. Los ${simX.cycles} ciclos no sirven de nada.</div>`:`<div class="box good">Este código no tiene riesgos: funciona incluso sin gestión de riesgos, en ${simX.cycles} ciclos.</div>`;
+    else if(L.mode==='nop')r=`<div class="box warn">El compilador separa cada par dependiente con NOP (la lectora debe ir 3 posiciones después) y pone 2 NOP detrás de cada salto. ${np.filter(i=>i.ins).length} NOP en el código, ${simN.stats.nops} ejecutados.</div>`;
+    else r=`<div class="box">${s.fwd} anticipaci${s.fwd===1?'ón':'ones'} · ${s.stalls} parada${s.stalls===1?'':'s'} por LDR · ${s.taken} salto${s.taken===1?'':'s'} tomado${s.taken===1?'':'s'} (${s.taken*2} ciclos de vaciado). Ciclos = ${n} + 4 + ${s.stalls} + ${s.taken*2} = <b>${simH.cycles}</b>.</div>`;
+    if(tr.trunc)r+='<div class="box warn">El programa ejecuta más de 160 instrucciones: se muestra solo el principio.</div>';
+    $('#p7res').innerHTML=r;
+    bindRunner();redraw();
+  }
+}
+/* ---------- PASO 8: rendimiento ---------- */
+function lab8(){
+  const d={ld:25,st:10,br:13,use:40,mis:50,pen:'2'};state.p8=state.p8||d;const p=state.p8;
+  lab.innerHTML=`<div class="lh">Mezcla de instrucciones y comportamiento (ejemplo 7.7)</div>
+  <div class="sl8"><label for="s_ld">LDR</label><input type="range" id="s_ld" min="0" max="50" value="${p.ld}"><output id="o_ld"></output>
+  <label for="s_br">Saltos</label><input type="range" id="s_br" min="0" max="40" value="${p.br}"><output id="o_br"></output>
+  <label for="s_st">STR</label><input type="range" id="s_st" min="0" max="30" value="${p.st}"><output id="o_st"></output>
+  <label for="s_use">LDR seguidos de su uso</label><input type="range" id="s_use" min="0" max="100" value="${p.use}"><output id="o_use"></output>
+  <label for="s_mis">Saltos tomados (fallo de predicción)</label><input type="range" id="s_mis" min="0" max="100" value="${p.mis}"><output id="o_mis"></output></div>
+  <div class="row"><span class="segl">Decisión del salto</span>${segHTML('penseg',[['1','Decode · 1 ciclo'],['2','Execute · 2 ciclos'],['4','Writeback · 4 ciclos']],p.pen)}<button class="btn" id="p8def">Valores del libro</button></div>
+  <div id="p8t"></div>
+  <div class="lh">De dónde sale el CPI</div><div class="cpibar" id="p8bar"></div>
+  <div class="formula" id="p8f"></div>`;
+  const upd=()=>{
+    ['ld','br','st','use','mis'].forEach(k=>{p[k]=+$('#s_'+k).value;});
+    if(p.ld+p.br+p.st>100){p.st=100-p.ld-p.br;$('#s_st').value=p.st;}
+    ['ld','br','st','use','mis'].forEach(k=>{$('#o_'+k).textContent=p[k]+' %';});
+    const L=p.ld/100,B=p.br/100,Sx=p.st/100,Dp=1-L-B-Sx,u=p.use/100,m=p.mis/100,pen=+p.pen;
+    const cl=1+u, cb=1+m*pen, cpi=L*cl+Sx+B*cb+Dp;
+    const t=100e9*cpi*300e-12;const mono=84;
+    $('#p8t').innerHTML=tilesHTML([[nf(cpi),'CPI medio','--accent'],[nf(t,1)+' s','10<sup>11</sup> instrucciones con T<sub>c</sub> = 300 ps','--ok'],['×'+nf(mono/t),'frente al monociclo (84 s)']]);
+    const ex=L*u, eb=B*m*pen;
+    $('#p8bar').innerHTML=`<div class="b0" style="flex:1 0 0">1 ideal</div><div class="b1" style="flex:${ex} 0 0" title="paradas por LDR">${ex>=.05?'+'+nf(ex,3)+' paradas':''}</div><div class="b2" style="flex:${eb} 0 0" title="vaciados por salto">${eb>=.05?'+'+nf(eb,3)+' vaciados':''}</div>`;
+    $('#p8f').innerHTML=`CPI<sub>LDR</sub> = ${nf(1-u)}·1 + ${nf(u)}·2 = ${nf(cl)}<br>CPI<sub>salto</sub> = ${nf(1-m)}·1 + ${nf(m)}·${1+pen} = ${nf(cb)}<br>CPI = ${nf(L)}·${nf(cl)} + ${nf(Sx)}·1 + ${nf(B)}·${nf(cb)} + ${nf(Dp)}·1 = <span class="res">${nf(cpi,3)}</span><br>Tiempo = 10<sup>11</sup> × ${nf(cpi,3)} × 300 ps = <span class="res">${nf(t,2)} s</span>`;
+  };
+  lab.querySelectorAll('input[type=range]').forEach(i=>i.oninput=upd);
+  bindSeg('penseg',x=>{p.pen=x;upd();});
+  $('#p8def').onclick=()=>{Object.assign(p,d);state.p8=p;lab8();};
+  state.keys=null;upd();
+  clearHL();
+  note.className='note';note.innerHTML='El procesador completo de la figura 7.58. Cada parada o vaciado es un ciclo en el que no termina ninguna instrucción: el CPI pasa de 1 a algo más, según el programa.';
+}
+
+/* ---------- definición de los pasos ---------- */
+const STEPS=[
+  {t:'Riesgos de datos',s:'Riesgo RAW',f:'Figura 7.48 · dependencias de lectura después de escritura',
+   x:`<p>En el tema anterior el cauce ejecutaba programas sin dependencias. Lo normal es lo contrario: ADD escribe R1 y las tres instrucciones siguientes lo leen.</p>
+   <p>ADD calcula la suma en el ciclo 3 (E), pero no la escribe en el banco hasta el ciclo 5 (ER). AND lee R1 en el ciclo 3 y ORR en el 4: los dos obtienen el valor <b>antiguo</b>. Es un riesgo <b>RAW</b> (<i>read after write</i>, lectura después de escritura).</p>
+   <p>SUB lee R1 en el ciclo 5 y sí obtiene el valor nuevo: el banco de registros se <b>escribe en la primera mitad</b> del ciclo y se <b>lee en la segunda</b>. Por eso el riesgo solo alcanza a las dos instrucciones siguientes.</p>
+   <p>El programa sigue con ocho instrucciones más, con sus propias dependencias. Con 12 instrucciones, el CPI ya se acerca al ideal: (12 + 4) / 12 = 1,33, y sin contar los 4 ciclos de llenado vale exactamente 1.</p>
+   <div class="aside">De las tres dependencias de datos (RAW, WAR y WAW), en este cauce solo RAW provoca riesgos: todas las instrucciones leen en LR y escriben en ER, siempre en orden. Hay otra familia, los <b>riesgos de control</b> de los saltos, que llega en el paso 5.</div>`,
+   leg:[['var(--bad)','lectura de un valor antiguo'],['var(--ok)','lectura correcta (½ ciclo)'],['var(--accent)','escritura en el banco']],init:lab1},
+  {t:'Solución software: NOP',s:'NOP',f:'Figura 7.49 · el compilador separa las instrucciones dependientes',
+   x:`<p>Si el procesador no tiene hardware para detectar riesgos, el compilador (o el programador) debe separar las instrucciones dependientes con <b>NOP</b>, instrucciones que no hacen nada.</p>
+   <p>La regla: la instrucción que lee debe estar <b>al menos 3 posiciones</b> después de la que escribe. Así su LR coincide, como pronto, con el ER de la productora.</p>
+   <p>Pruébalo en el laboratorio: añade NOP en los huecos hasta que no quede ninguna lectura incorrecta, con el mínimo número posible. Fíjate en el CPI sin contar el llenado: cada NOP lo aleja de 1.</p>
+   <div class="aside">Este <b>interbloqueo software</b> complica la programación y cuesta rendimiento: cada NOP es un ciclo sin trabajo útil. Además, el código queda atado a un cauce concreto.</div>`,
+   leg:[['var(--bad)','lectura de un valor antiguo'],['var(--ok)','lectura correcta']],init:lab2},
+  {t:'Anticipación',s:'Anticipación',f:'Figuras 7.50 y 7.51 · redireccionamiento (forwarding)',
+   x:`<p>La suma de ADD existe desde el final del ciclo 3: está en el registro E/M (<code>ALUOutM</code>). AND no la necesita hasta que su ALU trabaja, en el ciclo 4. Basta con <b>llevarla hacia atrás</b>.</p>
+   <p>Se añaden dos multiplexores de 3 entradas delante de la ALU y la <b>unidad de riesgos</b>. Para cada operando de la instrucción en E, compara su registro fuente con el destino de las instrucciones en M y W (señales Match). Si coinciden y esa instrucción escribe (RegWrite), anticipa su valor.</p>
+   <p>Si coinciden M y W a la vez, gana <b>M</b>: contiene la instrucción más reciente. Compruébalo con el segundo programa, en el ciclo 5.</p>
+   <div class="aside">STR y B no escriben registros: por eso la unidad mira RegWriteM y RegWriteW. Con anticipación, las dependencias entre instrucciones de datos se resuelven <b>sin perder ningún ciclo</b>. El segundo multiplexor alarga Execute hasta 260 ps, sin superar los 300 ps de Decode.</div>`,
+   leg:[['var(--ok)','camino de anticipación'],['var(--ctl)','señal de la unidad de riesgos']],init:lab3},
+  {t:'LDR: hay que parar',s:'Parada',f:'Figuras 7.52 a 7.54 · detención del cauce (stall)',
+   x:`<p>LDR no tiene su dato hasta el <b>final</b> de la etapa M (ciclo 4), y AND lo necesita al <b>principio</b> de ese mismo ciclo. No se puede anticipar hacia atrás en el tiempo: LDR tiene una latencia de dos ciclos.</p>
+   <p>Solución: <b>detener</b> AND un ciclo en LR. En el ciclo 5 el dato ya está en W y se anticipa desde ResultW. ORR, que venía detrás, espera ese ciclo en BI.</p>
+   <p>El resto del programa muestra los otros casos: si entre el LDR y su uso hay una instrucción (LDR R2 → ADD R12) basta con anticipar; si el uso va justo detrás (LDR R3 → STR R3) hay que volver a parar.</p>
+   <p>Para detener una etapa se deshabilita su registro (EN), se detienen también las anteriores para no perder instrucciones y se vacía (CLR) el registro siguiente: por el cauce avanza una <b>burbuja</b>, que se comporta como un NOP.</p>
+   <div class="aside">La unidad detecta el caso en Decode: la instrucción en E es un LDR (<code>MemtoRegE</code> = 1) y su destino <code>WA3E</code> coincide con <code>RA1D</code> o <code>RA2D</code>. Entonces activa a la vez StallF, StallD y FlushE: <b>una parada de un ciclo</b>.</div>`,
+   leg:[['var(--ctl)','StallF · StallD · FlushE'],['var(--bad)','dato de LDR aún no disponible'],['var(--ok)','anticipación']],init:lab4},
+  {t:'Riesgos de control',s:'Saltos',f:'Figura 7.55 · vaciado del cauce cuando el salto se toma',
+   x:`<p>Con B, el procesador no sabe qué instrucción buscar a continuación: en este diseño el salto escribe el PC en ER (PCSrcW), cuatro ciclos después de buscarlo. Las escrituras en R15 crean el mismo problema.</p>
+   <p>Primera opción: <b>parar el cauce</b> hasta saberlo, con 4 ciclos perdidos en cada salto. Segunda: <b>predecir</b>. Este procesador predice «no tomado» y sigue buscando en orden. Si acierta no pierde nada; si falla, vacía (flush) las 4 instrucciones buscadas por error.</p>
+   <p>Esos ciclos desperdiciados son la <b>penalización por fallo de predicción</b>. Compara las dos estrategias con el salto tomado y sin tomar.</p>
+   <div class="aside">Los procesadores reales usan predictores de saltos que aciertan mucho más que «no tomado siempre». Pero cuanto antes se decida el salto, menos se pierde al fallar: es el paso siguiente.</div>`,
+   leg:[['var(--ok)','escritura del PC'],['var(--bad)','etapas vaciadas']],init:()=>brLab(5)},
+  {t:'Decidir el salto en Execute',s:'Salto en E',f:'Figuras 7.56 y 7.57 · decisión temprana del salto',
+   x:`<p>En Execute ya se sabe todo lo necesario: la ALU calcula la dirección destino (PC + 8 + desplazamiento) y la Cond Unit sabe si se cumple la condición. Si se decide ahí, la penalización baja de 4 a <b>2 ciclos</b>.</p>
+   <p>Se añade un multiplexor delante del PC controlado por <b>BranchTakenE</b>, que elige <code>ALUResultE</code> como siguiente PC. La unidad de riesgos vacía las dos instrucciones buscadas por error con <b>FlushD</b> y <b>FlushE</b>.</p>
+   <p>PCSrcW queda solo para las escrituras en R15, que siguen ocurriendo en ER.</p>
+   <div class="aside">Con algo más de trabajo, el salto se decidiría en Decode y la penalización bajaría a 1 ciclo (ejercicio 7.36), a costa de alargar quizá el ciclo de reloj porque los flags llegarían tarde.</div>`,
+   leg:[['var(--ok)','destino del salto (ALUResultE → PC)'],['var(--ctl)','BranchTakenE · FlushD · FlushE'],['var(--bad)','etapas vaciadas']],init:()=>brLab(6)},
+  {t:'La unidad completa',s:'Laboratorio',f:'Figura 7.58 · procesador segmentado con gestión completa de riesgos',
+   x:`<p>Este es el procesador completo. Escribe un programa o elige un ejercicio y compara tres procesadores: sin gestión de riesgos, con NOP insertados por el compilador y con la unidad de riesgos.</p>
+   <p>Resumen del libro: los riesgos <b>RAW</b> se resuelven anticipando si el resultado se calcula a tiempo, y parando si no (LDR). Los riesgos de <b>control</b> se resuelven prediciendo y vaciando el cauce si la predicción falla, o parando hasta conocer la decisión. Decidir cuanto antes reduce lo que se vacía.</p>
+   <div class="lh">Ecuaciones de la unidad de riesgos en el ciclo actual</div><div id="eqs"></div>
+   <div class="aside">El simulador admite ADD, SUB, RSB, AND, ORR, EOR, BIC, LSL, LSR, ASR, MOV, MVN (con sufijo S), CMP, CMN, TST, LDR, STR, B con condición y NOP. Los registros empiezan a 0 y <code>LDR Rd, =etiqueta</code> carga una dirección. No admite escrituras en R15, así que PCWrPendingF vale siempre 0.</div>`,
+   leg:[['var(--ok)','anticipación'],['var(--ctl)','paradas'],['var(--bad)','vaciado o error']],init:lab7},
+  {t:'¿Cuánto cuestan los riesgos?',s:'Rendimiento',f:'Ejemplos 7.7 y 7.8 · CPI del procesador segmentado',
+   x:`<p>Idealmente el segmentado termina una instrucción por ciclo (CPI = 1). Cada parada o vaciado pierde un ciclo, así que el CPI real depende del programa.</p>
+   <p>Ejemplo 7.7 (SPECINT2000): 25 % LDR, 10 % STR, 13 % saltos y 52 % de datos. El 40 % de los LDR van seguidos de una instrucción que usa su resultado (1 parada) y el 50 % de los saltos se toman (fallo de predicción: 2 ciclos de vaciado).</p>
+   <p>Ejemplo 7.8: con T<sub>c</sub> = 300 ps, 100 000 millones de instrucciones tardan <b>36,9 s</b>, frente a 84 s del monociclo.</p>
+   <div class="aside">Juega con los porcentajes y con la etapa en la que se decide el salto. Así se ve por qué los procesadores reales invierten tanto en predecir saltos y en que el compilador separe los LDR de su uso.</div>`,
+   leg:[],init:lab8}
+];
+
+/* ---------- navegación ---------- */
+const stepper=$('#stepper');
+stepper.innerHTML=STEPS.map((s,i)=>`<button class="stp" data-i="${i+1}"><span class="n">${i+1}</span><span class="t">${s.s}</span></button>`).join('');
+stepper.querySelectorAll('.stp').forEach(b=>b.onclick=()=>go(+b.dataset.i));
+function go(n,fromHash){
+  n=Math.max(1,Math.min(STEPS.length,n));
+  stopPlay();
+  state.step=n;state.v=null;state.keys=null;
+  clearHL();layout();
+  const S=STEPS[n-1];
+  $('#stepK').textContent='Paso '+n+' de '+STEPS.length;
+  $('#stepT').textContent=S.t;$('#stepF').textContent=S.f;
+  explain.innerHTML=S.x;
+  legend.innerHTML=S.leg.map(([c,t])=>`<span><i style="border-color:${c}"></i>${t}</span>`).join('');
+  stepper.querySelectorAll('.stp').forEach((b,i)=>{b.classList.toggle('cur',i+1===n);b.classList.toggle('done',i+1<n);});
+  const cur=stepper.querySelector('.stp.cur');if(cur)cur.scrollIntoView({block:'nearest',inline:'nearest'});
+  $('#prev').disabled=n===1;$('#next').disabled=n===STEPS.length;
+  S.init();
+  if(!fromHash){try{history.replaceState(null,'','#paso-'+n);}catch(e){}}
+}
+$('#prev').onclick=()=>go(state.step-1);
+$('#next').onclick=()=>go(state.step+1);
+document.addEventListener('keydown',e=>{
+  if(e.altKey||e.ctrlKey||e.metaKey)return;
+  if(e.target.matches('textarea,select,input:not([type=range])'))return;
+  if(e.key===' '||e.key==='Spacebar'){const k=state.keys;if(k&&k.toggle){e.preventDefault();if(document.activeElement&&document.activeElement.blur)document.activeElement.blur();k.toggle();}return;}
+  if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();go(state.step+(e.key==='ArrowDown'?1:-1));return;}
+  const fwd=e.key==='ArrowRight'||e.key==='PageDown',back=e.key==='ArrowLeft'||e.key==='PageUp';
+  if(!fwd&&!back)return;
+  if(e.target.matches('input[type=range]'))return;
+  e.preventDefault();const k=state.keys;if(k)(fwd?k.next:k.prev)();
+});
+const fromH=()=>{const m=/^#paso-(\d)$/.exec(location.hash);return m?+m[1]:1;};
+window.addEventListener('hashchange',()=>{const n=fromH();if(n!==state.step)go(n,true);});
+go(fromH(),true);
+
+})();
+</script>
+
+</body>
+</html>
