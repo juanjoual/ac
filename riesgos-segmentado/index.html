@@ -374,7 +374,7 @@ a{color:var(--accent)}
   <path class="hz" id="s_flushe" data-show="4-" d="M573 540V460"/>
   <path class="hz" id="s_fae" data-show="3-" d="M613 226V214"/>
   <path class="hz" id="s_fbe" data-show="3-" d="M613 352V364"/>
-  <path class="hz" id="s_pcsrcw" d="M27 316V326"/>
+    <path class="hz" id="s_pcsrcw" d="M27 316V326"/>
   <path class="hz" id="s_bte" data-show="6-" d="M51 264V256"/>
 </g>
 
@@ -394,7 +394,7 @@ a{color:var(--accent)}
   <g class="blk" id="ALU"><polygon points="680,222 740,256 740,326 680,360 680,302 692,291 680,280"/><text x="718" y="295">ALU</text></g>
   <g class="blk" id="DM"><rect x="860" y="236" width="120" height="140" rx="3"/><text x="920" y="318">Memoria</text><text x="920" y="334">de datos</text>
     <text class="pt s" x="864" y="295">A</text><text class="pt s" x="864" y="354">WD</text><text class="pt e" x="976" y="288">RD</text></g>
-  <g class="blk" id="RESMUX"><polygon points="1080,270 1096,278 1096,322 1080,330"/><text class="pt" x="1088" y="288">1</text><text class="pt" x="1088" y="320">0</text></g>
+    <g class="blk" id="RESMUX"><polygon points="1080,270 1096,278 1096,322 1080,330"/><text class="pt" x="1088" y="288">1</text><text class="pt" x="1088" y="320">0</text></g>
   <g class="blk hzu" id="HZU" data-show="3-"><rect x="70" y="540" width="1094" height="38" rx="5"/><text class="ttl" x="300" y="564">Unidad de riesgos · Hazard Unit</text></g>
 </g>
 
@@ -405,7 +405,7 @@ a{color:var(--accent)}
   <g class="pill" id="pRWM"><rect x="880" y="549" width="68" height="20" rx="3"/><text x="914" y="562.5">RegWriteM</text></g>
   <g class="pill" id="pRWW"><rect x="952" y="549" width="68" height="20" rx="3"/><text x="986" y="562.5">RegWriteW</text></g>
   <g class="pill" id="pMTR" data-show="4-"><rect x="1024" y="549" width="66" height="20" rx="3"/><text x="1057" y="562.5">MemtoRegE</text></g>
-  <g class="pill" id="pBTE" data-show="6-"><rect x="1094" y="549" width="66" height="20" rx="3"/><text x="1127" y="562.5">BranchTkE</text></g>
+    <g class="pill" id="pBTE" data-show="6-"><rect x="1094" y="549" width="66" height="20" rx="3"/><text x="1127" y="562.5">BranchTkE</text></g>
 </g>
 
 <g id="bars">
@@ -470,7 +470,7 @@ a{color:var(--accent)}
   <text class="wl cl e" data-show="4-" id="l_stallf" x="81" y="532">StallF</text>
   <text class="wl cl e" data-show="4-" id="l_stalld" x="252" y="532">StallD · EN</text>
   <text class="wl cl" data-show="6-" id="l_flushd" x="266" y="532">FlushD · CLR</text>
-  <text class="wl cl" data-show="4-" id="l_flushe" x="577" y="532">FlushE · CLR</text>
+    <text class="wl cl" data-show="4-" id="l_flushe" x="577" y="532">FlushE · CLR</text>
 </g>
 
 <g id="tags">
@@ -748,6 +748,8 @@ function paint(sim,c,o){
     if(!co&&k==='good')co=['✓ '+R(f.reg)+' se anticipa desde '+(f.from==='M'?'M (ALUOutM)':'W (ResultW)')+' a '+mn(E),'good'];
   });
   pillText(pv);
+  const fg=(ev.fwd||[]).filter(f=>!(ev.trouble&&f.from==='M'&&f.src.I.t==='ldr'));
+  if(fg.length===2){const w=f=>(f.from==='M'?'M':'W');co=fg[0].reg===fg[1].reg&&fg[0].from===fg[1].from?['✓✓ '+mn(E)+': '+R(fg[0].reg)+' llega a SrcAE y SrcBE desde '+w(fg[0]),'good']:['✓✓ Dos anticipaciones a '+mn(E)+': '+R(fg[0].reg)+' desde '+w(fg[0])+' y '+R(fg[1].reg)+' desde '+w(fg[1]),'good'];}
   if(!o.noHU&&state.step>=3){if(sig.M1EM||sig.M1EW||sig.M2EM||sig.M2EW||sig.M12DE)L(['pMatch'],'on');if(sig.RegWriteM)L(['pRWM'],'on');if(sig.RegWriteW)L(['pRWW'],'on');if(sig.MemtoRegE)L(['pMTR'],'on');}
   if(ev.reads&&!o.fwd){ev.reads.filter(r=>r.half).forEach(r=>{L([r.op==='A'?'w_ra1':'w_ra2',r.op==='A'?'w_rd1':'w_rd2'],'good');co=['✓ '+mn(D)+' lee '+R(r.r)+' nuevo: '+mn(r.half)+' lo escribe en la 1.ª mitad','good'];});}
   if(sig.LDRstall){L(['s_stallf','s_stalld','s_flushe','l_stallf','l_stalld','l_flushe','pMTR','pMatch'],'on');byId('bFD').classList.add('hold');byId('bDE').classList.add('clr');byId('PC').classList.add('hl');lit.add('PC');
@@ -876,6 +878,7 @@ function fwdPanel(sn){
   return `<div class="sigt">${sgc('RA1E',R(s.RA1E))}${sgc('RA2E',R(s.RA2E))}${sgc('WA3M',R(s.WA3M))}${sgc('WA3W',R(s.WA3W))}${sgc('RegWriteM',z('RegWriteM'),s.RegWriteM)}${sgc('RegWriteW',z('RegWriteW'),s.RegWriteW)}</div>
   <div class="sigt">${sgc('Match_1E_M',z('M1EM'),s.M1EM)}${sgc('Match_1E_W',z('M1EW'),s.M1EW)}${sgc('Match_2E_M',z('M2EM'),s.M2EM)}${sgc('Match_2E_W',z('M2EW'),s.M2EW)}</div>
   <pre class="code">${ln(0,a==='10','if (Match_1E_M · RegWriteM) ForwardAE = 10; <span class="cm">// SrcAE = ALUOutM</span>')}${ln(0,a==='01','else if (Match_1E_W · RegWriteW) ForwardAE = 01; <span class="cm">// SrcAE = ResultW</span>')}${ln(0,a==='00'&&sn,'else ForwardAE = 00; <span class="cm">// SrcAE del banco</span>')}</pre>
+  <pre class="code">${ln(0,b==='10','if (Match_2E_M · RegWriteM) ForwardBE = 10; <span class="cm">// SrcBE = ALUOutM</span>')}${ln(0,b==='01','else if (Match_2E_W · RegWriteW) ForwardBE = 01; <span class="cm">// SrcBE = ResultW</span>')}${ln(0,b==='00'&&sn,'else ForwardBE = 00; <span class="cm">// SrcBE del banco</span>')}</pre>
   <div class="sigt">${sgc('ForwardAE',sn?a:'—',a&&a!=='00',false)}${sgc('ForwardBE',sn?b:'—',b&&b!=='00',false)}</div>`;
 }
 function stallPanel(sn,o){
@@ -929,6 +932,11 @@ ORR R5, R11, R12
 SUB R6, R5, R3
 ADD R7, R6, #1`;
 function cpiTiles(sim,extra){const n=sim.stats.instr,c=sim.cycles;return tilesHTML([[c,'ciclos = '+n+' + 4 de llenado'+(c-n-4?' + '+(c-n-4):''),'--accent'],[nf(c/n),'CPI = ciclos / '+n],[nf((c-4)/n),'CPI sin contar el llenado',(c-4)/n<=1.0001?'--ok':'--over']].concat(extra||[]));}
+const P2F=`ADD R1, R4, R5
+SUB R2, R6, R7
+AND R3, R2, R1
+ORR R8, R3, R3
+SUB R9, R8, R3`;
 const P48b=`ADD R1, R4, R5
 SUB R1, R1, R2
 AND R8, R1, R3
@@ -952,6 +960,7 @@ const ADDR55=i=>hex([0x20,0x24,0x28,0x2C,0x30,0x64][i]??(0x20+i*4));
 const PRESETS=[
   ['Programa de la demo (pasos 1 a 3)',PDEMO],
   ['Programa con LDR (paso 4)',PLDR],
+  ['Dos anticipaciones (paso 3)',P2F],
   ['Figura 7.48 · RAW entre instrucciones de datos',P48],
   ['Figura 7.52 · RAW con LDR',P52],
   ['Figura 7.55 · salto tomado',P55T],
@@ -1046,11 +1055,11 @@ function lab2(){
 /* ---------- PASO 3: anticipación ---------- */
 function lab3(){
   const which=state.p3||'a';
-  const v=makeView(P(which==='a'?PDEMO:P48b),{fwd:true,stall:false,br:'E'},(sn)=>{$('#p3hz').innerHTML=fwdPanel(sn);});
+  const v=makeView(P(which==='a'?PDEMO:(which==='c'?P2F:P48b)),{fwd:true,stall:false,br:'E'},(sn)=>{$('#p3hz').innerHTML=fwdPanel(sn);});
   state.v=v;
-  lab.innerHTML=`<div class="row"><span class="segl">Programa</span>${segHTML('p3seg',[['a','Programa de la demo'],['b','Prioridad de M sobre W']],which)}</div>
+  lab.innerHTML=`<div class="row"><span class="segl">Programa</span>${segHTML('p3seg',[['a','Programa de la demo'],['c','Dos anticipaciones'],['b','Prioridad de M sobre W']],which)}</div>
   ${progHTML(v.prog)}${cpiTiles(v.sim)}${runnerHTML()}
-  <div class="lh">Unidad de riesgos · anticipación (operando A; B es igual con Match_2E)</div><div id="p3hz" style="display:flex;flex-direction:column;gap:8px"></div>
+  <div class="lh">Unidad de riesgos · anticipación de los dos operandos</div><div id="p3hz" style="display:flex;flex-direction:column;gap:8px"></div>
   <div class="lh">Diagrama de múltiples ciclos</div><div class="mcw" id="mc"></div>${MKEYS}`;
   bindSeg('p3seg',x=>{state.p3=x;lab3();});
   bindRunner();redraw();
@@ -1067,7 +1076,6 @@ function lab4(){
   <div class="lh">Diagrama de múltiples ciclos</div><div class="mcw" id="mc"></div>${MKEYS}`;
   bindSeg('p4seg',x=>{const c=state.v.c;state.p4=x;lab4();setC(c);});
   bindRunner();
-  state.keys.toggle2=()=>{const c=state.v.c;state.p4=m==='s'?'f':'s';lab4();setC(c);};
   redraw();
 }
 /* ---------- PASO 5 y 6: saltos ---------- */
@@ -1093,7 +1101,7 @@ function brLab(step){
 }
 /* ---------- PASO 7: laboratorio ---------- */
 function lab7(){
-  state.p7=state.p7||{src:PRESETS[10][1],mode:'hu',preset:10};
+  state.p7=state.p7||{src:PRESETS[11][1],mode:'hu',preset:11};
   const L=state.p7;
   lab.innerHTML=`<div class="row"><label class="segl" for="preset">Ejemplo</label><select id="preset">${PRESETS.map((p,i)=>`<option value="${i}"${i===L.preset?' selected':''}>${p[0]}</option>`).join('')}<option value="-1"${L.preset===-1?' selected':''}>Mi programa</option></select></div>
   <div class="edit"><div style="display:flex;flex-direction:column;gap:6px;min-width:0"><label class="lh" for="src">Código ARM (editable)</label><textarea id="src" spellcheck="false" autocapitalize="off" autocorrect="off"></textarea><div class="err" id="perr" hidden></div></div>
@@ -1188,7 +1196,8 @@ const STEPS=[
   {t:'Anticipación',s:'Anticipación',f:'Figuras 7.50 y 7.51 · redireccionamiento (forwarding)',
    x:`<p>La suma de ADD existe desde el final del ciclo 3: está en el registro E/M (<code>ALUOutM</code>). AND no la necesita hasta que su ALU trabaja, en el ciclo 4. Basta con <b>llevarla hacia atrás</b>.</p>
    <p>Se añaden dos multiplexores de 3 entradas delante de la ALU y la <b>unidad de riesgos</b>. Para cada operando de la instrucción en E, compara su registro fuente con el destino de las instrucciones en M y W (señales Match). Si coinciden y esa instrucción escribe (RegWrite), anticipa su valor.</p>
-   <p>Si coinciden M y W a la vez, gana <b>M</b>: contiene la instrucción más reciente. Compruébalo con el segundo programa, en el ciclo 5.</p>
+   <p>Cada operando tiene su propio multiplexor, así que una instrucción puede recibir <b>dos anticipaciones</b> en el mismo ciclo. Míralo en el programa «Dos anticipaciones»: en el ciclo 5, AND recibe R2 desde M y R1 desde W; en el ciclo 6, ORR recibe R3 desde M por los dos operandos; en el ciclo 7, SUB recibe R8 desde M y R3 desde W.</p>
+   <p>Si coinciden M y W a la vez para el mismo operando, gana <b>M</b>: contiene la instrucción más reciente. Compruébalo con el programa «Prioridad de M sobre W», en el ciclo 5.</p>
    <div class="aside">STR y B no escriben registros: por eso la unidad mira RegWriteM y RegWriteW. Con anticipación, las dependencias entre instrucciones de datos se resuelven <b>sin perder ningún ciclo</b>. El segundo multiplexor alarga Execute hasta 260 ps, sin superar los 300 ps de Decode.</div>`,
    leg:[['var(--ok)','camino de anticipación'],['var(--ctl)','señal de la unidad de riesgos']],init:lab3},
   {t:'LDR: hay que parar',s:'Parada',f:'Figuras 7.52 a 7.54 · detención del cauce (stall)',
