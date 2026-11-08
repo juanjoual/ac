@@ -255,10 +255,15 @@ select#preset{border:1px solid var(--line-strong);border-radius:5px;background:v
 .eqs .v0{color:var(--muted)}
 
 /* Rendimiento */
-.sl8{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,2fr) 56px;gap:4px 12px;align-items:center;font-size:14px}
-.sl8 output{font:600 13px var(--f-mono);text-align:right;font-variant-numeric:tabular-nums}
-.sl8 input{width:100%;accent-color:var(--accent);margin:0}
-@media (max-width:520px){.sl8{grid-template-columns:minmax(0,1fr) 56px}.sl8 input{grid-column:1 / -1;grid-row:auto}}
+.sl8{display:flex;flex-direction:column;gap:6px;font-size:14px}
+.r8{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,2fr) 56px;gap:4px 12px;align-items:center}
+.r8 output{font:600 13px var(--f-mono);text-align:right;font-variant-numeric:tabular-nums}
+.r8 input{width:100%;accent-color:var(--accent);margin:0}
+@media (max-width:520px){.r8{grid-template-columns:minmax(0,1fr) 56px}.r8 output{grid-column:2;grid-row:1}.r8 input,.r8 .i8{grid-column:1 / -1;grid-row:2}}
+.sub8{color:var(--muted);font-size:12.5px}
+.mixbar{display:flex;height:28px;border-radius:4px;overflow:hidden;border:1px solid var(--line)}
+.mixbar div{display:flex;align-items:center;justify-content:center;font:600 11.5px var(--f-mono);white-space:nowrap;overflow:hidden;min-width:0;background:color-mix(in srgb,var(--c) 24%,var(--panel));border-right:1px solid var(--panel);transition:flex-grow .2s}
+.mixbar div:last-child{border-right:0}
 .cpibar{display:flex;height:34px;border-radius:4px;overflow:hidden;border:1px solid var(--line)}
 .cpibar div{display:flex;align-items:center;justify-content:center;font:600 11.5px var(--f-mono);white-space:nowrap;overflow:hidden;min-width:0;transition:flex-basis .25s}
 .cpibar .b0{background:color-mix(in srgb,var(--accent) 26%,var(--panel))}
@@ -597,7 +602,7 @@ function simulate(prog,trace,o){
   const isL=x=>x&&x.kind==='ins';
   const wr=x=>isL(x)&&x.I.dst!==null;
   const fetch=()=>{
-    if(wrong){if(pcF>=prog.length)return null;const r={kind:'ins',id:rows.length,pc:pcF,I:prog[pcF],k:-1,wrong:true,cells:{}};rows.push(r);pcF++;return r;}
+    if(wrong){const I=pcF<prog.length?prog[pcF]:{t:'unk',mn:'?',asm:'(lo que siga en memoria)',srcA:null,srcB:null,dst:null,lbl:null};const r={kind:'ins',id:rows.length,pc:pcF,I,k:-1,wrong:true,cells:{}};rows.push(r);pcF++;return r;}
     if(k>=trace.length)return null;
     const t=trace[k];const r={kind:'ins',id:rows.length,pc:t.pc,I:prog[t.pc],k,wrong:false,taken:t.taken,target:t.target,cells:{}};rows.push(r);k++;
     pcF=t.pc+1;if(t.taken)wrong=true;return r;
@@ -756,7 +761,8 @@ function paint(sim,c,o){
     co=['⏸ Parada: '+mn(D)+' espera en LR; entra una burbuja en E','ctl'];}
   if(sig.BranchTakenE){L(['w_br','BRMUX','w_br_pc'],'good');L(['s_bte','l_bte','pBTE'],'on');
     if(sig.FlushD){L(['s_flushd','s_flushe','l_flushd','l_flushe'],'on');byId('bFD').classList.add('clr');byId('bDE').classList.add('clr');co=['↺ '+mn(E)+' tomado en E: FlushD y FlushE vacían 2 instrucciones','bad'];}
-    else co=['✗ Salto tomado, pero nadie vacía las 2 instrucciones siguientes','bad'];}
+    else if([S.F,S.D].some(x=>live(x)&&x.I.t!=='nop'))co=['✗ Salto tomado, pero nadie vacía las 2 instrucciones siguientes','bad'];
+    else co=['✓ Salto tomado en E: detrás solo hay NOP, no se ejecuta nada por error','good'];}
   if(sig.PCSrcW){L(['w_res_pc','PCMUX','w_res'],'good');L(['s_pcsrcw','l_pcsrcw'],'on');
     co=[o.br==='W'?'↺ '+mn(W)+' tomado en ER: se vacían las 4 instrucciones siguientes':'✓ '+mn(W)+' escribe el PC en ER: el cauce sigue en el destino',o.br==='W'?'bad':'good'];}
   if(o.br==='stallW'&&!S.F&&[D,E,M,W].some(x=>live(x)&&x.I.t==='b')&&!sig.PCSrcW)co=['⏸ No se busca nada hasta que el salto llegue a ER','ctl'];
@@ -778,7 +784,8 @@ function describe(sim,c,o){
   if(ev.reads&&!o.fwd)ev.reads.filter(r=>r.half).forEach(r=>out.push(nm(S.D)+' lee '+R(r.r)+' en la 2.ª mitad del ciclo, justo después de que '+nm(r.half)+' lo escriba en la 1.ª: valor <b>correcto</b>.'));
   (ev.fwd||[]).forEach(f=>{if(ev.trouble&&f.from==='M'&&f.src.I.t==='ldr')return;out.push('Anticipación: '+R(f.reg)+' llega a Src'+f.op+'E de '+nm(S.E)+' desde <b>'+(f.from==='M'?'M</b> (ALUOutM, Forward'+f.op+'E = 10)':'W</b> (ResultW, Forward'+f.op+'E = 01)')+'.');if(!k)k='good';});
   if(sig.LDRstall){out.push('LDR está en E (MemtoRegE = 1) y su destino '+R(sig.WA3E)+' coincide con una fuente de '+nm(S.D)+': <b>StallF = StallD = FlushE = 1</b>. PC y F/D conservan su valor y D/E se vacía (burbuja).');k='ctl';}
-  if(sig.BranchTakenE){out.push(o.br==='E'?nm(S.E)+' se decide en E: <b>tomado</b>. BranchTakenE elige ALUResultE como siguiente PC y FlushD/FlushE vacían las dos instrucciones buscadas por error.':nm(S.E)+' se toma en E, pero sin unidad de riesgos nadie vacía las dos instrucciones ya buscadas: se ejecutan.');k='bad';}
+  if(sig.BranchTakenE){const harmless=o.br!=='E'&&![S.F,S.D].some(x=>live(x)&&x.I.t!=='nop');
+    out.push(o.br==='E'?nm(S.E)+' se decide en E: <b>tomado</b>. BranchTakenE elige ALUResultE como siguiente PC y FlushD/FlushE vacían las dos instrucciones buscadas por error.':(harmless?nm(S.E)+' se toma en E. Sin unidad de riesgos nadie vacía las dos instrucciones ya buscadas, pero son <b>NOP</b>: no hacen nada.':nm(S.E)+' se toma en E, pero sin unidad de riesgos nadie vacía las dos instrucciones ya buscadas: se ejecutan.'));k=harmless?'good':'bad';}
   if(sig.PCSrcW){out.push(o.br==='W'?nm(S.W)+' llega a ER y se toma (PCSrcW = 1): se vacían las 4 instrucciones buscadas detrás. Penalización: 4 ciclos.':nm(S.W)+' escribe el PC en ER (PCSrcW = 1). El ciclo siguiente se busca el destino.');k=o.br==='W'?'bad':'ctl';}
   if(o.br==='stallW'&&!S.F&&[S.D,S.E,S.M,S.W].some(x=>live(x)&&x.I.t==='b')&&!sig.PCSrcW){out.push('El cauce no busca instrucciones: espera a saber si el salto se toma.');k='ctl';}
   if(!out.length){const n=ST.filter(s=>live(S[s])).length;const w=S.W;out.push(n+' instrucci'+(n===1?'ón':'ones')+' en el cauce'+(live(w)&&!w.wrong?'; termina <code>'+w.I.asm+'</code>':'')+'. Sin riesgos en este ciclo.');}
@@ -843,7 +850,9 @@ function redraw(){
   paint(v.sim,v.c,v.o);
   const clk=$('#rClk');if(clk)clk.innerHTML='Ciclo '+v.c+'<small style="font:500 13px var(--f-body);color:var(--muted)"> / '+v.sim.cycles+'</small>';
   if($('#rPrev'))$('#rPrev').disabled=v.c<=0;if($('#rNext'))$('#rNext').disabled=v.c>=v.sim.cycles;
-  const mc=$('#mc');if(mc){mc.innerHTML=mcHTML(v.sim,v.c,v.o);const cur=mc.querySelector('th.cur');if(cur){const box=mc;const l=cur.offsetLeft-box.clientWidth/2;if(cur.offsetLeft<box.scrollLeft+160||cur.offsetLeft>box.scrollLeft+box.clientWidth-40)box.scrollLeft=Math.max(0,l);}}
+  const mc=$('#mc');if(mc){mc.innerHTML=mcHTML(v.sim,v.c,v.o);const box=mc,br=box.getBoundingClientRect(),cur=mc.querySelector('th.cur');
+    if(cur){const x=cur.getBoundingClientRect().left-br.left+box.scrollLeft;if(x<box.scrollLeft+180||x>box.scrollLeft+box.clientWidth-40)box.scrollLeft=Math.max(0,x-box.clientWidth/2);}
+    const ks=mc.querySelectorAll('td.k.cur');if(ks.length){const top=ks[0].getBoundingClientRect().top-br.top+box.scrollTop,bot=ks[ks.length-1].getBoundingClientRect().bottom-br.top+box.scrollTop;if(top<box.scrollTop+30||bot>box.scrollTop+box.clientHeight)box.scrollTop=Math.max(0,(top+bot)/2-box.clientHeight/2);}}
   markProg(v.sim,v.c);
   const [t,k]=describe(v.sim,v.c,v.o);note.innerHTML=t;note.className='note'+(k?' '+k:'');
   if(v.after)v.after(v.sim.cyc[v.c],v.c);
@@ -951,6 +960,17 @@ ORR R9, R6, R1
 SUB R10, R1, R7
 SUB R11, R1, R8
 destino: ADD R12, R3, R4`;
+const PWHILE=`        ADD R0, R0, #4      ; i = 4
+        SUB R1, R1, R1      ; suma = 0
+loop:   CMP R0, #0
+        BEQ fin             ; ¿i == 0? sale del bucle
+        ADD R1, R1, R0      ; suma += i
+        SUB R0, R0, #1      ; i--
+        B loop
+fin:    STR R1, [R2, #0]    ; guarda la suma (10)
+        ADD R3, R1, R1
+        SUB R4, R3, #1
+        ORR R5, R4, R1`;
 const P55N=`BEQ destino   ; Z = 0: no se cumple
 AND R8, R1, R3
 ORR R9, R6, R1
@@ -1020,36 +1040,58 @@ function lab1(){
   bindRunner();redraw();
 }
 /* ---------- PASO 2: NOP ---------- */
+const PSLIDE=`        MOV R5, #2
+        LDR R6, =ARRAY
+loop:   LDR R8, [R6]
+        ADD R8, R8, R1
+        STR R8, [R6]
+        ADD R5, R5, #-1
+        ADD R6, R6, #4
+        CMP R5, #0
+        BNE loop`;
+const NOPEX={
+  demo:{t:'Programa de la demo',src:PDEMO,after:false},
+  bucle:{t:'Bucle de la diapositiva 92',src:PSLIDE,after:true,sol:[0,2,2,2,0,1,0,0,2]}
+};
 function lab2(){
-  const base=PDEMO.split('\n');const G=base.length-1;
-  if(!state.nops||state.nops.length!==G)state.nops=new Array(G).fill(0);
-  const np=insertNops(P(PDEMO));const best=new Array(G).fill(0);{let j=-1,run=0;np.forEach(I=>{if(I.ins){run++;return;}if(j>=0)best[j]=run;run=0;j++;});}
-  const MIN=best.reduce((a,b)=>a+b,0);
-  const build=()=>{const lines=[];base.forEach((l,i)=>{lines.push(l);if(i<G)for(let k=0;k<state.nops[i];k++)lines.push('NOP');});const p=P(lines.join('\n'));return p;};
+  const ex=state.p2ex||'demo';const X=NOPEX[ex];
+  const base=X.src.split('\n');const G=X.after?base.length:base.length-1;
+  state.nopsBy=state.nopsBy||{};if(!state.nopsBy[ex]||state.nopsBy[ex].length!==G)state.nopsBy[ex]=new Array(G).fill(0);
+  const nops=state.nopsBy[ex];
+  const np=insertNops(P(X.src));const best=new Array(G).fill(0);{let j=-1,run=0;np.forEach(I=>{if(I.ins){run++;return;}if(j>=0)best[j]=run;run=0;j++;});if(j>=0&&j<G)best[j]=run;}
+  const MIN=best.reduce((a,b)=>a+b,0);const sol=X.sol||best;
+  const build=()=>{const lines=[];base.forEach((l,i)=>{lines.push(l);if(i<G)for(let k=0;k<nops[i];k++)lines.push('NOP');});return P(lines.join('\n'));};
   const render=()=>{
     const prog=build();const c0=state.v?state.v.c:0;
     const v=makeView(prog,{fwd:false,stall:false,br:'none',noHU:true},()=>{});state.v=v;v.c=Math.min(c0,v.sim.cycles);
     let h='<ol class="prog" id="plist">';let pc=0;
-    base.forEach((l,i)=>{h+=`<li data-pc="${pc}" style="--c:var(${COLS[pc%6]})"><span class="a">${hex(pc*4)}</span>${prog[pc].asm}</li>`;pc++;
-      if(i<G){for(let k=0;k<state.nops[i];k++){h+=`<li data-pc="${pc}" class="nop ins" style="--c:var(--line-strong)"><span class="a">${hex(pc*4)}</span>NOP</li>`;pc++;}
-        h+=`<li class="slot">${state.nops[i]<2?`<button data-g="${i}" data-d="1">+ NOP</button>`:''}${state.nops[i]>0?`<button data-g="${i}" data-d="-1">− NOP</button>`:''}</li>`;}});
+    base.forEach((l,i)=>{const I=prog[pc];h+=`<li data-pc="${pc}" style="--c:var(${COLS[pc%6]})"><span class="a">${hex(pc*4)}</span>${I.lbl?'<span class="lbl">'+I.lbl+':</span>':''}${I.asm}</li>`;pc++;
+      if(i<G){for(let k=0;k<nops[i];k++){h+=`<li data-pc="${pc}" class="nop ins" style="--c:var(--line-strong)"><span class="a">${hex(pc*4)}</span>NOP</li>`;pc++;}
+        h+=`<li class="slot">${nops[i]<2?`<button data-g="${i}" data-d="1">+ NOP</button>`:''}${nops[i]>0?`<button data-g="${i}" data-d="-1">− NOP</button>`:''}</li>`;}});
     h+='</ol>';
-    const st=v.sim.stats;const ok=st.stale===0;const tot=state.nops.reduce((a,b)=>a+b,0);
+    const st=v.sim.stats;const ok=st.stale===0&&st.wrongExec===0;const tot=nops.reduce((a,b)=>a+b,0);
+    const n=st.instr,c=v.sim.cycles;const wn=v.sim.rows.filter(x=>x.kind==='ins'&&x.wexec&&x.I.t==='nop').length,ne=st.nops+wn,bad=c-n-ne-4;
     $('#p2prog').innerHTML=h;
     $('#p2st').className='box '+(ok?(tot===MIN?'good':'warn'):'bad');
-    $('#p2st').innerHTML=ok?(tot===MIN?'<b>¡Correcto con el mínimo!</b> '+MIN+' NOP. Sin riesgos, pero el programa tarda <b>'+v.sim.cycles+' ciclos</b> en vez de 16.':'Sin riesgos, pero con <b>'+tot+' NOP</b>: basta con '+MIN+'. '+v.sim.cycles+' ciclos.')
-      :'<b>Quedan '+st.stale+' lecturas incorrectas.</b> '+(tot?'Revisa las distancias: cada instrucción que lee debe ir al menos 3 posiciones después de la que escribe.':'Añade NOP en los huecos.');
-    const n=12,c=v.sim.cycles;
-    $('#p2tiles').innerHTML=tilesHTML([[c,'ciclos = '+n+' + '+tot+' NOP + 4','--accent'],[tot,'NOP añadidos','--over'],[nf(c/n),'CPI = ciclos / '+n+' útiles'],[nf((c-4)/n),'CPI sin contar el llenado',c-4===n?'--ok':'--over']]);
-    $('#p2prog').querySelectorAll('button').forEach(b=>b.onclick=()=>{const g=+b.dataset.g;state.nops[g]=Math.max(0,Math.min(2,state.nops[g]+ +b.dataset.d));render();});
+    const sp=new Map();v.sim.rows.forEach(x=>{if(x.kind==='ins'&&!x.wrong&&Object.values(x.cells).some(e=>e.stale))sp.set(x.pc,(sp.get(x.pc)||0)+1);});
+    const wp=new Set(v.sim.rows.filter(x=>x.kind==='ins'&&x.wexec&&x.I.t!=='nop').map(x=>x.pc));
+    const probs=[];
+    if(sp.size)probs.push((sp.size===1?'1 instrucción lee':sp.size+' instrucciones leen')+' un valor antiguo');
+    if(wp.size)probs.push((wp.size===1?'1 instrucción':'las '+wp.size+' instrucciones')+' de detrás del salto se ejecuta'+(wp.size===1?'':'n')+' por error');
+    $('#p2st').innerHTML=ok?(tot===MIN?'<b>¡Correcto con el mínimo!</b> '+MIN+' NOP. Sin riesgos, pero el programa tarda <b>'+c+' ciclos</b> en vez de '+(n+4)+'.':'Sin riesgos, pero con <b>'+tot+' NOP</b>: basta con '+MIN+'.')
+      :'<b>Faltan NOP.</b> '+probs.map(s=>s[0].toUpperCase()+s.slice(1)+'.').join(' ')+' '+(tot?(st.stale?'Cada instrucción que lee debe ir al menos 3 posiciones después de la que escribe. ':'')+(st.wrongExec?'Detrás de un salto se ejecutan siempre las 2 instrucciones siguientes.':''):'Añade NOP en los huecos.');
+    $('#p2tiles').innerHTML=tilesHTML([[c,'ciclos = '+n+' + '+ne+' NOP + 4'+(bad?' + '+bad+' por error':''),'--accent'],[tot+(ne!==tot?' · '+ne:''),ne!==tot?'NOP en el código · ejecutados':'NOP añadidos','--over'],[nf(c/n),'CPI = ciclos / '+n+' útiles'],[nf((c-4)/n),'CPI sin contar el llenado',c-4===n?'--ok':'--over']]);
+    $('#p2prog').querySelectorAll('button').forEach(b=>b.onclick=()=>{const g=+b.dataset.g;nops[g]=Math.max(0,Math.min(2,nops[g]+ +b.dataset.d));render();});
     bindRunner();redraw();
   };
-  lab.innerHTML=`<div class="lh">Programa: pulsa los huecos para añadir o quitar NOP</div><div id="p2prog"></div>
+  lab.innerHTML=`<div class="row"><span class="segl">Programa</span>${segHTML('p2seg',Object.keys(NOPEX).map(k=>[k,NOPEX[k].t]),ex)}</div>
+  <div class="lh">Pulsa los huecos para añadir o quitar NOP</div><div id="p2prog"></div>
   <div id="p2st" class="box"></div><div id="p2tiles"></div>
-  <div class="row"><button class="btn good" id="p2sol">Ver la solución</button><button class="btn" id="p2clr">Quitar todos los NOP</button></div>
+  <div class="row"><button class="btn good" id="p2sol">Ver la solución${X.sol?' (diapositiva 95)':''}</button><button class="btn" id="p2clr">Quitar todos los NOP</button></div>
   ${runnerHTML()}<div class="lh">Diagrama de múltiples ciclos</div><div class="mcw" id="mc"></div>${MKEYS}`;
-  $('#p2sol').onclick=()=>{state.nops=best.slice();render();};
-  $('#p2clr').onclick=()=>{state.nops=new Array(G).fill(0);render();};
+  bindSeg('p2seg',x=>{state.p2ex=x;state.v=null;lab2();});
+  $('#p2sol').onclick=()=>{sol.forEach((x,i)=>nops[i]=x);render();};
+  $('#p2clr').onclick=()=>{nops.fill(0);render();};
   state.v=null;render();
 }
 /* ---------- PASO 3: anticipación ---------- */
@@ -1080,23 +1122,24 @@ function lab4(){
 }
 /* ---------- PASO 5 y 6: saltos ---------- */
 function brLab(step){
-  const strat=step===5?(state.p5||'W'):(state.p6||'E');const tk=state.tk||'t';
-  const o={fwd:true,stall:true,br:strat,addr:ADDR55};
-  const v=makeView(P(tk==='t'?P55T:P55N),o,(sn)=>{
+  const strat=step===5?(state.p5||'W'):(state.p6||'E');const bp=state.bp||'f';
+  const o={fwd:true,stall:true,br:strat};if(bp!=='w')o.addr=ADDR55;
+  const v=makeView(P(bp==='w'?PWHILE:(bp==='n'?P55N:P55T)),o,(sn)=>{
     const s=sn?sn.sig:{};const z=k=>sn?s[k]:'—';
     $('#brhz').innerHTML=`<div class="sigt">${strat==='E'?sgc('BranchTakenE',z('BranchTakenE'),s.BranchTakenE)+sgc('FlushD',z('FlushD'),s.FlushD)+sgc('FlushE',z('FlushE'),s.FlushE):sgc('PCSrcW',z('PCSrcW'),s.PCSrcW)+sgc('Vaciadas este ciclo',sn?sn.ev.squash.length:'—',sn&&sn.ev.squash.length)}</div>`;
   });
   state.v=v;
   const n=v.sim.stats.instr;const lost=v.sim.cycles-(n+4);
-  const segs=step===5?[['stallW','Parar el cauce'],['W','Predecir «no tomado»']]:[['W','Decidir en ER'],['E','Decidir en E']];
+  const tr=runRef(v.prog).trace;const nb=tr.filter(t=>v.prog[t.pc].t==='b').length,nt=tr.filter(t=>t.taken).length;
+  const segs=step===5?[['stallW','Parar el cauce'],['W','Predecir «no tomado»']]:[['W','Decidir en WB'],['E','Decidir en E']];
   lab.innerHTML=`<div class="row"><span class="segl">Estrategia</span>${segHTML('brseg',segs,strat)}</div>
-  <div class="row"><span class="segl">El salto</span>${segHTML('tkseg',[['t','se toma (B)'],['n','no se toma (BEQ con Z = 0)']],tk)}</div>
+  <div class="row"><span class="segl">Programa</span>${segHTML('bpseg',[['f','Figura 7.55 · se toma'],['n','No se toma (BEQ con Z = 0)'],['w','Bucle while']],bp)}</div>
   ${progHTML(v.prog,o)}
-  ${tilesHTML([[v.sim.cycles,'ciclos','--accent'],[lost,'ciclos perdidos por el salto',lost?'--bad':'--ok'],[v.sim.stats.flushed,'instrucciones vaciadas']])}
+  ${tilesHTML([[v.sim.cycles,'ciclos ('+n+' instrucciones)','--accent'],[nt+' de '+nb,'saltos tomados'],[lost,'ciclos perdidos por los saltos',lost?'--bad':'--ok'],[v.sim.stats.flushed,'instrucciones vaciadas']])}
   ${runnerHTML()}<div id="brhz"></div>
   <div class="lh">Diagrama de múltiples ciclos</div><div class="mcw" id="mc"></div>${MKEYS}`;
   bindSeg('brseg',x=>{const c=state.v.c;if(step===5)state.p5=x;else state.p6=x;brLab(step);setC(c);});
-  bindSeg('tkseg',x=>{state.tk=x;brLab(step);});
+  bindSeg('bpseg',x=>{state.bp=x;brLab(step);});
   bindRunner();redraw();
 }
 /* ---------- PASO 7: laboratorio ---------- */
@@ -1147,33 +1190,38 @@ function lab7(){
 }
 /* ---------- PASO 8: rendimiento ---------- */
 function lab8(){
-  const d={ld:25,st:10,br:13,use:40,mis:50,pen:'2'};state.p8=state.p8||d;const p=state.p8;
-  lab.innerHTML=`<div class="lh">Mezcla de instrucciones y comportamiento (ejemplo 7.7)</div>
-  <div class="sl8"><label for="s_ld">LDR</label><input type="range" id="s_ld" min="0" max="50" value="${p.ld}"><output id="o_ld"></output>
-  <label for="s_br">Saltos</label><input type="range" id="s_br" min="0" max="40" value="${p.br}"><output id="o_br"></output>
-  <label for="s_st">STR</label><input type="range" id="s_st" min="0" max="30" value="${p.st}"><output id="o_st"></output>
-  <label for="s_use">LDR seguidos de su uso</label><input type="range" id="s_use" min="0" max="100" value="${p.use}"><output id="o_use"></output>
-  <label for="s_mis">Saltos tomados (fallo de predicción)</label><input type="range" id="s_mis" min="0" max="100" value="${p.mis}"><output id="o_mis"></output></div>
-  <div class="row"><span class="segl">Decisión del salto</span>${segHTML('penseg',[['1','Decode · 1 ciclo'],['2','Execute · 2 ciclos'],['4','Writeback · 4 ciclos']],p.pen)}<button class="btn" id="p8def">Valores del libro</button></div>
+  const d={ld:25,st:10,br:13,use:40,mis:50,pen:'2'};state.p8=state.p8||Object.assign({},d);const p=state.p8;
+  const MIX=[['ld','LDR','--i0'],['st','STR','--i2'],['br','Saltos','--i1']];
+  lab.innerHTML=`<div class="lh">Mezcla de instrucciones · suma 100 % (ejemplo 7.7)</div>
+  <div class="mixbar" id="p8mix" aria-hidden="true"></div>
+  <div class="sl8">${MIX.map(([k,t])=>`<div class="r8"><label for="s_${k}">${t}</label><input type="range" id="s_${k}" min="0" max="100" value="${p[k]}"><output id="o_${k}"></output></div>`).join('')}
+  <div class="r8"><span>Datos <span class="sub8">(el resto)</span></span><span class="sub8 i8">ADD, SUB, AND, ORR…: siempre 1 ciclo</span><output id="o_dp"></output></div></div>
+  <div class="lh">Comportamiento</div>
+  <div class="sl8"><div class="r8"><label for="s_use">De los LDR, % seguidos de su uso <span class="sub8">(1 parada)</span></label><input type="range" id="s_use" min="0" max="100" value="${p.use}"><output id="o_use"></output></div>
+  <div class="r8"><label for="s_mis">De los saltos, % tomados <span class="sub8">(fallo de predicción)</span></label><input type="range" id="s_mis" min="0" max="100" value="${p.mis}"><output id="o_mis"></output></div></div>
+  <div class="row"><span class="segl">Decisión del salto</span>${segHTML('penseg',[['2','Execute · 2 ciclos'],['4','Writeback · 4 ciclos']],p.pen)}<button class="btn" id="p8def">Valores del libro</button></div>
   <div id="p8t"></div>
   <div class="lh">De dónde sale el CPI</div><div class="cpibar" id="p8bar"></div>
   <div class="formula" id="p8f"></div>`;
-  const upd=()=>{
-    ['ld','br','st','use','mis'].forEach(k=>{p[k]=+$('#s_'+k).value;});
-    if(p.ld+p.br+p.st>100){p.st=100-p.ld-p.br;$('#s_st').value=p.st;}
-    ['ld','br','st','use','mis'].forEach(k=>{$('#o_'+k).textContent=p[k]+' %';});
+  const upd=(changed)=>{
+    ['use','mis'].forEach(k=>{p[k]=+$('#s_'+k).value;});
+    if(changed&&changed in p&&MIX.some(m=>m[0]===changed)){const others=MIX.reduce((s,[k])=>k===changed?s:s+p[k],0);p[changed]=Math.min(+$('#s_'+changed).value,100-others);$('#s_'+changed).value=p[changed];}
+    const dp=100-p.ld-p.st-p.br;
+    ['ld','st','br','use','mis'].forEach(k=>{$('#o_'+k).textContent=p[k]+' %';});$('#o_dp').textContent=dp+' %';
+    $('#p8mix').innerHTML=MIX.concat([['dp','Datos','--line-strong']]).map(([k,t,c])=>{const v=k==='dp'?dp:p[k];return v?`<div style="flex:${v} 0 0;--c:var(${c})" title="${t}: ${v} %" data-s="${v} %">${t} ${v} %</div>`:'';}).join('');
+    $('#p8mix').querySelectorAll('div').forEach(x=>{if(x.scrollWidth>x.clientWidth+1){x.textContent=x.dataset.s;if(x.scrollWidth>x.clientWidth+1)x.textContent='';}});
     const L=p.ld/100,B=p.br/100,Sx=p.st/100,Dp=1-L-B-Sx,u=p.use/100,m=p.mis/100,pen=+p.pen;
     const cl=1+u, cb=1+m*pen, cpi=L*cl+Sx+B*cb+Dp;
     const t=100e9*cpi*300e-12;const mono=84;
     $('#p8t').innerHTML=tilesHTML([[nf(cpi),'CPI medio','--accent'],[nf(t,1)+' s','10<sup>11</sup> instrucciones con T<sub>c</sub> = 300 ps','--ok'],['×'+nf(mono/t),'frente al monociclo (84 s)']]);
     const ex=L*u, eb=B*m*pen;
-    $('#p8bar').innerHTML=`<div class="b0" style="flex:1 0 0">1 ideal</div><div class="b1" style="flex:${ex} 0 0" title="paradas por LDR">${ex>=.05?'+'+nf(ex,3)+' paradas':''}</div><div class="b2" style="flex:${eb} 0 0" title="vaciados por salto">${eb>=.05?'+'+nf(eb,3)+' vaciados':''}</div>`;
+    $('#p8bar').innerHTML=`<div class="b0" style="flex:1 0 0">1 ideal</div><div class="b1" style="flex:${ex} 0 0" title="paradas por LDR">${ex/cpi>=.12?'+'+nf(ex,3)+' paradas':(ex/cpi>=.04?'+'+nf(ex,2):'')}</div><div class="b2" style="flex:${eb} 0 0" title="vaciados por salto">${eb/cpi>=.12?'+'+nf(eb,3)+' vaciados':(eb/cpi>=.04?'+'+nf(eb,2):'')}</div>`;
     $('#p8f').innerHTML=`CPI<sub>LDR</sub> = ${nf(1-u)}·1 + ${nf(u)}·2 = ${nf(cl)}<br>CPI<sub>salto</sub> = ${nf(1-m)}·1 + ${nf(m)}·${1+pen} = ${nf(cb)}<br>CPI = ${nf(L)}·${nf(cl)} + ${nf(Sx)}·1 + ${nf(B)}·${nf(cb)} + ${nf(Dp)}·1 = <span class="res">${nf(cpi,3)}</span><br>Tiempo = 10<sup>11</sup> × ${nf(cpi,3)} × 300 ps = <span class="res">${nf(t,2)} s</span>`;
   };
-  lab.querySelectorAll('input[type=range]').forEach(i=>i.oninput=upd);
-  bindSeg('penseg',x=>{p.pen=x;upd();});
-  $('#p8def').onclick=()=>{Object.assign(p,d);state.p8=p;lab8();};
-  state.keys=null;upd();
+  lab.querySelectorAll('input[type=range]').forEach(i=>i.oninput=()=>upd(i.id.slice(2)));
+  bindSeg('penseg',x=>{p.pen=x;upd(null);});
+  $('#p8def').onclick=()=>{state.p8=null;lab8();};
+  state.keys=null;upd(null);
   clearHL();
   note.className='note';note.innerHTML='El procesador completo de la figura 7.58. Cada parada o vaciado es un ciclo en el que no termina ninguna instrucción: el CPI pasa de 1 a algo más, según el programa.';
 }
@@ -1191,8 +1239,9 @@ const STEPS=[
    x:`<p>Si el procesador no tiene hardware para detectar riesgos, el compilador (o el programador) debe separar las instrucciones dependientes con <b>NOP</b>, instrucciones que no hacen nada.</p>
    <p>La regla: la instrucción que lee debe estar <b>al menos 3 posiciones</b> después de la que escribe. Así su LR coincide, como pronto, con el ER de la productora.</p>
    <p>Pruébalo en el laboratorio: añade NOP en los huecos hasta que no quede ninguna lectura incorrecta, con el mínimo número posible. Fíjate en el CPI sin contar el llenado: cada NOP lo aleja de 1.</p>
+   <p>El <b>bucle de la diapositiva 92</b> añade los saltos. Sin unidad de riesgos, el salto se resuelve en E y nadie vacía el cauce: las <b>2 instrucciones siguientes</b> se ejecutan siempre, se tome o no. Por eso el compilador pone también 2 NOP detrás de cada salto. La solución de la diapositiva 95 usa 9 NOP y tarda 36 ciclos.</p>
    <div class="aside">Este <b>interbloqueo software</b> complica la programación y cuesta rendimiento: cada NOP es un ciclo sin trabajo útil. Además, el código queda atado a un cauce concreto.</div>`,
-   leg:[['var(--bad)','lectura de un valor antiguo'],['var(--ok)','lectura correcta']],init:lab2},
+   leg:[['var(--bad)','lectura de un valor antiguo o instrucción ejecutada por error'],['var(--ok)','lectura correcta']],init:lab2},
   {t:'Anticipación',s:'Anticipación',f:'Figuras 7.50 y 7.51 · redireccionamiento (forwarding)',
    x:`<p>La suma de ADD existe desde el final del ciclo 3: está en el registro E/M (<code>ALUOutM</code>). AND no la necesita hasta que su ALU trabaja, en el ciclo 4. Basta con <b>llevarla hacia atrás</b>.</p>
    <p>Se añaden dos multiplexores de 3 entradas delante de la ALU y la <b>unidad de riesgos</b>. Para cada operando de la instrucción en E, compara su registro fuente con el destino de las instrucciones en M y W (señales Match). Si coinciden y esa instrucción escribe (RegWrite), anticipa su valor.</p>
@@ -1210,7 +1259,8 @@ const STEPS=[
   {t:'Riesgos de control',s:'Saltos',f:'Figura 7.55 · vaciado del cauce cuando el salto se toma',
    x:`<p>Con B, el procesador no sabe qué instrucción buscar a continuación: en este diseño el salto escribe el PC en ER (PCSrcW), cuatro ciclos después de buscarlo. Las escrituras en R15 crean el mismo problema.</p>
    <p>Primera opción: <b>parar el cauce</b> hasta saberlo, con 4 ciclos perdidos en cada salto. Segunda: <b>predecir</b>. Este procesador predice «no tomado» y sigue buscando en orden. Si acierta no pierde nada; si falla, vacía (flush) las 4 instrucciones buscadas por error.</p>
-   <p>Esos ciclos desperdiciados son la <b>penalización por fallo de predicción</b>. Compara las dos estrategias con el salto tomado y sin tomar.</p>
+   <p>Esos ciclos desperdiciados son la <b>penalización por fallo de predicción</b>. Compara las dos estrategias con el salto tomado (figura 7.55) y sin tomar.</p>
+   <p>El <b>bucle while</b> junta los dos casos. Suma 4 + 3 + 2 + 1 con dos saltos por vuelta: <code>BEQ fin</code> no se toma hasta la última vuelta, así que la predicción acierta casi siempre, y <code>B loop</code> se toma siempre, así que falla siempre. Al parar se pierden 4 ciclos en los 9 saltos (36 ciclos); al predecir, solo en los 5 tomados (20 ciclos).</p>
    <div class="aside">Los procesadores reales usan predictores de saltos que aciertan mucho más que «no tomado siempre». Pero cuanto antes se decida el salto, menos se pierde al fallar: es el paso siguiente.</div>`,
    leg:[['var(--ok)','escritura del PC'],['var(--bad)','etapas vaciadas']],init:()=>brLab(5)},
   {t:'Decidir el salto en Execute',s:'Salto en E',f:'Figuras 7.56 y 7.57 · decisión temprana del salto',
@@ -1272,7 +1322,5 @@ go(fromH(),true);
 })();
 </script>
 
-<script data-goatcounter="https://juanjoual.goatcounter.com/count"
-        async src="//gc.zgo.at/count.js"></script>
 </body>
 </html>
