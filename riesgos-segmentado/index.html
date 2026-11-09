@@ -248,7 +248,7 @@ table.mc td.cur:not(.k){background:color-mix(in srgb,var(--accent) 8%,transparen
 .edit{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
 @media (max-width:620px){.edit{grid-template-columns:minmax(0,1fr)}}
 textarea#src{width:100%;min-height:230px;resize:vertical;border:1px solid var(--line-strong);border-radius:5px;background:var(--sunk);padding:8px 10px;font:13px/1.55 var(--f-mono);tab-size:8}
-select#preset{border:1px solid var(--line-strong);border-radius:5px;background:var(--panel);padding:6px 8px;font-weight:600;font-size:13.5px;max-width:100%}
+select#preset,select#p2ex{border:1px solid var(--line-strong);border-radius:5px;background:var(--panel);padding:6px 8px;font-weight:600;font-size:13.5px;max-width:100%}
 .err{color:var(--bad);font:600 13px var(--f-mono)}
 .eqs{margin:0;padding:10px 12px;border-radius:5px;background:var(--sunk);border:1px solid var(--line);font:12.5px/1.8 var(--f-mono);overflow-x:auto;white-space:pre}
 .eqs .v1{color:var(--ctl);font-weight:700}
@@ -555,7 +555,7 @@ function parseProg(text){
 const pendLbl=[];
 function condOk(c,f){switch(c){case'EQ':return f.Z;case'NE':return!f.Z;case'CS':case'HS':return f.C;case'CC':case'LO':return!f.C;case'MI':return f.N;case'PL':return!f.N;case'VS':return f.V;case'VC':return!f.V;case'HI':return f.C&&!f.Z;case'LS':return!f.C||f.Z;case'GE':return f.N===f.V;case'LT':return f.N!==f.V;case'GT':return!f.Z&&f.N===f.V;case'LE':return f.Z||f.N!==f.V;default:return true;}}
 function runRef(prog,limit){
-  limit=limit||160;
+  limit=limit||400;
   const R=new Array(16).fill(0),f={N:false,Z:false,C:false,V:false},mem=new Map(),lit={};let nl=0x1000;
   const trace=[];let pc=0,trunc=false;
   const setNZ=r=>{f.N=(r>>>31)===1;f.Z=(r>>>0)===0;};
@@ -610,7 +610,7 @@ function simulate(prog,trace,o){
   if(!trace.length)return {rows,cyc,cycles:0,stats:{}};
   let S={F:fetch(),D:null,E:null,M:null,W:null};
   const ST=['F','D','E','M','W'];
-  for(let c=1;c<=700;c++){
+  for(let c=1;c<=3000;c++){
     ST.forEach(st=>{const x=S[st];if(x&&x.cells){x.cells[c]={st,stall:x.lastSt===st};x.lastSt=st;}});
     const {F,D,E,M,W}=S;const sig={},ev={};
     sig.RA1E=isL(E)?E.I.srcA:null;sig.RA2E=isL(E)?E.I.srcB:null;
@@ -977,6 +977,48 @@ ORR R9, R6, R1
 SUB R10, R1, R7
 SUB R11, R1, R8`;
 const ADDR55=i=>hex([0x20,0x24,0x28,0x2C,0x30,0x64][i]??(0x20+i*4));
+const PREL10=`        MOV R5, #5
+        MOV R6, #0
+        MOV R7, #100
+        MOV R1, #20
+loop:   LDR R9, [R6]
+        ADD R9, R9, R1
+        STR R9, [R7]
+        ADD R6, R6, #4
+        ADD R7, R7, #4
+        ADD R5, R5, #-1
+        CMP R5, #0
+        BNE loop`;
+const PREL11=`        ADD R3, R3, #10
+        SUB R2, R2, R2
+        SUB R1, R1, R1
+loop:   CMP R2, R3
+        BGT fin
+        ADD R1, R1, R2
+        ADD R2, R2, #1
+        B loop
+fin:    STR R1, [R0, #4]`;
+const PREL12=`        MOV R0, #0
+        ADD R1, R0, #10
+        MOV R3, #200
+loop:   ADD R3, R3, #4
+        LDR R2, [R3]
+        ADD R2, R2, R7
+        STR R2, [R3]
+        ADD R1, R1, #-1
+        CMP R1, #0
+        BNE loop`;
+const PREL13=`        MOV R3, #0
+        ADD R5, R3, #20
+        MOV R7, #256
+loop:   ADD R5, R5, #-2
+        SUB R7, R7, #4
+        LDR R6, [R7]
+        ADD R6, R6, #15
+        LSL R6, R6, #2
+        STR R6, [R7]
+        CMP R5, #0
+        BNE loop`;
 const PRESETS=[
   ['Programa de la demo (pasos 1 a 3)',PDEMO],
   ['Programa con LDR (paso 4)',PLDR],
@@ -1009,6 +1051,10 @@ STR R1, [R2, #0]
 ADD R3, R1, R0
 SUB R5, R7, R7
 SUB R0, R7, R7`],
+  ['Relación T3 · Ejercicio 10',PREL10],
+  ['Relación T3 · Ejercicio 11',PREL11],
+  ['Relación T3 · Ejercicio 12',PREL12],
+  ['Relación T3 · Ejercicio 13',PREL13],
   ['Bucle de las diapositivas 92–96',`        MOV R5, #2
         LDR R6, =ARRAY
 loop:   LDR R8, [R6]
@@ -1051,7 +1097,11 @@ loop:   LDR R8, [R6]
         BNE loop`;
 const NOPEX={
   demo:{t:'Programa de la demo',src:PDEMO,after:false},
-  bucle:{t:'Bucle de la diapositiva 92',src:PSLIDE,after:true,sol:[0,2,2,2,0,1,0,0,2]}
+  bucle:{t:'Bucle de la diapositiva 92',src:PSLIDE,after:true,sol:[0,2,2,2,0,1,0,0,2]},
+  e10:{t:'Relación T3 · Ejercicio 10',src:PREL10,after:true},
+  e11:{t:'Relación T3 · Ejercicio 11',src:PREL11,after:false},
+  e12:{t:'Relación T3 · Ejercicio 12',src:PREL12,after:true},
+  e13:{t:'Relación T3 · Ejercicio 13',src:PREL13,after:true}
 };
 function lab2(){
   const ex=state.p2ex||'demo';const X=NOPEX[ex];
@@ -1084,12 +1134,12 @@ function lab2(){
     $('#p2prog').querySelectorAll('button').forEach(b=>b.onclick=()=>{const g=+b.dataset.g;nops[g]=Math.max(0,Math.min(2,nops[g]+ +b.dataset.d));render();});
     bindRunner();redraw();
   };
-  lab.innerHTML=`<div class="row"><span class="segl">Programa</span>${segHTML('p2seg',Object.keys(NOPEX).map(k=>[k,NOPEX[k].t]),ex)}</div>
+  lab.innerHTML=`<div class="row"><label class="segl" for="p2ex">Programa</label><select id="p2ex">${Object.keys(NOPEX).map(k=>`<option value="${k}"${k===ex?' selected':''}>${NOPEX[k].t}</option>`).join('')}</select></div>
   <div class="lh">Pulsa los huecos para añadir o quitar NOP</div><div id="p2prog"></div>
   <div id="p2st" class="box"></div><div id="p2tiles"></div>
   <div class="row"><button class="btn good" id="p2sol">Ver la solución${X.sol?' (diapositiva 95)':''}</button><button class="btn" id="p2clr">Quitar todos los NOP</button></div>
   ${runnerHTML()}<div class="lh">Diagrama de múltiples ciclos</div><div class="mcw" id="mc"></div>${MKEYS}`;
-  bindSeg('p2seg',x=>{state.p2ex=x;state.v=null;lab2();});
+  $('#p2ex').onchange=ev=>{state.p2ex=ev.target.value;state.v=null;lab2();};
   $('#p2sol').onclick=()=>{sol.forEach((x,i)=>nops[i]=x);render();};
   $('#p2clr').onclick=()=>{nops.fill(0);render();};
   state.v=null;render();
@@ -1144,7 +1194,7 @@ function brLab(step){
 }
 /* ---------- PASO 7: laboratorio ---------- */
 function lab7(){
-  state.p7=state.p7||{src:PRESETS[11][1],mode:'hu',preset:11};
+  state.p7=state.p7||{src:PRESETS[15][1],mode:'hu',preset:15};
   const L=state.p7;
   lab.innerHTML=`<div class="row"><label class="segl" for="preset">Ejemplo</label><select id="preset">${PRESETS.map((p,i)=>`<option value="${i}"${i===L.preset?' selected':''}>${p[0]}</option>`).join('')}<option value="-1"${L.preset===-1?' selected':''}>Mi programa</option></select></div>
   <div class="edit"><div style="display:flex;flex-direction:column;gap:6px;min-width:0"><label class="lh" for="src">Código ARM (editable)</label><textarea id="src" spellcheck="false" autocapitalize="off" autocorrect="off"></textarea><div class="err" id="perr" hidden></div></div>
@@ -1183,7 +1233,7 @@ function lab7(){
     if(L.mode==='none')r=(x.stale||x.wrongExec)?`<div class="box bad"><b>Este código falla sin gestión de riesgos:</b> ${x.stale} lectura${x.stale===1?'':'s'} de un valor antiguo${x.wrongExec?' y '+x.wrongExec+' instrucci'+(x.wrongExec===1?'ón':'ones')+' ejecutada'+(x.wrongExec===1?'':'s')+' por error tras un salto':''}. Los ${simX.cycles} ciclos no sirven de nada.</div>`:`<div class="box good">Este código no tiene riesgos: funciona incluso sin gestión de riesgos, en ${simX.cycles} ciclos.</div>`;
     else if(L.mode==='nop')r=`<div class="box warn">El compilador separa cada par dependiente con NOP (la lectora debe ir 3 posiciones después) y pone 2 NOP detrás de cada salto. ${np.filter(i=>i.ins).length} NOP en el código, ${simN.stats.nops} ejecutados.</div>`;
     else r=`<div class="box">${s.fwd} anticipaci${s.fwd===1?'ón':'ones'} · ${s.stalls} parada${s.stalls===1?'':'s'} por LDR · ${s.taken} salto${s.taken===1?'':'s'} tomado${s.taken===1?'':'s'} (${s.taken*2} ciclos de vaciado). Ciclos = ${n} + 4 + ${s.stalls} + ${s.taken*2} = <b>${simH.cycles}</b>.</div>`;
-    if(tr.trunc)r+='<div class="box warn">El programa ejecuta más de 160 instrucciones: se muestra solo el principio.</div>';
+    if(tr.trunc)r+='<div class="box warn">El programa ejecuta más de 400 instrucciones: se muestra solo el principio.</div>';
     $('#p7res').innerHTML=r;
     bindRunner();redraw();
   }
