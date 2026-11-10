@@ -18,7 +18,7 @@
       --paper: #f2f4f8; --panel: #ffffff; --sunk: #f7f8fb;
       --ink: #152033; --muted: #566377; --line: #d6dce5; --line-strong: #9aa6b8;
       --accent: #2f6195; --accent-ink: #ffffff;
-      --i0: #2563c4; --i1: #cf5f1c; --i2: #2c8a4d; --i3: #c02f80; --i4: #6a4bd0; --i5: #a67a0e; --i6: #11809a;
+      --i0: #2563c4; --i1: #cf5f1c; --i2: #2c8a4d; --i3: #c02f80; --i4: #6a4bd0; --i5: #a67a0e; --i6: #11809a; --i7: #9c3b3b;
       --f-display: "Barlow Condensed", "Arial Narrow", sans-serif;
       --f-body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
       --f-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
@@ -29,7 +29,7 @@
         --paper: #0e131b; --panel: #151c27; --sunk: #111821;
         --ink: #e2e8f1; --muted: #95a2b6; --line: #273244; --line-strong: #56637a;
         --accent: #7fa8de; --accent-ink: #0b1224;
-        --i0: #6aa2ec; --i1: #f2935c; --i2: #5fc187; --i3: #ea72b8; --i4: #a38bf2; --i5: #e2b24b; --i6: #4dc1d2;
+        --i0: #6aa2ec; --i1: #f2935c; --i2: #5fc187; --i3: #ea72b8; --i4: #a38bf2; --i5: #e2b24b; --i6: #4dc1d2; --i7: #e47b7b;
         color-scheme: dark;
       }
     }
@@ -297,7 +297,7 @@
     /* =========================================================
        EDITA AQUÍ TUS DEMOS
        - carpeta: nombre de la carpeta en el repo (sin "/" delante)
-       - color: i0 a i6 (la franja de color de la tarjeta)
+       - color: i0 a i7 (la franja de color de la tarjeta)
        Para añadir una demo, copia un bloque { ... } y cámbialo.
        ========================================================= */
     const DEMOS = [
@@ -335,6 +335,13 @@
         descripcion: "Continuación de la demo anterior: detecta los riesgos de datos y de control en el mismo camino de datos y añade, pieza a pieza, la unidad de riesgos que los resuelve con anticipación, bloqueos y vaciados. Del CPI ideal de 1 al 1,23 de SPECINT2000, siguiendo la sección 7.5.3.",
         etiquetas: ["Segmentación", "Riesgos", "Hazard Unit"],
         color: "i6"
+      },
+      {
+        carpeta: "diagrama-multiciclo",
+        titulo: "Diagrama de múltiples ciclos",
+        descripcion: "Practica la plantilla de la transparencia 98: escribe en cada fila la instrucción o el stall que mete la unidad de riesgos, dibuja las flechas de anticipación entre etapas y comprueba el resultado. Cada fallo se explica, y los ciclos y el CPI se calculan solos, con y sin unidad de riesgos.",
+        etiquetas: ["Segmentación", "Riesgos", "Ejercicio"],
+        color: "i7"
       },
       {
         carpeta: "monociclo-multiciclo-segmentado",

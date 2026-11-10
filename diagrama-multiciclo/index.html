@@ -1,0 +1,1096 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Diagrama de múltiples ciclos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@400;600&family=Source+Sans+3:wght@400;600;700&display=swap">
+<style>
+/* Misma familia visual que «Del monociclo al segmentado» y «Riesgos del segmentado» */
+:root{
+  --paper:#f2f4f8; --panel:#ffffff; --sunk:#f7f8fb; --ink:#152033; --muted:#566377; --line:#d6dce5; --line-strong:#9aa6b8;
+  --accent:#2148c9; --accent-ink:#ffffff;
+  --ok:#0a8273; --over:#b47600; --bad:#c0392b; --ctl:#7a3fc0; --fw:#0a8273;
+  --i0:#2563c4; --i1:#cf5f1c; --i2:#2c8a4d; --i3:#c02f80; --i4:#6a4bd0; --i5:#a67a0e;
+  --f-display:"Barlow Condensed","Arial Narrow",sans-serif;
+  --f-body:"Source Sans 3","Segoe UI",system-ui,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){ :root{
+  --paper:#0e131b; --panel:#151c27; --sunk:#111821; --ink:#e2e8f1; --muted:#95a2b6; --line:#273244; --line-strong:#56637a;
+  --accent:#7d9fff; --accent-ink:#0b1224;
+  --ok:#35c4b2; --over:#f0b42a; --bad:#ff6e62; --ctl:#b590ff; --fw:#35c4b2;
+  --i0:#6aa2ec; --i1:#f2935c; --i2:#5fc187; --i3:#ea72b8; --i4:#a38bf2; --i5:#e2b24b;
+  color-scheme:dark;
+}}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.5 var(--f-body);-webkit-font-smoothing:antialiased;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:20;background:var(--paper)}
+.wrap{max-width:1380px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0}
+h2{font-size:26px;font-weight:700;letter-spacing:.01em;line-height:1.1}
+h3{font-size:19px;font-weight:700;letter-spacing:.01em}
+p{margin:0}
+code,.mono{font-family:var(--f-mono);font-size:.88em}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+a{color:var(--accent)}
+
+.top{border-bottom:1px solid var(--line);background:var(--panel)}
+.top .wrap{padding-block:24px 18px;display:flex;flex-wrap:wrap;gap:18px 40px;align-items:flex-end;justify-content:space-between}
+.top .intro{min-width:0;flex:1 1 520px}
+.eyebrow{font:600 12.5px var(--f-display);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+h1{font-size:clamp(32px,4.4vw,50px);line-height:1;font-weight:700;margin-top:6px}
+.lede{margin-top:10px;max-width:74ch;color:var(--muted)}
+.status{display:flex;gap:8px;flex-wrap:wrap}
+.chip.bad{border-color:var(--over);background:color-mix(in srgb,var(--over) 10%,var(--panel))}
+.chip.bad .v{color:var(--over)}
+.chip .v{font-size:19px}
+.cyc{margin-top:16px;padding-top:14px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:10px}
+.cynote{font-size:14px;color:var(--muted);max-width:90ch}
+.cmpw{overflow-x:auto}
+.cmpt{border-collapse:collapse;font-size:14.5px;min-width:520px}
+.cmpt th,.cmpt td{border-bottom:1px solid var(--line);padding:6px 12px;text-align:right;font-variant-numeric:tabular-nums}
+.cmpt th:first-child,.cmpt td:first-child{text-align:left}
+.cmpt thead th{font:600 12px var(--f-display);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.cmpt tr.cur td{background:color-mix(in srgb,var(--accent) 8%,var(--panel));font-weight:600}
+.chip{display:flex;flex-direction:column;gap:1px;padding:7px 12px;border:1px solid var(--line);border-radius:5px;background:var(--sunk);min-width:112px}
+.chip .l{font:600 11.5px var(--f-display);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.chip .v{font:700 22px/1.1 var(--f-display);font-variant-numeric:tabular-nums}
+.chip.ok{border-color:var(--ok);background:color-mix(in srgb,var(--ok) 10%,var(--panel))}
+.chip.ok .v{color:var(--ok)}
+
+.steps{position:sticky;top:env(safe-area-inset-top,0px);z-index:15;background:color-mix(in srgb,var(--paper) 92%,transparent);backdrop-filter:blur(6px);border-bottom:1px solid var(--line)}
+.steps .wrap{display:flex;gap:6px;overflow-x:auto;padding-block:10px;scrollbar-width:thin}
+.stp{flex:1 0 auto;display:flex;align-items:center;gap:8px;padding:6px 10px 6px 6px;border:1px solid var(--line);border-radius:5px;background:var(--panel);cursor:pointer;text-align:left;min-width:0}
+.stp:hover{border-color:var(--accent)}
+.stp .n{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font:700 13px var(--f-display);border:1px solid var(--line-strong);color:var(--muted);flex-shrink:0}
+.stp .t{font:600 14.5px var(--f-display);letter-spacing:.02em;white-space:nowrap}
+.stp.done .n{background:color-mix(in srgb,var(--ok) 16%,var(--panel));border-color:var(--ok);color:var(--ok)}
+.stp.cur{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 9%,var(--panel))}
+.stp.cur .n{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.stp.lock{opacity:.55}
+
+main.wrap{padding-block:16px 48px;display:flex;flex-direction:column;gap:16px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:16px;min-width:0}
+.head{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:flex-end;justify-content:space-between;margin-bottom:12px}
+.head .ti{min-width:0;flex:1 1 380px}
+.head .k{font:600 12.5px var(--f-display);letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+.head .fig{font-size:14px;color:var(--muted);margin-top:3px;max-width:80ch}
+.btn{border:1px solid var(--line-strong);background:var(--panel);border-radius:5px;padding:6px 12px;font-weight:600;font-size:13.5px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{filter:brightness(1.08);color:var(--accent-ink)}
+.btn:disabled{opacity:.4;cursor:default;pointer-events:none}
+.row{display:flex;gap:8px 12px;flex-wrap:wrap;align-items:center}
+.seg{display:inline-flex;border:1px solid var(--line-strong);border-radius:5px;overflow:hidden;background:var(--sunk);flex-wrap:wrap}
+.seg button{border:0;background:none;padding:6px 12px;font-weight:600;font-size:13.5px;cursor:pointer;border-right:1px solid var(--line)}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed=true]{background:var(--accent);color:var(--accent-ink)}
+.fld{display:flex;flex-direction:column;gap:3px}
+.fld>span{font:600 12px var(--f-display);letter-spacing:.11em;text-transform:uppercase;color:var(--muted)}
+select{border:1px solid var(--line-strong);border-radius:5px;background:var(--panel);padding:6px 8px;font-weight:600;font-size:13.5px;max-width:100%}
+.ctl{display:flex;gap:12px 20px;flex-wrap:wrap;align-items:flex-end}
+
+/* Código del ejercicio */
+.cfg{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:16px;align-items:start;margin-top:14px}
+@media (max-width:900px){.cfg{grid-template-columns:minmax(0,1fr)}}
+.listing{margin:0;padding:10px 12px;border-radius:5px;background:var(--sunk);border:1px solid var(--line);font:13px/1.7 var(--f-mono);overflow-x:auto;white-space:pre}
+.listing .lb{color:var(--accent);font-weight:600}
+.listing .cm{color:var(--muted)}
+textarea#src{width:100%;min-height:200px;resize:vertical;border:1px solid var(--line-strong);border-radius:5px;background:var(--sunk);padding:8px 10px;font:13px/1.55 var(--f-mono);tab-size:8}
+.err{color:var(--bad);font:600 13px var(--f-mono)}
+details.edit summary{cursor:pointer;font-weight:600;color:var(--accent);font-size:14px}
+details.edit[open] summary{margin-bottom:8px}
+.facts{display:flex;flex-direction:column;gap:6px;font-size:14.5px}
+.facts .aside{font-size:14px;color:var(--muted);padding:10px 12px;border:1px dashed var(--line-strong);border-radius:5px}
+.facts .aside b{color:var(--ink)}
+
+/* Paleta */
+.pal{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.pi{display:inline-flex;align-items:center;gap:7px;padding:4px 10px 4px 6px;border:1px solid var(--line);border-left:4px solid var(--c);border-radius:4px;background:var(--panel);cursor:pointer;font:12.5px var(--f-mono);white-space:nowrap}
+.pi:hover{border-color:var(--accent);border-left-color:var(--c)}
+.pi .kn{font:700 11px var(--f-display);color:var(--muted);min-width:1.2em;text-align:center}
+.pi .lb{color:var(--accent);font-weight:600}
+.pi.special{--c:var(--ctl);font-weight:600;color:var(--ctl);background:color-mix(in srgb,var(--ctl) 8%,var(--panel))}
+.pi.clear{--c:var(--line-strong);color:var(--muted);font-family:var(--f-body);font-weight:600}
+.howto{font-size:14px;color:var(--muted);margin-bottom:10px;max-width:96ch}
+.howto b{color:var(--ink)}
+
+/* Diagrama: hoja blanca como en las transparencias */
+.gw{--s-ink:#1d1f24;--s-mut:#6b7380;--s-line:#c9ced6;--s-grid:#e3e6eb;--s-fill:#cfe0f3;--s-str:#26405f;--s-acc:#1f5fbf;--s-ok:#0a7d6e;--s-bad:#c0392b;--s-miss:#c27c00;--s-stl:#7a3fc0;--s-act:#e8f0fd;
+  overflow:auto;border:1px solid var(--line);border-radius:5px;max-height:74vh;background:#fff;color:var(--s-ink);overscroll-behavior:contain;color-scheme:light;position:relative}
+.gt{display:grid;width:max-content;position:relative}
+.gcorner{position:sticky;top:0;left:0;z-index:8;background:#fff;border-right:1px solid var(--s-line);border-bottom:1px solid var(--s-line);display:flex;align-items:flex-end;padding:0 10px 6px;font:italic 600 13px var(--f-body);color:var(--s-mut)}
+.ghdr{position:sticky;top:0;z-index:6;background:#fff;border-bottom:1px solid var(--s-line)}
+.ghdr svg{display:block}
+.ghdr text{font:600 13px var(--f-body);fill:var(--s-ink);text-anchor:middle}
+.ghdr .tt{font:italic 600 12px var(--f-body);fill:var(--s-mut);text-anchor:start}
+.glab{position:sticky;left:0;z-index:5;background:#fff;border-right:1px solid var(--s-line)}
+.rl{display:flex;align-items:center;gap:6px;padding:0 6px 0 4px;cursor:pointer;font:15px var(--f-body);min-width:0;border-left:4px solid transparent;color:var(--s-ink)}
+.rl .rn{font:600 11px var(--f-display);color:var(--s-mut);min-width:1.7em;text-align:right}
+.rl .rt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-left:10px}
+@media (max-width:600px){.rl{font-size:13px}.rl .rt{padding-left:4px}}
+.rl .rt.ph{color:var(--s-mut);font-style:italic;font-size:13px}
+.rl .rt.stl{color:var(--s-stl);font-weight:700}
+.rl .rt.nopt{color:var(--s-mut);font-weight:700}
+.rl .mk{font:700 14px var(--f-body);width:1em;text-align:center}
+.rl.act{background:var(--s-act);box-shadow:inset 0 0 0 2px var(--s-acc)}
+.rl.ok .mk{color:var(--s-ok)} .rl.bad .mk{color:var(--s-bad)}
+.rl.bad{background:#fbeceb}
+.rl.bad.act{background:#f8e0de}
+svg.dg{display:block;touch-action:pan-x pan-y;user-select:none;-webkit-user-select:none}
+svg.dg .vl{stroke:var(--s-grid);stroke-width:1;stroke-dasharray:3 3}
+svg.dg .rowact{fill:var(--s-act)}
+svg.dg .wire{stroke:var(--s-str);stroke-width:1.2}
+svg.dg .ic{stroke:var(--s-str);stroke-width:1.3;fill:#fff}
+svg.dg .preg{fill:#dfe5ee;stroke:var(--s-str);stroke-width:1}
+svg.dg .rw.tpl .preg{stroke:#9aa3b0;fill:#eef1f5}
+svg.dg .rw.bub .preg{stroke:var(--s-stl);stroke-dasharray:2 2;fill:#fff}
+svg.dg .rw.nop .preg{stroke:#9aa3b0;stroke-dasharray:2 2;fill:#fff}
+svg.dg .ic.on{fill:var(--s-fill)}
+svg.dg .half{fill:var(--s-fill);stroke:none}
+svg.dg .mid{stroke:var(--s-str);stroke-width:.9;stroke-dasharray:2 2}
+svg.dg .lb{font:700 10.5px var(--f-body);fill:var(--s-str);text-anchor:middle;dominant-baseline:central;pointer-events:none}
+svg.dg .rg{font:600 8.5px var(--f-mono);fill:var(--s-mut);pointer-events:none}
+svg.dg .rw.tpl .ic,svg.dg .rw.tpl .wire{stroke:#9aa3b0}
+svg.dg .rw.tpl .lb{fill:#8a93a1}
+svg.dg .rw.bub .ic{stroke:var(--s-stl);stroke-dasharray:3 2;fill:#fff}
+svg.dg .rw.bub .wire{stroke:var(--s-stl);stroke-dasharray:3 2}
+svg.dg .rw.bub .lb{fill:var(--s-stl)}
+svg.dg .rw.nop .ic,svg.dg .rw.nop .wire{stroke:#9aa3b0;stroke-dasharray:3 2}
+svg.dg .rw.nop .lb{fill:#8a93a1}
+svg.dg .hitc{fill:transparent;cursor:pointer}
+.ph2 svg.dg .hitc.can{cursor:crosshair;touch-action:manipulation}
+.ph2 svg.dg .stg.can:hover .ic{stroke:var(--s-acc);stroke-width:2.2}
+svg.dg .stg.pick .ic{stroke:var(--s-acc);stroke-width:3}
+svg.dg .ar{pointer-events:none}
+svg.dg .ar .ln{fill:none;stroke:var(--s-acc);stroke-width:2.4;stroke-linejoin:round;stroke-linecap:round}
+svg.dg .ar .hd,svg.dg .ar .dt{fill:var(--s-acc)}
+svg.dg .ar.ok .ln{stroke:var(--s-ok)} svg.dg .ar.ok .hd,svg.dg .ar.ok .dt{fill:var(--s-ok)}
+svg.dg .ar.bad .ln{stroke:var(--s-bad);stroke-dasharray:6 3} svg.dg .ar.bad .hd,svg.dg .ar.bad .dt{fill:var(--s-bad)}
+svg.dg .ar.miss .ln{stroke:var(--s-miss);stroke-dasharray:2 3} svg.dg .ar.miss .hd,svg.dg .ar.miss .dt{fill:var(--s-miss)}
+svg.dg .ar .rgl{font:700 9px var(--f-mono);fill:var(--s-acc);paint-order:stroke;stroke:#fff;stroke-width:3px}
+svg.dg .ar.ok .rgl{fill:var(--s-ok)} svg.dg .ar.bad .rgl{fill:var(--s-bad)} svg.dg .ar.miss .rgl{fill:var(--s-miss)}
+svg.dg .hit{pointer-events:stroke;stroke:transparent;stroke-width:16;fill:none;cursor:pointer}
+svg.dg .ring{fill:color-mix(in srgb,var(--s-acc) 16%,transparent);stroke:var(--s-acc);stroke-width:2;animation:pulse 1.1s ease-in-out infinite}
+@keyframes pulse{50%{stroke-width:4;r:21px}}
+svg.dg .rub{stroke:var(--s-acc);stroke-width:2;stroke-dasharray:5 4;fill:none;pointer-events:none}
+
+.toast{position:fixed;left:50%;width:max-content;bottom:max(16px,env(safe-area-inset-bottom,0px));transform:translate(-50%,140%);max-width:min(680px,calc(100vw - 24px));z-index:50;padding:10px 14px;border-radius:6px;background:var(--panel);color:var(--ink);border:1px solid var(--line-strong);border-left:5px solid var(--accent);box-shadow:0 8px 28px rgba(0,0,0,.18);font-size:14.5px;transition:transform .25s ease;pointer-events:none}
+.toast.show{transform:translate(-50%,0)}
+.toast.warn{border-left-color:var(--over)} .toast.bad{border-left-color:var(--bad)} .toast.good{border-left-color:var(--ok)}
+.acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:center}
+.acts .sp{flex:1}
+.note{margin:0 0 10px;padding:9px 12px;border-radius:5px;background:var(--sunk);border:1px solid var(--line);border-left:4px solid var(--accent);font-size:14.5px;min-height:2.9em}
+.note.bad{border-left-color:var(--bad)} .note.good{border-left-color:var(--ok)} .note.warn{border-left-color:var(--over)}
+.note code{font-weight:600}
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:10px;font-size:13px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.legend i{display:inline-block;width:22px;height:14px;border-radius:3px}
+.legend svg{width:30px;height:20px;vertical-align:middle}
+.khint{font-size:13px;color:var(--muted);display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}
+kbd{font:600 11.5px var(--f-mono);padding:1px 6px;border:1px solid var(--line-strong);border-bottom-width:2px;border-radius:4px;background:var(--panel);color:var(--ink)}
+
+/* Lista de anticipaciones */
+.fwl{display:flex;flex-direction:column;gap:5px;margin-top:10px}
+.fwi{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;align-items:center;padding:6px 10px;border-radius:5px;border:1px solid var(--line);font-size:14px;background:var(--panel)}
+.fwi .s{font:700 12px var(--f-display);letter-spacing:.08em;text-transform:uppercase;padding:2px 8px;border-radius:3px;white-space:nowrap}
+.fwi .s.ok{background:color-mix(in srgb,var(--ok) 16%,var(--panel));color:var(--ok)}
+.fwi .s.bad{background:color-mix(in srgb,var(--bad) 16%,var(--panel));color:var(--bad)}
+.fwi .s.miss{background:color-mix(in srgb,var(--over) 16%,var(--panel));color:var(--over)}
+.fwi .s.pend{background:var(--sunk);color:var(--muted)}
+.fwi code{font-weight:600}
+
+/* Ciclos */
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:16px;align-items:start}
+@media (max-width:1000px){.two{grid-template-columns:minmax(0,1fr)}}
+.explain{display:flex;flex-direction:column;gap:10px;max-width:70ch;min-width:0}
+.explain p{font-size:15.5px}
+.explain ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:5px}
+.explain .aside{font-size:14px;color:var(--muted);padding:10px 12px;border:1px dashed var(--line-strong);border-radius:5px}
+.explain .aside b{color:var(--ink)}
+.qs{display:flex;flex-direction:column;gap:12px}
+.q{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.q label{font-weight:600;min-width:12ch}
+.q input{width:110px;border:1px solid var(--line-strong);border-radius:5px;background:var(--sunk);padding:6px 9px;font:600 15px var(--f-mono)}
+.q input.ok{border-color:var(--ok);background:color-mix(in srgb,var(--ok) 10%,var(--panel))}
+.q input.bad{border-color:var(--bad);background:color-mix(in srgb,var(--bad) 8%,var(--panel))}
+.q .r{font-size:14px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:8px}
+.tile{padding:10px 12px;border-radius:5px;background:var(--sunk);border:1px solid var(--line);border-top:3px solid var(--tc,var(--line-strong))}
+.tile .tv{font:700 28px/1.05 var(--f-display);font-variant-numeric:tabular-nums}
+.tile .tl{font-size:12.5px;color:var(--muted);margin-top:2px}
+.formula{padding:10px 12px;border-radius:5px;background:var(--sunk);border:1px solid var(--line);font:13px/1.8 var(--f-mono);overflow-x:auto}
+.formula .res{color:var(--accent);font-weight:600}
+.hidden{display:none!important}
+.foot{color:var(--muted);font-size:13px;padding-top:4px}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <div class="intro">
+      <div class="eyebrow">Tema 3 · 3.4 Gestión de riesgos · Transparencia 98</div>
+      <h1>Diagrama de múltiples ciclos</h1>
+      <p class="lede">Practica la plantilla de la transparencia 98: escribe en cada fila la instrucción que entra en el cauce o el <b>stall</b> que mete la unidad de riesgos, dibuja las flechas de las <b>anticipaciones</b> entre etapas y comprueba el resultado: cada fallo se explica con su porqué, y los ciclos y el CPI se calculan solos. Si quieres ver el cauce por dentro, está en <a href="https://juanjoual.github.io/ac/riesgos-segmentado/">Riesgos del segmentado</a>.</p>
+    </div>
+  </div>
+</header>
+
+
+<main class="wrap">
+  <section class="panel" aria-labelledby="exT">
+    <div class="head">
+      <div class="ti">
+        <div class="k">Ejercicio</div>
+        <h2 id="exT">Ejemplo de las transparencias 92 a 98</h2>
+        <div class="fig" id="exF"></div>
+      </div>
+      <div class="ctl">
+        <label class="fld"><span>Código</span>
+          <select id="preset"></select></label>
+        <div class="fld"><span>Procesador</span>
+          <div class="seg" id="modeSeg" role="group" aria-label="Procesador">
+            <button type="button" data-m="hu" aria-pressed="true">Con unidad de riesgos</button>
+            <button type="button" data-m="nop" aria-pressed="false">Sin unidad (NOP)</button>
+          </div></div>
+        <label class="fld"><span>Plantilla</span>
+          <select id="lim">
+            <option value="0">Programa completo</option>
+            <option value="24">24 filas · 28 ciclos</option>
+          </select></label>
+      </div>
+    </div>
+    <div class="cfg">
+      <div>
+        <pre class="listing" id="listing"></pre>
+        <details class="edit" id="editBox" style="margin-top:10px">
+          <summary>Escribir otro código</summary>
+          <textarea id="src" spellcheck="false" aria-label="Código ensamblador"></textarea>
+          <div class="row" style="margin-top:8px"><button class="btn primary" id="load" type="button">Cargar este código</button><span class="err" id="srcErr"></span></div>
+        </details>
+      </div>
+      <div class="facts" id="facts"></div>
+    </div>
+  </section>
+
+  <section class="panel" id="work">
+    <div class="head">
+      <div class="ti">
+        <div class="k">Plantilla de la transparencia 98</div>
+        <h2>Instrucciones, stalls y anticipaciones</h2>
+      </div>
+      <div class="status" aria-label="Estado">
+        <div class="chip" id="chRows"><span class="l">Filas</span><span class="v">—</span></div>
+        <div class="chip" id="chFw"><span class="l">Anticipaciones</span><span class="v">—</span></div>
+      </div>
+    </div>
+    <p class="howto" id="howto"></p>
+    <div class="pal" id="pal"></div>
+    <div class="note" id="note" role="status" aria-live="polite"></div>
+    <div class="gw" id="gw"><div class="gt" id="grid"></div></div>
+    <div class="legend" id="legend"></div>
+    <div class="acts">
+      <button class="btn primary" id="check" type="button">Comprobar</button>
+      <button class="btn" id="hint" type="button">Pista</button>
+      <button class="btn" id="solve" type="button">Ver solución</button>
+      <button class="btn" id="clearAr" type="button">Borrar flechas</button>
+      <button class="btn" id="clear" type="button">Borrar todo</button>
+      <span class="sp"></span>
+      <span class="khint" id="keys"></span>
+    </div>
+    <div class="fwl" id="fwl"></div>
+
+    <div class="cyc" id="cyc">
+      <h3>Ciclos y CPI</h3>
+      <div class="tiles" id="tiles"></div>
+      <div class="formula" id="formula"></div>
+      <p class="cynote" id="cyNote"></p>
+      <h3 style="margin-top:6px">Con y sin unidad de riesgos</h3>
+      <div class="row"><label class="fld" style="flex-direction:row;align-items:center;gap:8px"><span>Frecuencia</span><input id="freq" type="number" min="1" step="1" value="1200" style="width:100px;border:1px solid var(--line-strong);border-radius:5px;background:var(--sunk);padding:5px 8px;font:600 14px var(--f-mono)"> MHz</label></div>
+      <div class="cmpw"><table class="cmpt" id="cmpt"></table></div>
+      <div class="formula" id="cmpf"></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="head"><div class="ti"><div class="k">Reglas</div><h2 id="ruT">Cómo se rellena</h2></div></div>
+    <div class="explain" id="rules"></div>
+  </section>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <p class="foot">Procesador ARM segmentado de 5 etapas de <i>Digital Design and Computer Architecture, ARM Edition</i> (Harris &amp; Harris), figura 7.58: anticipación desde M y WB hacia E, parada de un ciclo por LDR, saltos predichos como «no tomado» y resueltos en E. Notación de las transparencias 92 a 98 del Tema 3. Teclado: <kbd>↑</kbd> <kbd>↓</kbd> cambian de fila, <kbd>1</kbd>…<kbd>9</kbd> ponen la instrucción con ese número, <kbd>S</kbd> pone stall (o <kbd>N</kbd> nop) y <kbd>Supr</kbd> vacía la fila.</p>
+</main>
+
+<script>
+(function(){
+"use strict";
+/* ================= Motor: ensamblador e intérprete (de «Riesgos del segmentado») ================= */
+const CONDS=['EQ','NE','CS','HS','CC','LO','MI','PL','VS','VC','HI','LS','GE','LT','GT','LE','AL'];
+const DPOPS=['ADD','SUB','RSB','AND','ORR','EOR','BIC','LSL','LSR','ASR','MOV','MVN'];
+const CMPOPS=['CMP','CMN','TST','TEQ'];
+function regOf(s){s=(s||'').trim().toUpperCase();if(s==='SP')return 13;if(s==='LR')return 14;if(s==='PC')return 15;const m=/^R(\d{1,2})$/.exec(s);return m&&+m[1]<16?+m[1]:null;}
+function immOf(s){s=(s||'').trim();if(s[0]!=='#')return null;const v=s.slice(1).trim();const n=/^-?0x/i.test(v)?parseInt(v,16):parseInt(v,10);return isNaN(n)?null:n;}
+function splitOps(s){const o=[];let d=0,cur='';for(const ch of s){if(ch==='[')d++;if(ch===']')d--;if(ch===','&&d===0){o.push(cur.trim());cur='';}else cur+=ch;}if(cur.trim())o.push(cur.trim());return o;}
+function parseProg(text){
+  const prog=[],labels={},errs=[],pend=[];
+  text.split(/\r?\n/).forEach((raw,ln)=>{
+    let s=raw.replace(/(;|@|\/\/).*$/,'').trim();
+    let m;
+    while(s&&(m=/^([A-Za-z_]\w*)\s*:\s*/.exec(s))){labels[m[1].toLowerCase()]=prog.length;pend.push(m[1]);s=s.slice(m[0].length);}
+    if(!s)return;
+    const sp=s.search(/\s/);const mn=(sp<0?s:s.slice(0,sp)).toUpperCase();const rest=sp<0?'':s.slice(sp+1).trim();
+    const ops=splitOps(rest);
+    const I={mn,txt:(mn.toLowerCase()+' '+ops.join(', ')).trim(),ln:ln+1,srcA:null,srcB:null,dst:null,imm:null,t:null,lbl:pend.splice(0).join(', ')||null};
+    const err=msg=>errs.push('Línea '+(ln+1)+': '+msg);
+    const op2=(x,role)=>{const r=regOf(x);if(r!==null){I[role]=r;return true;}const v=immOf(x);if(v!==null){I.imm=v;return true;}err('operando no válido «'+x+'»');return false;};
+    let base=mn,S=false;
+    if(mn==='NOP'){I.t='nop';I.txt='nop';}
+    else if(mn==='BL'||/^BL(EQ|NE|GT|LT|GE|LE)$/.test(mn)||mn==='BX'){err(mn+' no está admitido');return;}
+    else if(mn[0]==='B'&&mn!=='BIC'&&mn!=='BICS'&&(mn==='B'||CONDS.includes(mn.slice(1)))){
+      I.t='b';I.cond=mn==='B'?'AL':mn.slice(1);I.label=(ops[0]||'').trim();if(!I.label)err('falta la etiqueta de destino');
+    }
+    else if(CMPOPS.includes(mn)){I.t='cmp';I.op=mn;if(ops.length!==2){err('se esperan 2 operandos');return;}I.srcA=regOf(ops[0]);if(I.srcA===null){err('registro no válido');return;}op2(ops[1],'srcB');}
+    else if(/^(LDR|STR)B?$/.test(mn)){
+      I.t=mn.slice(0,3)==='LDR'?'ldr':'str';const rd=regOf(ops[0]);if(rd===null||ops.length<2){err('formato: '+mn+' Rd, [Rn, #imm]');return;}
+      const a=ops.slice(1).join(',').trim();
+      if(I.t==='ldr'&&a[0]==='='){I.lit=a.slice(1).trim();I.dst=rd;}
+      else{const mm=/^\[\s*(\w+)\s*(?:,\s*(#[^\]]+))?\]$/.exec(a);if(!mm){err('dirección no válida «'+a+'»');return;}I.srcA=regOf(mm[1]);if(I.srcA===null){err('registro base no válido');return;}I.imm=mm[2]?immOf(mm[2]):0;if(I.imm===null){err('desplazamiento no válido');return;}
+        if(I.t==='ldr')I.dst=rd;else I.srcB=rd;}
+    }
+    else{
+      if(mn.endsWith('S')&&DPOPS.includes(mn.slice(0,-1))){base=mn.slice(0,-1);S=true;}
+      if(!DPOPS.includes(base)){err('instrucción no admitida «'+mn+'»');return;}
+      I.t='dp';I.op=base;I.S=S;
+      if(base==='MOV'||base==='MVN'){if(ops.length!==2){err('se esperan 2 operandos');return;}I.dst=regOf(ops[0]);if(I.dst===null){err('registro destino no válido');return;}op2(ops[1],'srcB');}
+      else{let o=ops;if(o.length===2)o=[o[0],o[0],o[1]];if(o.length!==3){err('se esperan 3 operandos');return;}I.dst=regOf(o[0]);I.srcA=regOf(o[1]);if(I.dst===null||I.srcA===null){err('registro no válido');return;}op2(o[2],'srcB');}
+    }
+    if(I.dst===15){err('las escrituras en R15 (PC) no están admitidas');return;}
+    if(I.srcA===15)I.srcA=null; if(I.srcB===15)I.srcB=null;
+    prog.push(I);
+  });
+  prog.forEach((I,i)=>{I.pc=i;if(I.t==='b'){const t=labels[I.label.toLowerCase()];I.target=t===undefined?prog.length:t;I.ext=t===undefined;}});
+  return {prog,labels,errs};
+}
+function condOk(c,f){switch(c){case'EQ':return f.Z;case'NE':return!f.Z;case'CS':case'HS':return f.C;case'CC':case'LO':return!f.C;case'MI':return f.N;case'PL':return!f.N;case'VS':return f.V;case'VC':return!f.V;case'HI':return f.C&&!f.Z;case'LS':return!f.C||f.Z;case'GE':return f.N===f.V;case'LT':return f.N!==f.V;case'GT':return!f.Z&&f.N===f.V;case'LE':return f.Z||f.N!==f.V;default:return true;}}
+function runRef(prog,limit){
+  limit=limit||400;
+  const R=new Array(16).fill(0),f={N:false,Z:false,C:false,V:false},mem=new Map(),lit={};let nl=0x1000;
+  const trace=[];let pc=0,trunc=false;
+  const setNZ=r=>{f.N=(r>>>31)===1;f.Z=(r>>>0)===0;};
+  const add=(a,b,s)=>{a>>>=0;b>>>=0;const r=(a+b)>>>0;if(s){setNZ(r);f.C=a+b>0xFFFFFFFF;f.V=(((a^r)&(b^r))>>>31)===1;}return r;};
+  const sub=(a,b,s)=>{a>>>=0;b>>>=0;const r=(a-b)>>>0;if(s){setNZ(r);f.C=a>=b;f.V=(((a^b)&(a^r))>>>31)===1;}return r;};
+  while(pc<prog.length){
+    if(trace.length>=limit){trunc=true;break;}
+    const I=prog[pc];const t={pc,taken:false};R[15]=pc*4+8;
+    const A=I.srcA!==null?R[I.srcA]:0, B=I.srcB!==null?R[I.srcB]:(I.imm||0);
+    if(I.t==='dp'){let r;switch(I.op){
+      case'ADD':r=add(A,B,I.S);break;case'SUB':r=sub(A,B,I.S);break;case'RSB':r=sub(B,A,I.S);break;
+      case'AND':r=(A&B)>>>0;break;case'ORR':r=(A|B)>>>0;break;case'EOR':r=(A^B)>>>0;break;case'BIC':r=(A&~B)>>>0;break;
+      case'LSL':r=(A<<(B&31))>>>0;break;case'LSR':r=(A>>>(B&31))>>>0;break;case'ASR':r=(A>>(B&31))>>>0;break;
+      case'MOV':r=B>>>0;break;case'MVN':r=(~B)>>>0;break;}
+      if(I.S&&!['ADD','SUB','RSB'].includes(I.op))setNZ(r);R[I.dst]=r;}
+    else if(I.t==='cmp'){if(I.op==='CMP')sub(A,B,true);else if(I.op==='CMN')add(A,B,true);else if(I.op==='TST')setNZ((A&B)>>>0);else setNZ((A^B)>>>0);}
+    else if(I.t==='ldr'){let v;if(I.lit!==undefined){const n=/^-?(0x)?[0-9a-f]+$/i.test(I.lit)?parseInt(I.lit):NaN;if(!isNaN(n))v=n>>>0;else{if(!(I.lit in lit)){lit[I.lit]=nl;nl+=0x100;}v=lit[I.lit];}}
+      else v=mem.get((A+I.imm)>>>0)||0;R[I.dst]=v>>>0;}
+    else if(I.t==='str'){mem.set((A+I.imm)>>>0,R[I.srcB]);}
+    if(I.t==='b'&&condOk(I.cond,f)){t.taken=true;t.target=I.target;pc=I.target;}else pc++;
+    trace.push(t);
+  }
+  return {trace,trunc};
+}
+
+/* ================= Solución de la plantilla en escalera =================
+   Fila r (desde 0): F en el ciclo r+1, D en r+2, E en r+3, M en r+4, WB en r+5.
+   Un stall ocupa una fila como si fuera una instrucción (notación de la transp. 98). */
+const RN=r=>'R'+r;
+const srcs=I=>[I.srcA,I.srcB].filter(r=>r!==null&&r!==undefined);
+const code=t=>'<code>'+t+'</code>';
+function solveHU(prog,trace){
+  const rows=[];let prevTaken=null,prevNotTaken=null;
+  trace.forEach((t,k)=>{
+    const I=prog[t.pc];
+    const last=rows[rows.length-1];
+    if(last&&last.k==='ins'){const P=prog[last.pc];
+      if(P.t==='ldr'&&srcs(I).includes(P.dst)){
+        rows.push({k:'stall',cause:'ldr',why:`${code(P.txt)} trae ${RN(P.dst)} de memoria en M, pero ${code(I.txt)} lo necesita en E en ese mismo ciclo. La anticipación no llega a tiempo: la unidad de riesgos para el cauce un ciclo (StallF = StallD = FlushE = 1) y entra una burbuja.`});
+      }}
+    let why;
+    if(k===0)why=`Es la primera instrucción del programa: ${code(I.txt)}.`;
+    else if(prevTaken)why=`El salto ${code(prevTaken.txt)} se ha tomado, así que se busca la instrucción de destino: ${code(I.txt)}.`;
+    else if(prevNotTaken)why=`${code(prevNotTaken.txt)} no se toma: la predicción «no tomado» acierta y sigue ${code(I.txt)} sin perder ciclos.`;
+    else why=`La siguiente instrucción que se ejecuta es ${code(I.txt)}.`;
+    rows.push({k:'ins',pc:t.pc,taken:t.taken,why,iter:t.iter});
+    prevTaken=null;prevNotTaken=null;
+    if(I.t==='b'){
+      if(t.taken){
+        rows.push({k:'stall',cause:'br',why:`${code(I.txt)} se toma y se resuelve en E. Las dos instrucciones que entraron detrás por la predicción «no tomado» se vacían (FlushD, FlushE): esta es la primera de las dos.`});
+        rows.push({k:'stall',cause:'br',why:`Segunda instrucción vaciada por el salto tomado ${code(I.txt)}: estaba en F cuando el salto llegó a E.`});
+        prevTaken=I;
+      } else prevNotTaken=I;
+    }
+  });
+  rows.forEach(r=>{r.key=r.k==='ins'?'i'+r.pc:r.k;});
+  return rows;
+}
+function fwdArrows(prog,rows,R){
+  const out=[];
+  rows.forEach((row,r)=>{
+    if(r>=R||row.k!=='ins')return;
+    const I=prog[row.pc];
+    srcs(I).forEach(reg=>{
+      for(const d of [1,2]){const p=rows[r-d];
+        if(p&&p.k==='ins'&&prog[p.pc].dst===reg){
+          if(!out.some(a=>a.from===r-d&&a.to===r))out.push({from:r-d,to:r,st:d===1?'M':'WB',reg,c:r+3});
+          else{const a=out.find(a=>a.from===r-d&&a.to===r);if(!a.regs)a.regs=[a.reg];if(!a.regs.includes(reg))a.regs.push(reg);}
+          break;}}
+    });
+  });
+  return out;
+}
+function solveNOP(prog){
+  // el compilador inserta NOP (estático) y 2 NOP detrás de cada salto
+  const out=[],idx=[];
+  prog.forEach(I=>{
+    let need=0,who=null,reg=null;
+    srcs(I).forEach(r=>{for(let d=1;d<=2;d++){const p=out[out.length-d];if(p&&p.t!=='nop'&&p.dst===r){if(3-d>need){need=3-d;who=p;reg=r;}break;}}});
+    for(let i=0;i<need;i++)out.push({t:'nop',ins:true,srcA:null,srcB:null,dst:null,why:`${code(who.txt)} escribe ${RN(reg)} y ${code(I.txt)} lo lee. Sin anticipación el dato solo se puede leer del banco de registros, así que tienen que estar separadas por dos instrucciones: el compilador mete ${need===2?'dos NOP':'una NOP'} entre ellas.`});
+    const c=Object.assign({},I,{o:I.pc});idx[I.pc]=out.length;out.push(c);
+    if(I.t==='b')for(let i=0;i<2;i++)out.push({t:'nop',ins:true,srcA:null,srcB:null,dst:null,br:true,why:`Detrás de ${code(I.txt)} el compilador pone siempre dos NOP: el salto se resuelve en E y las dos instrucciones siguientes ya han entrado en el cauce, se tome o no se tome.`});
+  });
+  out.forEach((I,i)=>{I.pc=i;});
+  out.forEach(I=>{if(I.t==='b'){I.target=I.ext?out.length:idx[I.target];}});
+  return out;
+}
+function solveNopRows(prog){
+  const np=solveNOP(prog);
+  const {trace,trunc}=runRef(np);
+  const rows=[];
+  trace.forEach((t,k)=>{
+    const I=np[t.pc];
+    if(I.ins)rows.push({k:'nop',why:I.why});
+    else{
+      const prev=rows.length?rows[rows.length-1]:null;
+      let why=k===0?`Es la primera instrucción del programa: ${code(I.txt)}.`:`La siguiente instrucción que se ejecuta es ${code(I.txt)}.`;
+      if(prev&&prev.after)why=`El salto ${code(prev.after.txt)} se ha tomado; tras sus dos NOP se busca el destino: ${code(I.txt)}.`;
+      rows.push({k:'ins',pc:I.o,why});
+    }
+    if(t.taken){const B=np[t.pc];const w=np[t.pc+1].why;rows.push({k:'nop',why:w});rows.push({k:'nop',why:w,after:B});}
+  });
+  rows.forEach(r=>{r.key=r.k==='ins'?'i'+r.pc:r.k;});
+  return {rows,trunc};
+}
+
+/* ================= Ejercicios ================= */
+const PRESETS={
+  t92:{name:'Ejemplo de las transparencias 92 a 98',short:'Ejemplo transp. 92–98',lim:0,
+    fig:'El bucle recorre ARRAY sumando R1 a cada elemento. R5 empieza en 2, así que el bucle da dos vueltas. Es el código de la plantilla de la transparencia 98.',
+    code:`        mov     R5, #2
+        ldr     R6, =ARRAY
+loop:   ldr     R8, [R6]
+        add     R8, R8, R1
+        str     R8, [R6]
+        add     R5, R5, #-1
+        add     R6, R6, #4
+        cmp     R5, #0
+        bne     loop`},
+  e38:{name:'Ejercicio 3.8',short:'Ejercicio 3.8 (transp. 82)',lim:0,
+    fig:'Código lineal sin saltos de la transparencia 82: aquí solo hay riesgos de datos.',
+    code:`        LDR     R3, [R3, #10]
+        SUB     R2, R3, R2
+        ADD     R7, R2, R7
+        STR     R1, [R2, #0]
+        ADD     R3, R1, R0
+        SUB     R5, R7, R7
+        SUB     R0, R7, R7`},
+  t100:{name:'Ejemplo de la transparencia 100',short:'Ejemplo transp. 100',lim:24,
+    fig:'Suma de un vector con R1 = 15: el bucle da 15 vueltas, así que la plantilla de 24 filas solo recoge el principio.',
+    code:`        mov     R5, #0
+        mov     R1, #15
+        mov     R4, #20
+loop:   add     R4, R4, #4
+        ldr     R2, [R4]
+        add     R5, R2, R5
+        add     R1, R1, #-1
+        cmp     R1, #0
+        bne     loop`},
+  e10:{name:'Ejercicio 10',short:'Ejercicio 10',lim:24,
+    fig:'Copia un vector de 5 elementos sumándole 20. Son 5 vueltas: con «Programa completo» la plantilla tiene 57 filas.',
+    code:`        MOV     R5, #5
+        MOV     R6, #0
+        MOV     R7, #100
+        MOV     R1, #20
+loop:   LDR     R9, [R6]
+        ADD     R9, R9, R1
+        STR     R9, [R7]
+        ADD     R6, R6, #4
+        ADD     R7, R7, #4
+        ADD     R5, R5, #-1
+        CMP     R5, #0
+        BNE     loop`},
+  e11:{name:'Ejercicio 11',short:'Ejercicio 11',lim:24,
+    fig:'Suma 0 + 1 + … + 10 en R1. El bucle comprueba la condición al principio (BGT fin) y vuelve con un salto incondicional (B loop), que se toma en todas las vueltas.',
+    code:`        ADD     R3, R3, #10
+        SUB     R2, R2, R2
+        SUB     R1, R1, R1
+loop:   CMP     R2, R3
+        BGT     fin
+        ADD     R1, R1, R2
+        ADD     R2, R2, #1
+        B       loop
+fin:    STR     R1, [R0, #4]`},
+  e12:{name:'Ejercicio 12',short:'Ejercicio 12',lim:24,
+    fig:'Suma R7 a 10 elementos de un vector, desde la dirección 204. R1 cuenta las vueltas: el bucle da 10.',
+    code:`        mov     R0, #0
+        add     R1, R0, #10
+        mov     R3, #200
+loop:   add     R3, R3, #4
+        ldr     R2, [R3]
+        add     R2, R2, R7
+        str     R2, [R3]
+        add     R1, R1, #-1
+        cmp     R1, #0
+        bne     loop`},
+  e13:{name:'Ejercicio 13',short:'Ejercicio 13',lim:24,
+    fig:'Recorre un vector hacia atrás desde 252: a cada elemento le suma 15 y lo multiplica por 4 (lsl #2). R5 empieza en 20 y baja de 2 en 2: el bucle da 10 vueltas.',
+    code:`        mov     R3, #0
+        add     R5, R3, #20
+        mov     R7, #256
+loop:   add     R5, R5, #-2
+        sub     R7, R7, #4
+        ldr     R6, [R7]
+        add     R6, R6, #15
+        lsl     R6, R6, #2
+        str     R6, [R7]
+        cmp     R5, #0
+        bne     loop`},
+  custom:{name:'Tu código',short:'Tu código',lim:0,fig:'Código escrito a mano. Si el bucle es largo, usa la plantilla de 24 filas.',code:''}
+};
+const HASH={t92:'transp-98',e38:'ejercicio-3-8',t100:'transp-100',e10:'ejercicio-10',e11:'ejercicio-11',e12:'ejercicio-12',e13:'ejercicio-13'};
+
+/* ================= Estado ================= */
+const $=s=>document.querySelector(s);
+const COLS=['--i0','--i1','--i2','--i3','--i4','--i5'];
+const STN=['F','D','E','M','WB'];
+const ST={preset:'t92',mode:'hu',lim:0,code:PRESETS.t92.code,
+  prog:[],sol:[],R:0,C:0,fwd:[],trunc:false,
+  rows:[],act:0,arrows:[],pend:null,
+  rowsOk:false,rowsChecked:false,fwOk:false,fwChecked:false,cyOk:false,showMiss:false};
+let CW=40,RH=28,LW=230;
+
+function build(){
+  const {prog,errs}=parseProg(ST.code);
+  if(errs.length||!prog.length){$('#srcErr').textContent=errs[0]||'El código está vacío';return false;}
+  $('#srcErr').textContent='';
+  ST.prog=prog;
+  if(ST.mode==='hu'){const {trace,trunc}=runRef(prog);ST.sol=solveHU(prog,trace);ST.trunc=trunc;ST.nIns=trace.length;}
+  else{const r=solveNopRows(prog);ST.sol=r.rows;ST.trunc=r.trunc;ST.nIns=ST.sol.filter(x=>x.k==='ins').length;}
+  const L=ST.sol.length;
+  ST.R=ST.lim&&L>ST.lim?ST.lim:Math.min(L+2,140);
+  ST.C=ST.R+4;
+  ST.fwd=ST.mode==='hu'?fwdArrows(prog,ST.sol,ST.R):[];
+  ST.rows=new Array(ST.R).fill('');
+  ST.arrows=[];ST.act=0;ST.pend=null;
+  ST.rowsOk=false;ST.rowsChecked=false;ST.fwOk=ST.mode==='nop';ST.fwChecked=false;ST.cmpShown=false;ST.cyOk=false;ST.showMiss=false;
+  return true;
+}
+const expKey=r=>r<ST.sol.length?ST.sol[r].key:'';
+const colOf=pc=>COLS[pc%COLS.length];
+function txtOfKey(k){if(!k)return '';if(k==='stall')return 'stall';if(k==='nop')return 'nop';return ST.prog[+k.slice(1)].txt;}
+
+/* ================= Cabecera del ejercicio ================= */
+function renderExercise(){
+  const P=PRESETS[ST.preset];
+  $('#exT').textContent=P.name;
+  $('#exF').textContent=P.fig;
+  $('#listing').innerHTML=ST.prog.map((I,i)=>{
+    const lb=I.lbl?`<span class="lb">${(I.lbl+':').padEnd(8)}</span>`:' '.repeat(8);
+    return `<span class="cm">${String(i+1).padStart(2)} </span>${lb}${I.txt}`;}).join('\n');
+  const L=ST.sol.length,total=L+4;
+  const nStall=ST.sol.filter(r=>r.k==='stall').length,nNop=ST.sol.filter(r=>r.k==='nop').length;
+  const partial=ST.R<L;
+  $('#facts').innerHTML=`
+    <p>${ST.mode==='hu'
+      ?'Procesador <b>con unidad de riesgos</b>: anticipa desde M y WB, para un ciclo tras un LDR y predice los saltos como «no tomado», resolviéndolos en E.'
+      :'Procesador <b>sin unidad de riesgos</b>: no anticipa ni para el cauce, así que el compilador separa las dependencias con NOP y pone dos NOP detrás de cada salto.'}</p>
+    <p>La plantilla tiene <b>${ST.R} filas</b> y <b>${ST.C} ciclos</b>. ${partial
+      ?`Es más corta que el programa: rellena solo lo que cabe; los ciclos del paso 3 son los del programa entero.`
+      :`Sobran dos filas al final: si el programa termina antes, déjalas vacías.`}</p>
+    ${ST.trunc?'<p class="err">El programa no termina en 400 instrucciones: revisa el bucle.</p>':''}
+    <div class="aside">Cada fila arranca un ciclo después que la anterior, como en la transparencia 98: <b>F</b> búsqueda (<i>fetch</i>), <b>D</b> decodificación y lectura de registros, <b>E</b> ejecución, <b>M</b> memoria y <b>WB</b> escritura de registros (<i>writeback</i>). En la transparencia 98 se llaman BI, LR, E, M y ER. Por eso una parada ocupa una fila entera.</div>`;
+  void total;void nStall;void nNop;
+}
+
+/* ================= Paleta ================= */
+function renderPalette(){
+  const pal=$('#pal');
+  pal.classList.remove('hidden');
+  const sp=ST.mode==='hu'?'stall':'nop';
+  pal.innerHTML=ST.prog.map((I,i)=>`<button type="button" class="pi" style="--c:var(${colOf(i)})" data-k="i${i}" title="Poner ${I.txt} en la fila seleccionada"><span class="kn">${i+1}</span>${I.lbl?`<span class="lb">${I.lbl}:</span>`:''}${I.txt}</button>`).join('')
+    +`<button type="button" class="pi special" data-k="${sp}" title="Poner ${sp} en la fila seleccionada (tecla ${sp==='stall'?'S':'N'})"><span class="kn">${sp==='stall'?'S':'N'}</span>${sp}</button>`
+    +`<button type="button" class="pi clear" data-k="" title="Vaciar la fila seleccionada (Supr)">Vaciar fila</button>`;
+}
+
+/* ================= Diagrama (iconos de Harris & Harris, fig. 7.43, con las siglas de la transp. 98) ================= */
+const SVGNS='http://www.w3.org/2000/svg';
+let HH=46;
+function sizes(){const w=window.innerWidth;CW=w<600?46:52;RH=w<600?40:42;LW=w<600?150:Math.min(250,Math.max(200,Math.max(...ST.prog.map(I=>I.txt.length))*8.4+70));}
+const cx=c=>c*CW+CW/2, cy=r=>r*RH+RH/2, colL=c=>c*CW;
+const isIns=r=>{const k=ST.rows[r];return !!k&&k[0]==='i';};
+const insOf=r=>ST.prog[+ST.rows[r].slice(1)];
+/* Icono de una etapa centrado en (x,y). on: etapa usada (sombreada, como en el libro) */
+function icon(s,x,y,o){
+  const L=STN[s];
+  if(s===0||s===3){const on=s===0||o.mem;return `<rect class="ic${on?' on':''}" x="${x-14}" y="${y-11}" width="28" height="22" rx="1"/><text class="lb" x="${x}" y="${y+.5}">${L}</text>`;}
+  if(s===2)return `<path class="ic on" d="M${x-13} ${y-14}L${x+13} ${y-6}V${y+6}L${x-13} ${y+14}V${y+4}L${x-8} ${y}L${x-13} ${y-4}Z"/><text class="lb" x="${x+2}" y="${y+.5}">${L}</text>`;
+  // banco de registros: se escribe en la primera mitad del ciclo (WB, mitad izquierda) y se lee en la segunda (D, mitad derecha)
+  const on=s===1?o.rd:o.wr;
+  const half=on?(s===1?`<rect class="half" x="${x}" y="${y-12}" width="10" height="24"/>`:`<rect class="half" x="${x-10}" y="${y-12}" width="10" height="24"/>`):'';
+  return `<rect class="ic" x="${x-10}" y="${y-12}" width="20" height="24" rx="1"/>${half}<line class="mid" x1="${x}" y1="${y-12}" x2="${x}" y2="${y-6}"/><line class="mid" x1="${x}" y1="${y+6}" x2="${x}" y2="${y+12}"/><rect class="ic" x="${x-10}" y="${y-12}" width="20" height="24" rx="1" fill="none" style="fill:none"/><text class="lb" x="${x}" y="${y+.5}">${L}</text>`;
+}
+const HW=[14,10,13,14,10]; // media anchura de cada icono
+function renderGrid(){
+  sizes();
+  const g=$('#grid');const W=ST.C*CW,H=ST.R*RH;
+  g.style.gridTemplateColumns=`${LW}px ${W}px`;
+  g.style.gridTemplateRows=`${HH}px ${H}px`;
+  let hdr=`<svg width="${W}" height="${HH}" viewBox="0 0 ${W} ${HH}"><text class="tt" x="6" y="15">Tiempo (ciclos)</text>`;
+  for(let c=0;c<ST.C;c++)hdr+=`<text x="${cx(c)}" y="${HH-9}">${c+1}</text>`;
+  hdr+='</svg>';
+  let lab='';for(let r=0;r<ST.R;r++)lab+=`<div class="rl" data-r="${r}" style="height:${RH}px"><span class="rn">${r+1}</span><span class="rt"></span><span class="mk"></span></div>`;
+  g.innerHTML=`<div class="gcorner">Instrucción</div><div class="ghdr">${hdr}</div><div class="glab" id="glab">${lab}</div>
+  <svg class="dg" id="dg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" aria-label="Diagrama de múltiples ciclos"><g id="gBg"></g><g id="gRows"></g><g id="gAr"></g><path class="rub" id="rub" d=""/></svg>`;
+  let bg='';for(let c=1;c<ST.C;c++)bg+=`<line class="vl" x1="${colL(c)}" y1="0" x2="${colL(c)}" y2="${H}"/>`;
+  $('#gBg').innerHTML=`<rect class="rowact" id="rowAct" x="0" y="0" width="${W}" height="${RH}" style="display:none"/>`+bg;
+  paintGrid();
+}
+function paintGrid(){
+  const g=$('#grid');if(!$('#dg'))return;
+  g.classList.add('ph2');
+  const sol=ST.rowsChecked||ST.rowsOk;
+  g.querySelectorAll('.rl').forEach(el=>{
+    const r=+el.dataset.r,k=ST.rows[r];const t=el.querySelector('.rt'),mk=el.querySelector('.mk');
+    t.className='rt';el.classList.remove('ok','bad');
+    if(!k){t.textContent=r===ST.act?'elige en la paleta…':'';t.classList.add('ph');}
+    else{t.textContent=txtOfKey(k);if(k==='stall')t.classList.add('stl');else if(k==='nop')t.classList.add('nopt');}
+    el.classList.toggle('act',r===ST.act);
+    mk.textContent='';
+    if(sol){const e=expKey(r);if(k===e){if(k){el.classList.add('ok');mk.textContent='✓';}}else if(k){el.classList.add('bad');mk.textContent='✗';}}
+  });
+  const ra=$('#rowAct');ra.style.display='';ra.setAttribute('y',ST.act*RH);
+  let h='';
+  for(let r=0;r<ST.R;r++){
+    const k=ST.rows[r];let cls='tpl',o={mem:false,rd:false,wr:false},I=null;
+    if(k==='stall')cls='bub';else if(k==='nop')cls='nop';
+    else if(k){cls='ins';I=ST.prog[+k.slice(1)];o={mem:I.t==='ldr'||I.t==='str',rd:srcs(I).length>0,wr:I.dst!==null&&I.dst!==undefined};}
+    else o={mem:true,rd:true,wr:true};
+    const y=cy(r);
+    h+=`<g class="rw ${cls}" data-r="${r}"><line class="wire" x1="${cx(r)}" y1="${y}" x2="${cx(r+4)}" y2="${y}"/>`;
+    for(let k=1;k<=4;k++)h+=`<rect class="preg" x="${colL(r+k)-3}" y="${y-15}" width="6" height="30"/>`;
+    for(let s=0;s<5;s++){
+      const c=r+s,x=cx(c);const can=cls==='ins'&&ST.mode==='hu';
+      const pk=ST.pend&&ST.pend.r===r&&ST.pend.s===s;
+      h+=`<g class="stg${can?' can':''}${pk?' pick':''}" data-r="${r}" data-s="${s}">${pk?`<circle class="ring" cx="${x}" cy="${y}" r="19"/>`:''}${icon(s,x,y,o)}<rect class="hitc${can?' can':''}" data-r="${r}" data-s="${s}" x="${colL(c)}" y="${r*RH}" width="${CW}" height="${RH}"/></g>`;
+    }
+    if(I){ // registros, como en las figuras del libro
+      const x1=cx(r+1);const rs=[I.srcA,I.srcB].filter(v=>v!==null&&v!==undefined);
+      if(rs[0]!==undefined)h+=`<text class="rg" x="${x1-12}" y="${y-5}" text-anchor="end">${RN(rs[0])}</text>`;
+      if(rs[1]!==undefined)h+=`<text class="rg" x="${x1-12}" y="${y+12}" text-anchor="end">${RN(rs[1])}</text>`;
+      if(o.wr)h+=`<text class="rg" x="${cx(r+4)+12}" y="${y-5}">${RN(I.dst)}</text>`;
+    }
+    h+='</g>';
+  }
+  $('#gRows').innerHTML=h;
+  drawArrows();
+  updateStatus();
+}
+/* Flecha de anticipación: sale del registro de segmentación de la etapa origen (borde izquierdo
+   de su columna) y entra por la entrada de la ALU de la instrucción que está en E */
+function arrowPath(a){
+  const ca=a.a.r+a.a.s,cb=a.b.r+a.b.s;
+  if(ca===cb&&a.b.s===2){
+    const x0=colL(ca)+3,xl=colL(ca)+8,y1=cy(a.a.r)+6,y2=cy(a.b.r)-8,xe=cx(cb)-13;
+    return {d:`M${x0} ${y1}H${xl}V${y2}H${xe-6}`,head:`M${xe-7} ${y2-4.5}L${xe} ${y2}L${xe-7} ${y2+4.5}Z`,dot:[x0,y1],lab:[colL(ca)-4,y2-9,'end']};
+  }
+  const x1=cx(ca),y1=cy(a.a.r)+(a.a.r<a.b.r?9:-9),x2=cx(cb),y2=cy(a.b.r)+(a.a.r<a.b.r?-12:12);
+  const ang=Math.atan2(y2-y1,x2-x1),hx=x2-7*Math.cos(ang),hy=y2-7*Math.sin(ang);
+  const px=4.5*Math.sin(ang),py=4.5*Math.cos(ang);
+  return {d:`M${x1} ${y1}L${hx} ${hy}`,head:`M${hx+px} ${hy-py}L${x2} ${y2}L${hx-px} ${hy+py}Z`,dot:[x1,y1],lab:[(x1+x2)/2+5,(y1+y2)/2,'start']};
+}
+function arrowSVG(a,cls,i,regs){
+  const P=arrowPath(a);
+  const lbl=regs?`<text class="rgl" x="${P.lab[0]}" y="${P.lab[1]}" text-anchor="${P.lab[2]}">${regs}</text>`:'';
+  return `<g class="ar ${cls}"><path class="ln" d="${P.d}"/><path class="hd" d="${P.head}"/><circle class="dt" cx="${P.dot[0]}" cy="${P.dot[1]}" r="2.6"/>${lbl}</g>`+(i>=0?`<path class="hit" data-i="${i}" d="${P.d}"><title>Pulsa para borrar esta flecha</title></path>`:'');
+}
+const sKey=f=>({a:{r:f.from,s:f.st==='M'?3:4},b:{r:f.to,s:2}});
+const sameAr=(x,f)=>{const y=sKey(f);return x.a.r===y.a.r&&x.a.s===y.a.s&&x.b.r===y.b.r&&x.b.s===y.b.s;};
+const regsOf=f=>(f.regs||[f.reg]).map(RN).join(',');
+function drawArrows(){
+  const box=$('#gAr');if(!box)return;
+  const parts=[];
+  if(ST.mode==='hu'){
+    ST.arrows.forEach((a,i)=>{
+      let cls='',regs='';
+      if(ST.fwChecked){const s=ST.fwd.find(f=>sameAr(a,f));cls=s?'ok':'bad';if(s)regs=regsOf(s);}
+      parts.push(arrowSVG(a,cls,i,regs));
+    });
+    if(ST.showMiss)ST.fwd.forEach(f=>{if(!ST.arrows.some(a=>sameAr(a,f)))parts.push(arrowSVG(sKey(f),'miss',-1,regsOf(f)));});
+  }
+  box.innerHTML=parts.join('');
+}
+
+/* ================= Interacción ================= */
+function setRow(k){
+  ST.rows[ST.act]=k;
+  ST.rowsChecked=false;ST.rowsOk=false;ST.fwChecked=false;ST.cmpShown=false;ST.showMiss=false;ST.fwOk=ST.mode==='nop';
+  ST.arrows=ST.arrows.filter(a=>isIns(a.a.r)&&isIns(a.b.r));
+  if(k&&ST.act<ST.R-1)ST.act++;
+  liveCheck(false);paintGrid();scrollAct();renderFwList();renderLegend();
+  if(!ST.rowsOk)note('');
+}
+function scrollAct(){
+  const gw=$('#gw');const top=HH+ST.act*RH,b=top+RH;
+  if(top<gw.scrollTop+HH)gw.scrollTop=top-HH-RH;else if(b>gw.scrollTop+gw.clientHeight)gw.scrollTop=b-gw.clientHeight+RH;
+}
+$('#pal').addEventListener('click',e=>{const b=e.target.closest('.pi');if(!b)return;setRow(b.dataset.k);});
+/* Dibujar flechas: en cualquier paso, arrastrando de una etapa a otra o pulsando una y después la otra.
+   La pulsación se atiende con «click» (lo más fiable en ratón, táctil y dentro del visor);
+   el arrastre, con eventos de puntero. */
+let drag=null,justDragged=false,toastT=null;
+function stageAt(el){const h=el&&el.closest?el.closest('.hitc'):null;return h?{r:+h.dataset.r,s:+h.dataset.s}:null;}
+function ptIn(e){const sv=$('#dg');const b=sv.getBoundingClientRect();return [e.clientX-b.left,e.clientY-b.top];}
+function say(html,kind){note(html,kind);const t=$('#toast');t.className='toast show'+(kind?' '+kind:'');t.innerHTML=html;clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),kind==='warn'||kind==='bad'?6000:4200);}
+function delArrow(i){ST.arrows.splice(i,1);ST.fwChecked=false;ST.cmpShown=false;ST.fwOk=false;ST.showMiss=false;liveCheck(true);paintGrid();renderFwList();renderLegend();say('Flecha borrada.');}
+function tapStage(st){
+  if(ST.mode==='nop'){ST.pend=null;ST.act=st.r;paintGrid();note('');return;} // sin unidad de riesgos no hay anticipaciones: pulsar una etapa solo selecciona la fila
+  if(!isIns(st.r)){
+    if(ST.rows[st.r]==='stall'){ST.pend=null;paintGrid();say('Esa fila es una burbuja (stall): no lleva ningún dato, así que no sale ni llega ninguna flecha.','warn');return;}
+    ST.act=st.r;ST.pend=null;paintGrid();say('Esa fila todavía no tiene instrucción: elígela en la paleta.');return;}
+  if(ST.pend){const p=ST.pend;ST.pend=null;if(p.r===st.r&&p.s===st.s){paintGrid();say('Selección anulada.');return;}addArrow(p,st);return;}
+  ST.pend=st;paintGrid();
+  say(`Origen: etapa <b>${STN[st.s]}</b> de ${code(insOf(st.r).txt)} (ciclo ${st.r+st.s+1}). Ahora pulsa la etapa a la que llega el dato. <kbd>Esc</kbd> o pulsar otra vez la misma etapa anula.`);
+}
+$('#grid').addEventListener('click',e=>{
+  if(justDragged){justDragged=false;return;}
+  const hit=e.target.closest&&e.target.closest('.hit');
+  if(hit){delArrow(+hit.dataset.i);return;}
+  const st=stageAt(e.target);
+  if(st){tapStage(st);return;}
+  const rl=e.target.closest('.rl');
+  if(rl){ST.act=+rl.dataset.r;ST.pend=null;paintGrid();note('');}
+});
+$('#grid').addEventListener('pointerdown',e=>{
+  if(e.button!==undefined&&e.button!==0)return;
+  const st=stageAt(e.target);if(!st||!isIns(st.r)||ST.mode==='nop')return;
+  drag={src:st,x0:e.clientX,y0:e.clientY,moved:false,id:e.pointerId};
+});
+$('#grid').addEventListener('pointermove',e=>{
+  const sv=$('#dg');if(!sv)return;
+  if(drag&&e.pointerId===drag.id){
+    if(!drag.moved&&Math.hypot(e.clientX-drag.x0,e.clientY-drag.y0)>10){drag.moved=true;try{sv.setPointerCapture(e.pointerId);}catch(_){}}
+    if(drag.moved){const [x,y]=ptIn(e);$('#rub').setAttribute('d',`M${cx(drag.src.r+drag.src.s)} ${cy(drag.src.r)}L${x} ${y}`);e.preventDefault();}
+    return;}
+  if(ST.pend&&ST.mode==='hu'&&e.pointerType==='mouse'){const [x,y]=ptIn(e);$('#rub').setAttribute('d',`M${cx(ST.pend.r+ST.pend.s)} ${cy(ST.pend.r)}L${x} ${y}`);}
+});
+function endDrag(e){
+  if(!drag||e.pointerId!==drag.id)return;
+  const d=drag;drag=null;
+  if(!d.moved)return; // fue una pulsación: la atiende «click»
+  justDragged=true;setTimeout(()=>{justDragged=false;},350);
+  $('#rub').setAttribute('d','');
+  if(e.type==='pointercancel')return;
+  const tgt=stageAt(document.elementFromPoint(e.clientX,e.clientY));
+  if(tgt&&!(tgt.r===d.src.r&&tgt.s===d.src.s)){ST.pend=null;addArrow(d.src,tgt);}
+  else say('Suelta la flecha encima de otra etapa (otra fila del dibujo).','warn');
+}
+$('#grid').addEventListener('pointerup',endDrag);
+$('#grid').addEventListener('pointercancel',endDrag);
+$('#grid').addEventListener('pointerleave',()=>{if(!drag&&!ST.pend)$('#rub').setAttribute('d','');});
+function addArrow(p,q){
+  if(ST.mode==='nop')return;
+  ST.pend=null;$('#rub').setAttribute('d','');
+  if(p.r===q.r){paintGrid();say('Una anticipación pasa un dato de una instrucción a <b>otra</b>: une etapas de dos filas distintas.','warn');return;}
+  if(!isIns(q.r)){paintGrid();say(ST.rows[q.r]==='stall'?'Esa fila es una burbuja: no recibe ningún dato.':'Esa fila todavía no tiene instrucción.','warn');return;}
+  const a=p.r<q.r?{a:p,b:q}:{a:q,b:p};
+  if(ST.arrows.some(x=>x.a.r===a.a.r&&x.a.s===a.a.s&&x.b.r===a.b.r&&x.b.s===a.b.s)){paintGrid();say('Esa flecha ya está dibujada.');return;}
+  ST.arrows.push(a);
+  ST.fwChecked=false;ST.cmpShown=false;ST.fwOk=false;ST.showMiss=false;
+  liveCheck(true);paintGrid();renderFwList();renderLegend();
+  say(`Flecha de la etapa <b>${STN[a.a.s]}</b> de ${code(insOf(a.a.r).txt)} (ciclo ${a.a.r+a.a.s+1}) a la etapa <b>${STN[a.b.s]}</b> de ${code(insOf(a.b.r).txt)} (ciclo ${a.b.r+a.b.s+1}). Pulsa una flecha para borrarla.`);
+  if(ST.fwOk){lastOk.f=false;liveCheck(false);paintGrid();renderLegend();note('');}
+}
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'&&ST.pend){ST.pend=null;$('#rub').setAttribute('d','');paintGrid();say('Selección anulada.');return;}
+  const tag=(e.target.tagName||'').toLowerCase();if(tag==='textarea'||tag==='input'||tag==='select')return;
+  if(e.metaKey||e.ctrlKey||e.altKey)return;
+  const k=e.key;
+  if(k==='ArrowDown'){ST.act=Math.min(ST.R-1,ST.act+1);paintGrid();scrollAct();e.preventDefault();}
+  else if(k==='ArrowUp'){ST.act=Math.max(0,ST.act-1);paintGrid();scrollAct();e.preventDefault();}
+  else if(/^[1-9]$/.test(k)&&+k<=ST.prog.length){setRow('i'+(+k-1));e.preventDefault();}
+  else if((k==='s'||k==='S')&&ST.mode==='hu'){setRow('stall');e.preventDefault();}
+  else if((k==='n'||k==='N')&&ST.mode==='nop'){setRow('nop');e.preventDefault();}
+  else if(k==='Delete'||k==='Backspace'){ST.rows[ST.act]='';ST.rowsChecked=false;ST.rowsOk=false;paintGrid();renderSteps();e.preventDefault();}
+});
+
+/* ================= Corrección ================= */
+function note(html,kind){const n=$('#note');n.className='note'+(kind?' '+kind:'');n.innerHTML=html||defaultNote();}
+function defaultNote(){
+  if(ST.rowsOk&&ST.fwOk)return '✓ Diagrama completo y correcto. Los ciclos y el CPI están debajo.';
+  if(ST.rowsOk)return 'Filas correctas. Ahora dibuja las anticipaciones: arrastra desde la etapa que tiene el dato hasta la que lo necesita (o pulsa una y luego la otra). Para borrar una flecha, púlsala.';
+  return `Selecciona una fila (empieza en la 1) y pulsa en la paleta la instrucción que entra en el cauce en ese ciclo o un <b>${ST.mode==='hu'?'stall':'nop'}</b>. La fila avanza sola. Las flechas se pueden dibujar en cualquier momento.`;
+}
+function checkRows(){
+  ST.rowsChecked=true;
+  let ok=0,firstBad=-1;
+  for(let r=0;r<ST.R;r++){if(ST.rows[r]===expKey(r)){if(expKey(r))ok++;}else if(firstBad<0)firstBad=r;}
+  ST.rowsOk=firstBad<0;
+  paintGrid();renderSteps();
+  if(ST.rowsOk){note(`¡Todas las filas están bien! ${ST.mode==='hu'?'Pasa al paso 2 para dibujar las anticipaciones.':'Sin unidad de riesgos no hay anticipaciones: pasa al paso 3 para contar los ciclos.'}`,'good');return;}
+  const filled=ST.rows.filter(Boolean).length;
+  note(`${ok} de ${Math.min(ST.R,ST.sol.length)} filas correctas (${filled} rellenas). Las que están mal tienen ✗; pulsa <b>Pista</b> para ver por qué falla la primera.`,'bad');
+}
+function rowHint(){
+  let r=-1;for(let i=0;i<ST.R;i++)if(ST.rows[i]!==expKey(i)){r=i;break;}
+  if(r<0){checkRows();return;}
+  ST.act=r;ST.rowsChecked=true;paintGrid();scrollAct();
+  const got=ST.rows[r],e=expKey(r);
+  const why=r<ST.sol.length?ST.sol[r].why:'El programa ya ha terminado: esta fila se queda vacía.';
+  const intro=got?`Fila ${r+1}: has puesto ${code(txtOfKey(got))}, pero aquí va ${e?code(txtOfKey(e)):'nada'}.`:`Fila ${r+1}: aquí va ${e?code(txtOfKey(e)):'nada'}.`;
+  note(`${intro} ${why}`,'warn');
+}
+function solveRows(){ST.rows=ST.rows.map((_,r)=>expKey(r));ST.rowsChecked=true;ST.rowsOk=true;ST.act=0;ST.arrows=ST.arrows.filter(a=>isIns(a.a.r)&&isIns(a.b.r));paintGrid();renderSteps();note('Filas resueltas. Pasa al paso 2 para dibujar las anticipaciones.','good');}
+
+const cyc=e=>e.r+e.s+1;
+function fwWhy(a){
+  const P=insOf(a.a.r),Q=insOf(a.b.r);
+  const f=ST.fwd.find(f=>f.from===a.a.r&&f.to===a.b.r);
+  if(f){const want=f.st==='M'?3:4;
+    return `Entre estas dos instrucciones sí hay anticipación de ${regsOf(f)}, pero no entre esas etapas: el dato sale de la etapa <b>${f.st}</b> de ${code(P.txt)} y entra en la <b>E</b> de ${code(Q.txt)}, las dos en el ciclo ${f.c}.${a.a.s!==want?'':' La flecha tiene que llegar a la E.'}`;}
+  if(P.dst===null||P.dst===undefined)return `${code(P.txt)} no escribe ningún registro, así que no tiene nada que anticipar.`;
+  if(!srcs(Q).includes(P.dst))return `${code(P.txt)} escribe ${RN(P.dst)}, pero ${code(Q.txt)} no lee ${RN(P.dst)}.`;
+  const d=a.b.r-a.a.r;
+  if(d>=3)return `${code(Q.txt)} lee ${RN(P.dst)} en D cuando ${code(P.txt)} ya lo ha escrito en el banco de registros (se escribe en la primera mitad del ciclo y se lee en la segunda): no hace falta anticipar.`;
+  return `${code(Q.txt)} necesita el ${RN(P.dst)} más reciente, el de ${code(txtOfKey(ST.rows[a.b.r-1]))}, que está en M. La anticipación desde M tiene prioridad (Forward = 10).`;
+}
+function missWhy(f){
+  const P=ST.prog[ST.sol[f.from].pc],Q=ST.prog[ST.sol[f.to].pc];
+  const R=regsOf(f).replace(',',' y ');
+  return f.st==='M'
+    ?`${code(Q.txt)} (fila ${f.to+1}) necesita ${R} en E en el ciclo ${f.c}. En ese ciclo ${code(P.txt)} lo tiene en su etapa <b>M</b> (ALUOutM) y todavía no lo ha escrito en el banco de registros: ForwardE = 10.`
+    :`${code(Q.txt)} (fila ${f.to+1}) necesita ${R} en E en el ciclo ${f.c}. En ese ciclo ${code(P.txt)} lo está escribiendo en su etapa <b>WB</b> (ResultW), pero ${code(Q.txt)} leyó el banco de registros un ciclo antes, en su etapa D: ForwardE = 01.`;
+}
+function needRows(){if(ST.rowsOk)return false;note('Para corregir las flechas, las filas tienen que estar bien: vuelve al paso 1 y pulsa <b>Comprobar</b> (o <b>Ver solución</b>).','warn');return true;}
+function checkFw(){
+  if(needRows())return;
+  ST.fwChecked=true;
+  const good=ST.arrows.filter(a=>ST.fwd.some(f=>sameAr(a,f))).length;
+  const bad=ST.arrows.length-good,miss=ST.fwd.length-good;
+  ST.fwOk=bad===0&&miss===0;
+  paintGrid();renderFwList();renderSteps();renderLegend();
+  if(ST.fwOk)note(`¡Perfecto! Las ${ST.fwd.length} anticipaciones están bien. Pasa al paso 3.`,'good');
+  else note(`${good} bien, ${bad} ${bad===1?'sobra o está mal colocada':'sobran o están mal colocadas'} y ${miss} ${miss===1?'falta':'faltan'}. Debajo del dibujo tienes el porqué de cada flecha.${miss?' Pulsa <b>Pista</b> para buscar las que faltan.':''}`,'bad');
+}
+function fwHint(){
+  if(needRows())return;
+  const b=ST.arrows.find(a=>!ST.fwd.some(f=>sameAr(a,f)));
+  ST.fwChecked=true;paintGrid();renderFwList();renderLegend();
+  if(b){note(`Revisa la flecha de la fila ${b.a.r+1} a la ${b.b.r+1}: ${fwWhy(b)}`,'warn');return;}
+  const m=ST.fwd.find(f=>!ST.arrows.some(a=>sameAr(a,f)));
+  if(m){note(`Falta una anticipación hacia la fila ${m.to+1}. Pista: mira qué registros lee ${code(txtOfKey(ST.rows[m.to]))} (están junto a su D) y quién los escribe una o dos filas más arriba (junto a su WB).`,'warn');return;}
+  checkFw();
+}
+function solveAll(){
+  ST.rows=ST.rows.map((_,r)=>expKey(r));ST.rowsChecked=true;ST.rowsOk=true;ST.act=0;ST.pend=null;
+  if(ST.mode==='hu'){ST.arrows=ST.fwd.map(sKey);ST.fwChecked=true;ST.fwOk=true;}else{ST.arrows=[];ST.fwOk=true;}
+  ST.showMiss=false;ST.cmpShown=false;
+  $('#rub').setAttribute('d','');
+  paintGrid();renderFwList();renderSteps();renderLegend();
+  note(ST.mode==='hu'
+    ?`Solución completa: las filas con sus stalls y las ${ST.fwd.length} anticipaciones. Debajo del dibujo tienes el porqué de cada flecha.`
+    :'Solución completa: las filas con sus NOP. Sin unidad de riesgos no hay anticipaciones.','good');
+}
+function renderFwList(){
+  const box=$('#fwl');
+  if(ST.mode!=='hu'){box.innerHTML='';return;}
+  const items=[];
+  ST.arrows.forEach(a=>{
+    if(!isIns(a.a.r)||!isIns(a.b.r))return;
+    const s=ST.fwd.find(f=>sameAr(a,f));
+    const head=`${code(insOf(a.a.r).txt)} (${STN[a.a.s]}, ciclo ${cyc(a.a)}) → ${code(insOf(a.b.r).txt)} (${STN[a.b.s]}, ciclo ${cyc(a.b)})`;
+    if(!ST.fwChecked)items.push(`<div class="fwi"><span class="s pend">Dibujada</span><span>${head}</span></div>`);
+    else if(s)items.push(`<div class="fwi"><span class="s ok">${regsOf(s)}</span><span>${head}. ${missWhy(s)}</span></div>`);
+    else items.push(`<div class="fwi"><span class="s bad">Mal</span><span>${head}. ${fwWhy(a)}</span></div>`);
+  });
+  if(ST.fwChecked&&ST.showMiss)ST.fwd.filter(f=>!ST.arrows.some(a=>sameAr(a,f))).forEach(f=>items.push(`<div class="fwi"><span class="s miss">Faltaba</span><span>${missWhy(f)}</span></div>`));
+  box.innerHTML=items.join('');
+}
+
+/* ================= Ciclos y CPI (calculados) ================= */
+function totals(){
+  const L=ST.sol.length,nStL=ST.sol.filter(r=>r.k==='stall'&&r.cause==='ldr').length,nStB=ST.sol.filter(r=>r.k==='stall'&&r.cause==='br').length,nNop=ST.sol.filter(r=>r.k==='nop').length;
+  return {L,total:L+4,nStL,nTaken:nStB/2,nNop,nIns:ST.nIns,cpi:(L+4)/ST.nIns};
+}
+const fmt=(x,d)=>x.toFixed(d).replace('.',',');
+function modeTotals(mode){
+  if(mode==='hu'){const {trace}=runRef(ST.prog);const rows=solveHU(ST.prog,trace);return {total:rows.length+4,nIns:trace.length};}
+  const r=solveNopRows(ST.prog).rows;const n=r.filter(x=>x.k==='ins').length;return {total:r.length+4,nIns:n};
+}
+function renderCompare(){
+  const f=Math.max(1,+$('#freq').value||1200);
+  const A=modeTotals('nop'),B=modeTotals('hu');
+  const row=(lbl,T,cur)=>{const cpi=T.total/T.nIns,t=T.total/f*1000;return `<tr${cur?' class="cur"':''}><td>${lbl}</td><td>${T.total}</td><td>${fmt(cpi,2)}</td><td>${fmt(t,2)} ns</td><td>${fmt(f/cpi,1)}</td></tr>`;};
+  $('#cmpt').innerHTML=`<thead><tr><th>Procesador</th><th>Ciclos</th><th>CPI</th><th>Tiempo</th><th>MIPS</th></tr></thead><tbody>${row('Sin unidad (NOP)',A,ST.mode==='nop')}${row('Con unidad de riesgos',B,ST.mode==='hu')}</tbody>`;
+  const tc=1000/f;
+  $('#cmpf').innerHTML=`t_ciclo = 1 / f = 1 / ${f} MHz = ${fmt(tc,4)} ns<br>tiempo = n_ciclos × t_ciclo · MIPS = f (MHz) / CPI<br>Aceleración = ciclos sin unidad / ciclos con unidad = ${A.total} / ${B.total} = <span class="res">${fmt(A.total/B.total,2)}</span>`;
+}
+function renderCycles(){
+  renderCompare();
+  const T=totals();
+  const t=[[4,'Llenado del cauce','--line-strong'],[T.nIns,'Instrucciones ejecutadas','--accent']];
+  if(ST.mode==='hu'){t.push([T.nStL,'Paradas por LDR','--ctl']);t.push([2*T.nTaken,`Vaciado: 2 × ${T.nTaken} saltos tomados`,'--bad']);}
+  else t.push([T.nNop,'NOP ejecutadas','--over']);
+  t.push([T.total,'Ciclos','--ok']);t.push([fmt(T.cpi,2),'CPI','--ok']);
+  $('#tiles').innerHTML=t.map(([v,l,c])=>`<div class="tile" style="--tc:var(${c})"><div class="tv">${v}</div><div class="tl">${l}</div></div>`).join('');
+  $('#formula').innerHTML=ST.mode==='hu'
+    ?`n_ciclos = 4 (llenado) + instrucciones + paradas por LDR + 2 × saltos tomados<br>n_ciclos = 4 + ${T.nIns} + ${T.nStL} + 2 × ${T.nTaken} = <span class="res">${T.total} ciclos</span><br>CPI = n_ciclos / instrucciones = ${T.total} / ${T.nIns} = <span class="res">${fmt(T.cpi,2)}</span>`
+    :`n_ciclos = 4 (llenado) + instrucciones + NOP ejecutadas<br>n_ciclos = 4 + ${T.nIns} + ${T.nNop} = <span class="res">${T.total} ciclos</span><br>CPI = n_ciclos / instrucciones útiles = ${T.total} / ${T.nIns} = <span class="res">${fmt(T.cpi,2)}</span>`;
+  $('#cyNote').innerHTML=`Son los ciclos del <b>programa completo</b>: el número de filas de la escalera (${T.L}) más los 4 ciclos que tarda en vaciarse el cauce tras la última.${ST.R<T.L?` La plantilla solo muestra las ${ST.R} primeras filas.`:''}${(()=>{if(ST.mode!=='hu')return '';const bs=ST.sol.filter(x=>x.k==='ins'&&ST.prog[x.pc].t==='b');const nt=bs.filter(x=>!x.taken).length;return nt?` ${nt===1?'Un salto no se toma':nt+' saltos no se toman'} y no ${nt===1?'suma':'suman'} vaciado.`:'';})()}${ST.mode==='nop'?' Las NOP no cuentan como instrucciones en el CPI.':''}`;
+}
+
+/* ================= Estado de la plantilla (sin pasos) ================= */
+function rowsAllOk(){for(let r=0;r<ST.R;r++)if(ST.rows[r]!==expKey(r))return false;return true;}
+function fwAllOk(){return ST.mode==='nop'||(ST.rowsOk&&ST.arrows.length===ST.fwd.length&&ST.fwd.every(f=>ST.arrows.some(a=>sameAr(a,f))));}
+function renderSteps(){liveCheck(true);}
+let lastOk={r:false,f:false};
+function liveCheck(quiet){
+  const rOk=rowsAllOk();
+  if(rOk&&!ST.rowsOk){ST.rowsOk=true;ST.rowsChecked=true;}
+  if(!rOk)ST.rowsOk=false;
+  const fOk=ST.rowsOk&&fwAllOk();
+  if(fOk&&ST.mode==='hu'){ST.fwOk=true;ST.fwChecked=true;}else if(ST.mode==='hu')ST.fwOk=false;
+  updateStatus();
+  if(!quiet){
+    if(ST.rowsOk&&!lastOk.r&&!(ST.fwOk&&!lastOk.f))say(ST.mode==='hu'?'✓ Filas completas y correctas. Ahora dibuja las anticipaciones.':'✓ Filas completas y correctas.','good');
+    if(ST.fwOk&&ST.mode==='hu'&&!lastOk.f)say('✓ ¡Diagrama completo! Filas y anticipaciones correctas.','good');
+  }
+  lastOk={r:ST.rowsOk,f:ST.fwOk};
+}
+function updateStatus(){
+  const set=(id,v,st)=>{const el=$(id);el.querySelector('.v').textContent=v;el.classList.toggle('ok',st==='ok');el.classList.toggle('bad',st==='bad');};
+  const need=Math.min(ST.R,ST.sol.length),filled=ST.rows.filter(Boolean).length;
+  if(ST.rowsOk)set('#chRows','✓ Bien','ok');
+  else if(!filled)set('#chRows','Sin empezar');
+  else if(filled>=need)set('#chRows','Revisa','bad');
+  else set('#chRows','Sin completar');
+  if(ST.mode==='nop')set('#chFw','No hay','ok');
+  else if(ST.fwOk)set('#chFw','✓ Bien','ok');
+  else if(!ST.arrows.length)set('#chFw','Sin empezar');
+  else if(ST.arrows.length>=ST.fwd.length)set('#chFw','Revisa','bad');
+  else set('#chFw','Sin completar');
+}
+function renderWork(){
+  $('#howto').innerHTML=`Pulsa el nombre de una fila y elige en la paleta qué entra en el cauce en ese ciclo: una <b>instrucción</b> del programa o un <b>${ST.mode==='hu'?'stall':'nop'}</b>. ${ST.mode==='hu'?'Para cada anticipación, <b>arrastra</b> desde la etapa de la instrucción que tiene el dato hasta la etapa de la que lo necesita (o pulsa una y después la otra). Junto a cada D tienes los registros que lee la instrucción y junto a cada WB el que escribe.':'Sin unidad de riesgos no hay anticipaciones: solo hay que colocar las NOP.'}`;
+  $('#keys').innerHTML=`<kbd>↑</kbd><kbd>↓</kbd> fila · <kbd>1</kbd>…<kbd>9</kbd> instrucción · <kbd>${ST.mode==='hu'?'S':'N'}</kbd> ${ST.mode==='hu'?'stall':'nop'} · <kbd>Supr</kbd> vaciar`;
+  $('#clearAr').classList.toggle('hidden',ST.mode==='nop');
+  renderPalette();renderLegend();paintGrid();renderFwList();renderRules();renderCycles();liveCheck(true);
+  note('');
+}
+function renderLegend(){
+  const sv=(inner,w)=>`<svg viewBox="0 0 ${w||30} 28" width="${w||30}" height="28" style="background:#fff;border:1px solid var(--line);border-radius:3px">${inner}</svg>`;
+  const st='stroke:#26405f;stroke-width:1.2';
+  const items=[
+    [sv(`<rect x="2" y="3" width="26" height="22" fill="#cfe0f3" style="${st}"/><text x="15" y="18" text-anchor="middle" style="font:700 10px var(--f-body);fill:#26405f">F</text>`),'Etapa usada (sombreada)'],
+    [sv(`<rect x="12" y="1" width="6" height="26" fill="#dfe5ee" style="stroke:#26405f;stroke-width:1"/>`),'Registro de segmentación'],
+    [sv(`<rect x="5" y="2" width="10" height="24" fill="#cfe0f3"/><rect x="5" y="2" width="20" height="24" fill="none" style="${st}"/><line x1="15" y1="2" x2="15" y2="26" style="stroke:#26405f;stroke-dasharray:2 2"/><rect x="45" y="2" width="10" height="24" fill="#cfe0f3"/><rect x="35" y="2" width="20" height="24" fill="none" style="${st}"/><line x1="45" y1="2" x2="45" y2="26" style="stroke:#26405f;stroke-dasharray:2 2"/>`,60),'Banco de registros: se escribe en la 1.ª mitad del ciclo (WB) y se lee en la 2.ª (D)'],
+    ST.mode==='hu'?[sv(`<rect x="2" y="3" width="26" height="22" fill="#fff" style="stroke:#7a3fc0;stroke-width:1.2;stroke-dasharray:3 2"/>`),'stall: burbuja (parada por LDR o instrucción vaciada por salto)']
+                 :[sv(`<rect x="2" y="3" width="26" height="22" fill="#fff" style="stroke:#9aa3b0;stroke-width:1.2;stroke-dasharray:3 2"/>`),'nop insertada por el compilador']];
+  const ln=(c,da)=>sv(`<path d="M4 4V18H22" fill="none" style="stroke:${c};stroke-width:2.2${da?';stroke-dasharray:'+da:''}"/><path d="M21 13.5L28 18L21 22.5Z" fill="${c}"/><circle cx="4" cy="4" r="2.5" fill="${c}"/>`);
+  if(ST.mode==='hu'){items.push([ln('#1f5fbf'),'Anticipación dibujada']);
+    if(ST.fwChecked){items.push([ln('#0a7d6e'),'Correcta']);items.push([ln('#c0392b','6 3'),'Sobra o mal colocada']);}}
+  $('#legend').innerHTML=items.map(([s,t])=>`<span>${s}${t}</span>`).join('');
+}
+function renderRules(){
+  const R=$('#rules');
+  if(ST.mode==='nop'){
+    $('#ruT').textContent='Sin unidad de riesgos';
+    R.innerHTML=`<p>Sin hardware de gestión de riesgos, el compilador resuelve todo con NOP (transparencias 81 y 95):</p>
+    <ul><li>Si una instrucción lee un registro que escribe la instrucción <b>justo anterior</b>, van <b>dos NOP</b> entre ellas; si las separa una instrucción, va <b>una NOP</b>. A partir de tres de distancia se lee bien del banco de registros (se escribe en la primera mitad del ciclo y se lee en la segunda).</li>
+    <li>Detrás de <b>cada salto</b> van <b>dos NOP</b>, se tome o no, porque el salto se resuelve en E.</li>
+    <li>Las NOP son estáticas: el compilador las pone en el código, así que se ejecutan en todas las vueltas del bucle. Las que hay antes de la etiqueta del bucle solo se ejecutan al entrar.</li>
+    <li><code>cmp</code> seguido de <code>bne</code> no necesita NOP: los flags se escriben al final de la E de <code>cmp</code> y el salto los usa en su E, un ciclo después.</li></ul>`;return;}
+  $('#ruT').textContent='Cómo se rellena';
+  R.innerHTML=`<h3>Filas de stall</h3>
+  <p>Procesador con unidad de riesgos de la transparencia 90. Solo dos situaciones meten filas de <b>stall</b>:</p>
+  <ul><li><b>LDR seguido de una instrucción que usa el registro cargado</b>: un stall entre las dos (transparencias 78 a 80). Si hay otra instrucción entre medias, no hace falta.</li>
+  <li><b>Salto tomado</b>: dos stall detrás del salto, porque se predice «no tomado» y el salto se resuelve en E; las dos instrucciones que entraron detrás se vacían (transparencias 87 a 89).</li>
+  <li>Un salto <b>no tomado</b> no cuesta nada: la predicción acierta.</li>
+  <li>Las dependencias entre instrucciones aritméticas no paran el cauce: se resuelven anticipando.</li></ul>
+  <div class="aside">Para saber cuántas veces se toma el salto, sigue el registro que controla el bucle: en el ejemplo, R5 empieza en 2 y se decrementa en cada vuelta, así que <code>bne</code> se toma en la primera vuelta y no en la segunda.</div>
+  <h3>Anticipaciones</h3>
+  <p>La unidad de riesgos compara los registros que la instrucción en E va a leer (RA1E, RA2E) con los que escriben las instrucciones en M y en WB (transparencia 76):</p>
+  <ul><li>Si el registro lo escribe la instrucción de la <b>fila anterior</b>, el dato está en su registro de segmentación E/M (etapa <b>M</b>): ForwardAE/BE = 10.</li>
+  <li>Si lo escribe la de <b>dos filas más arriba</b>, está en su registro M/WB (etapa <b>WB</b>): Forward = 01.</li>
+  <li>Si lo escriben las dos, gana la más reciente (M).</li>
+  <li>Una burbuja no escribe nada. Por eso, después del stall de un LDR, el dato llega desde la <b>WB</b> del LDR.</li>
+  <li><code>str</code> también recibe anticipación en el registro que guarda, no solo en el de la dirección.</li>
+  <li>De <code>cmp</code> a <code>bne</code> no hay flecha: los flags no pasan por la anticipación.</li></ul>
+  <div class="aside">Las flechas son verticales porque unen dos etapas del <b>mismo ciclo</b>: el dato sale del registro de segmentación de M o de WB y entra en la ALU de la instrucción que está en E.</div>`;
+}
+
+/* ================= Botones ================= */
+$('#freq').addEventListener('input',renderCompare);
+function checkAll(){
+  checkRows();
+  if(ST.rowsOk&&ST.mode==='hu')checkFw();
+  liveCheck(true);
+}
+$('#check').addEventListener('click',checkAll);
+$('#hint').addEventListener('click',()=>{if(!rowsAllOk())rowHint();else if(ST.mode==='hu')fwHint();else note('Las filas están bien y sin unidad de riesgos no hay anticipaciones: ¡ya está!','good');});
+$('#solve').addEventListener('click',solveAll);
+$('#clearAr').addEventListener('click',()=>{ST.arrows=[];ST.fwChecked=false;ST.fwOk=false;ST.pend=null;$('#rub').setAttribute('d','');paintGrid();renderFwList();renderLegend();liveCheck(true);note('');});
+$('#clear').addEventListener('click',()=>{
+  ST.rows=ST.rows.map(()=>'');ST.act=0;ST.rowsOk=false;ST.rowsChecked=false;ST.arrows=[];ST.fwChecked=false;ST.cmpShown=false;ST.fwOk=ST.mode==='nop';ST.pend=null;$('#gw').scrollTop=0;
+  paintGrid();renderFwList();renderLegend();liveCheck(true);note('');
+});
+
+/* ================= Controles del ejercicio ================= */
+$('#preset').innerHTML=Object.entries(PRESETS).map(([k,p])=>`<option value="${k}">${p.short}</option>`).join('');
+function loadPreset(k,keepHash){
+  ST.preset=k;const P=PRESETS[k];
+  if(k!=='custom'){ST.code=P.code;$('#src').value=P.code;}
+  ST.lim=P.lim;$('#lim').value=String(P.lim);$('#preset').value=k;
+  if(!keepHash){try{history.replaceState(null,'',HASH[k]?'#'+HASH[k]:location.pathname+location.search);}catch(e){}}
+  restart();
+}
+function restart(){if(!build())return;renderExercise();renderGrid();renderWork();$('#gw').scrollTop=0;$('#gw').scrollLeft=0;}
+$('#preset').addEventListener('change',e=>{const k=e.target.value;if(k==='custom'){$('#editBox').open=true;$('#src').focus();ST.preset='custom';$('#exT').textContent=PRESETS.custom.name;$('#exF').textContent='Escribe el código y pulsa «Cargar este código».';return;}loadPreset(k);});
+$('#lim').addEventListener('change',e=>{ST.lim=+e.target.value;restart();});
+$('#modeSeg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;ST.mode=b.dataset.m;$('#modeSeg').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));restart();});
+$('#load').addEventListener('click',()=>{
+  const txt=$('#src').value;const {prog,errs}=parseProg(txt);
+  if(errs.length||!prog.length){$('#srcErr').textContent=errs[0]||'El código está vacío';return;}
+  const same=Object.entries(PRESETS).find(([k,p])=>k!=='custom'&&p.code.trim()===txt.trim());
+  if(same){loadPreset(same[0]);return;}
+  ST.preset='custom';ST.code=txt;$('#preset').value='custom';
+  try{history.replaceState(null,'',location.pathname+location.search);}catch(e){}
+  restart();
+});
+let rz;window.addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(()=>{const old=CW;sizes();if(old!==CW)renderGrid();},150);});
+function fromHash(){const h=(location.hash||'').slice(1);const k=Object.keys(HASH).find(x=>HASH[x]===h);return k||'t92';}
+window.addEventListener('hashchange',()=>{const k=fromHash();if(k!==ST.preset)loadPreset(k,true);});
+$('#src').value=PRESETS.t92.code;
+loadPreset(fromHash(),true);
+window.__ST=ST;
+})();
+</script>
+<script data-goatcounter="https://juanjoual.goatcounter.com/count"
+        async src="//gc.zgo.at/count.js"></script>
+</body>
+</html>
