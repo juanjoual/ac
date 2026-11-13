@@ -261,6 +261,12 @@ kbd{font:600 11.5px var(--f-mono);padding:1px 6px;border:1px solid var(--line-st
             <button type="button" data-m="hu" aria-pressed="true">Con unidad de riesgos</button>
             <button type="button" data-m="nop" aria-pressed="false">Sin unidad (NOP)</button>
           </div></div>
+        <label class="fld" id="predF"><span>Predicción de saltos</span>
+          <select id="pred">
+            <option value="nt">No tomado</option>
+            <option value="t">Tomado (destino en F)</option>
+            <option value="btfn">Estática: arriba tomado, abajo no</option>
+          </select></label>
         <label class="fld"><span>Plantilla</span>
           <select id="lim">
             <option value="0">Programa completo</option>
@@ -275,6 +281,7 @@ kbd{font:600 11.5px var(--f-mono);padding:1px 6px;border:1px solid var(--line-st
           <summary>Escribir otro código</summary>
           <textarea id="src" spellcheck="false" aria-label="Código ensamblador"></textarea>
           <div class="row" style="margin-top:8px"><button class="btn primary" id="load" type="button">Cargar este código</button><span class="err" id="srcErr"></span></div>
+          <p class="howto" style="margin-top:8px">Los registros empiezan a 0. Las direcciones se pueden escribir con corchetes o con llaves: <code>[R6]</code> o <code>{R6}</code>. La memoria de datos empieza en la dirección 0 y lo que no se define vale 0; se inicializa como en ARM, con <code>.data</code> y <code>etiqueta: .word 3, 8, 5</code> (también <code>.space n</code> y <code>.org dir</code>). <code>LDR Rd, =etiqueta</code> carga la dirección de la etiqueta.</p>
         </details>
       </div>
       <div class="facts" id="facts"></div>
@@ -338,21 +345,42 @@ const DPOPS=['ADD','SUB','RSB','AND','ORR','EOR','BIC','LSL','LSR','ASR','MOV','
 const CMPOPS=['CMP','CMN','TST','TEQ'];
 function regOf(s){s=(s||'').trim().toUpperCase();if(s==='SP')return 13;if(s==='LR')return 14;if(s==='PC')return 15;const m=/^R(\d{1,2})$/.exec(s);return m&&+m[1]<16?+m[1]:null;}
 function immOf(s){s=(s||'').trim();if(s[0]!=='#')return null;const v=s.slice(1).trim();const n=/^-?0x/i.test(v)?parseInt(v,16):parseInt(v,10);return isNaN(n)?null:n;}
-function splitOps(s){const o=[];let d=0,cur='';for(const ch of s){if(ch==='[')d++;if(ch===']')d--;if(ch===','&&d===0){o.push(cur.trim());cur='';}else cur+=ch;}if(cur.trim())o.push(cur.trim());return o;}
+function splitOps(s){const o=[];let d=0,cur='';for(const ch of s){if(ch==='['||ch==='{')d++;if(ch===']'||ch==='}')d--;if(ch===','&&d===0){o.push(cur.trim());cur='';}else cur+=ch;}if(cur.trim())o.push(cur.trim());return o;}
+function numOf(v){v=(v||'').trim();if(/^-?0x[0-9a-f]+$/i.test(v))return parseInt(v,16);if(/^-?\d+$/.test(v))return parseInt(v,10);return null;}
 function parseProg(text){
-  const prog=[],labels={},errs=[],pend=[];
+  const prog=[],labels={},errs=[];
+  const mem=new Map(),dlabels={};let sec='text',dloc=0;
   text.split(/\r?\n/).forEach((raw,ln)=>{
     let s=raw.replace(/(;|@|\/\/).*$/,'').trim();
-    let m;
-    while(s&&(m=/^([A-Za-z_]\w*)\s*:\s*/.exec(s))){labels[m[1].toLowerCase()]=prog.length;pend.push(m[1]);s=s.slice(m[0].length);}
+    let m;const names=[];
+    while(s&&(m=/^([A-Za-z_]\w*)\s*:\s*/.exec(s))){names.push(m[1]);s=s.slice(m[0].length);}
+    // directivas y datos: la memoria de datos empieza en la dirección 0; lo no definido vale 0
+    if(s[0]==='.'||(sec==='data'&&names.length&&!s)){
+      const err=msg=>errs.push('Línea '+(ln+1)+': '+msg);
+      const sp=s.search(/\s/);const d=(sp<0?s:s.slice(0,sp)).toLowerCase();const arg=sp<0?'':s.slice(sp+1).trim();
+      if(d==='.org'){const v=numOf(arg);if(v===null||v<0){err('dirección no válida en .org');return;}dloc=v;}
+      names.forEach(nm=>{dlabels[nm.toLowerCase()]=dloc;});
+      if(!d)return;
+      if(d==='.data'||(d==='.section'&&/^\.?data/i.test(arg)))sec='data';
+      else if(d==='.text'||(d==='.section'&&/^\.?text/i.test(arg)))sec='text';
+      else if(d==='.word'){const vs=arg.split(',').map(x=>x.trim()).filter(Boolean);if(!vs.length){err('.word sin valores');return;}
+        for(const x of vs){const v=numOf(x.replace(/^#/,''));if(v===null){err('valor no válido en .word «'+x+'»');return;}mem.set(dloc,v>>>0);dloc+=4;}}
+      else if(d==='.space'||d==='.skip'){const v=numOf(arg);if(v===null||v<0){err('tamaño no válido en '+d);return;}dloc+=v;}
+      else if(d==='.org'){}
+      else if(['.align','.balign','.global','.globl','.end','.arm','.syntax','.type','.size'].includes(d)){}
+      else err('directiva no admitida «'+d+'»');
+      return;
+    }
+    if(sec==='data'){if(s)errs.push('Línea '+(ln+1)+': hay una instrucción dentro de la sección .data (falta .text)');return;}
+    names.forEach(nm=>{labels[nm.toLowerCase()]=prog.length;pendLbl.push(nm);});
     if(!s)return;
     const sp=s.search(/\s/);const mn=(sp<0?s:s.slice(0,sp)).toUpperCase();const rest=sp<0?'':s.slice(sp+1).trim();
     const ops=splitOps(rest);
-    const I={mn,txt:(mn.toLowerCase()+' '+ops.join(', ')).trim(),ln:ln+1,srcA:null,srcB:null,dst:null,imm:null,t:null,lbl:pend.splice(0).join(', ')||null};
+    const I={mn,asm:(mn+' '+ops.join(', ')).trim(),txt:(mn.toLowerCase()+' '+ops.join(', ')).trim(),ln:ln+1,srcA:null,srcB:null,dst:null,imm:null,t:null,lbl:pendLbl.splice(0).join(', ')||null};
     const err=msg=>errs.push('Línea '+(ln+1)+': '+msg);
     const op2=(x,role)=>{const r=regOf(x);if(r!==null){I[role]=r;return true;}const v=immOf(x);if(v!==null){I.imm=v;return true;}err('operando no válido «'+x+'»');return false;};
     let base=mn,S=false;
-    if(mn==='NOP'){I.t='nop';I.txt='nop';}
+    if(mn==='NOP'){I.t='nop';I.asm='NOP';I.txt='nop';}
     else if(mn==='BL'||/^BL(EQ|NE|GT|LT|GE|LE)$/.test(mn)||mn==='BX'){err(mn+' no está admitido');return;}
     else if(mn[0]==='B'&&mn!=='BIC'&&mn!=='BICS'&&(mn==='B'||CONDS.includes(mn.slice(1)))){
       I.t='b';I.cond=mn==='B'?'AL':mn.slice(1);I.label=(ops[0]||'').trim();if(!I.label)err('falta la etiqueta de destino');
@@ -362,7 +390,7 @@ function parseProg(text){
       I.t=mn.slice(0,3)==='LDR'?'ldr':'str';const rd=regOf(ops[0]);if(rd===null||ops.length<2){err('formato: '+mn+' Rd, [Rn, #imm]');return;}
       const a=ops.slice(1).join(',').trim();
       if(I.t==='ldr'&&a[0]==='='){I.lit=a.slice(1).trim();I.dst=rd;}
-      else{const mm=/^\[\s*(\w+)\s*(?:,\s*(#[^\]]+))?\]$/.exec(a);if(!mm){err('dirección no válida «'+a+'»');return;}I.srcA=regOf(mm[1]);if(I.srcA===null){err('registro base no válido');return;}I.imm=mm[2]?immOf(mm[2]):0;if(I.imm===null){err('desplazamiento no válido');return;}
+      else{const mm=/^[\[{]\s*(\w+)\s*(?:,\s*(#[^\]}]+))?[\]}]$/.exec(a);if(!mm){err('dirección no válida «'+a+'»');return;}I.srcA=regOf(mm[1]);if(I.srcA===null){err('registro base no válido');return;}I.imm=mm[2]?immOf(mm[2]):0;if(I.imm===null){err('desplazamiento no válido');return;}
         if(I.t==='ldr')I.dst=rd;else I.srcB=rd;}
     }
     else{
@@ -373,16 +401,19 @@ function parseProg(text){
       else{let o=ops;if(o.length===2)o=[o[0],o[0],o[1]];if(o.length!==3){err('se esperan 3 operandos');return;}I.dst=regOf(o[0]);I.srcA=regOf(o[1]);if(I.dst===null||I.srcA===null){err('registro no válido');return;}op2(o[2],'srcB');}
     }
     if(I.dst===15){err('las escrituras en R15 (PC) no están admitidas');return;}
-    if(I.srcA===15)I.srcA=null; if(I.srcB===15)I.srcB=null;
+    if(I.srcA===15)I.srcA=null; if(I.srcB===15)I.srcB=null; // R15 se lee como PC+8: nunca es un riesgo de datos
     prog.push(I);
   });
+  if(pendLbl.length)pendLbl.length=0;
   prog.forEach((I,i)=>{I.pc=i;if(I.t==='b'){const t=labels[I.label.toLowerCase()];I.target=t===undefined?prog.length:t;I.ext=t===undefined;}});
+  prog.mem=mem;prog.dlabels=dlabels;
   return {prog,labels,errs};
 }
+const pendLbl=[];
 function condOk(c,f){switch(c){case'EQ':return f.Z;case'NE':return!f.Z;case'CS':case'HS':return f.C;case'CC':case'LO':return!f.C;case'MI':return f.N;case'PL':return!f.N;case'VS':return f.V;case'VC':return!f.V;case'HI':return f.C&&!f.Z;case'LS':return!f.C||f.Z;case'GE':return f.N===f.V;case'LT':return f.N!==f.V;case'GT':return!f.Z&&f.N===f.V;case'LE':return f.Z||f.N!==f.V;default:return true;}}
 function runRef(prog,limit){
   limit=limit||400;
-  const R=new Array(16).fill(0),f={N:false,Z:false,C:false,V:false},mem=new Map(),lit={};let nl=0x1000;
+  const R=new Array(16).fill(0),f={N:false,Z:false,C:false,V:false},mem=new Map(prog.mem||[]),dl=prog.dlabels||{},lit={};let nl=0x1000;
   const trace=[];let pc=0,trunc=false;
   const setNZ=r=>{f.N=(r>>>31)===1;f.Z=(r>>>0)===0;};
   const add=(a,b,s)=>{a>>>=0;b>>>=0;const r=(a+b)>>>0;if(s){setNZ(r);f.C=a+b>0xFFFFFFFF;f.V=(((a^r)&(b^r))>>>31)===1;}return r;};
@@ -396,15 +427,15 @@ function runRef(prog,limit){
       case'AND':r=(A&B)>>>0;break;case'ORR':r=(A|B)>>>0;break;case'EOR':r=(A^B)>>>0;break;case'BIC':r=(A&~B)>>>0;break;
       case'LSL':r=(A<<(B&31))>>>0;break;case'LSR':r=(A>>>(B&31))>>>0;break;case'ASR':r=(A>>(B&31))>>>0;break;
       case'MOV':r=B>>>0;break;case'MVN':r=(~B)>>>0;break;}
-      if(I.S&&!['ADD','SUB','RSB'].includes(I.op))setNZ(r);R[I.dst]=r;}
+      if(I.S&&!['ADD','SUB','RSB'].includes(I.op))setNZ(r);R[I.dst]=r;t.val=r;}
     else if(I.t==='cmp'){if(I.op==='CMP')sub(A,B,true);else if(I.op==='CMN')add(A,B,true);else if(I.op==='TST')setNZ((A&B)>>>0);else setNZ((A^B)>>>0);}
-    else if(I.t==='ldr'){let v;if(I.lit!==undefined){const n=/^-?(0x)?[0-9a-f]+$/i.test(I.lit)?parseInt(I.lit):NaN;if(!isNaN(n))v=n>>>0;else{if(!(I.lit in lit)){lit[I.lit]=nl;nl+=0x100;}v=lit[I.lit];}}
-      else v=mem.get((A+I.imm)>>>0)||0;R[I.dst]=v>>>0;}
+    else if(I.t==='ldr'){let v;if(I.lit!==undefined&&I.lit.toLowerCase() in dl)v=dl[I.lit.toLowerCase()];else if(I.lit!==undefined){const n=/^-?(0x)?[0-9a-f]+$/i.test(I.lit)?parseInt(I.lit):NaN;if(!isNaN(n))v=n>>>0;else{if(!(I.lit in lit)){lit[I.lit]=nl;nl+=0x100;}v=lit[I.lit];}}
+      else{const ad=(A+I.imm)>>>0;if(!mem.has(ad))t.undef=true;v=mem.get(ad)||0;}R[I.dst]=v>>>0;t.val=v>>>0;}
     else if(I.t==='str'){mem.set((A+I.imm)>>>0,R[I.srcB]);}
     if(I.t==='b'&&condOk(I.cond,f)){t.taken=true;t.target=I.target;pc=I.target;}else pc++;
     trace.push(t);
   }
-  return {trace,trunc};
+  return {trace,trunc,regs:R.slice(0,15)};
 }
 
 /* ================= Solución de la plantilla en escalera =================
@@ -413,8 +444,15 @@ function runRef(prog,limit){
 const RN=r=>'R'+r;
 const srcs=I=>[I.srcA,I.srcB].filter(r=>r!==null&&r!==undefined);
 const code=t=>'<code>'+t+'</code>';
-function solveHU(prog,trace){
-  const rows=[];let prevTaken=null,prevNotTaken=null;
+/* Predicción de saltos (con unidad de riesgos; el salto se resuelve en E y un fallo cuesta 2 ciclos):
+   nt   «no tomado»: se sigue buscando por debajo del salto.
+   t    «tomado»: el destino se conoce ya en F (como en el enunciado), así que acertar no cuesta nada.
+   btfn estático: tomado si salta hacia arriba (destino anterior o igual), no tomado si salta hacia abajo. */
+const PRED={nt:'«no tomado»',t:'«tomado»',btfn:'estática (hacia arriba «tomado», hacia abajo «no tomado»)'};
+function predTaken(I,pred){return pred==='t'?true:pred==='btfn'?I.target<=I.pc:false;}
+function solveHU(prog,trace,pred){
+  pred=pred||'nt';
+  const rows=[];let prev=null;
   trace.forEach((t,k)=>{
     const I=prog[t.pc];
     const last=rows[rows.length-1];
@@ -424,17 +462,23 @@ function solveHU(prog,trace){
       }}
     let why;
     if(k===0)why=`Es la primera instrucción del programa: ${code(I.txt)}.`;
-    else if(prevTaken)why=`El salto ${code(prevTaken.txt)} se ha tomado, así que se busca la instrucción de destino: ${code(I.txt)}.`;
-    else if(prevNotTaken)why=`${code(prevNotTaken.txt)} no se toma: la predicción «no tomado» acierta y sigue ${code(I.txt)} sin perder ciclos.`;
+    else if(prev&&prev.miss&&prev.taken)why=`El salto ${code(prev.I.txt)} se ha tomado, así que se busca la instrucción de destino: ${code(I.txt)}.`;
+    else if(prev&&prev.miss)why=`${code(prev.I.txt)} no se toma: tras vaciar lo que se buscó en el destino, se busca la instrucción de debajo del salto: ${code(I.txt)}.`;
+    else if(prev&&prev.taken)why=`${code(prev.I.txt)} se predice «tomado» y acierta: el destino se conoce ya en F, así que ${code(I.txt)} entra en el ciclo siguiente sin perder ciclos.`;
+    else if(prev)why=`${code(prev.I.txt)} no se toma: la predicción «no tomado» acierta y sigue ${code(I.txt)} sin perder ciclos.`;
     else why=`La siguiente instrucción que se ejecuta es ${code(I.txt)}.`;
-    rows.push({k:'ins',pc:t.pc,taken:t.taken,why,iter:t.iter});
-    prevTaken=null;prevNotTaken=null;
+    rows.push({k:'ins',pc:t.pc,taken:t.taken,why});
+    prev=null;
     if(I.t==='b'){
-      if(t.taken){
+      const miss=predTaken(I,pred)!==t.taken;
+      if(miss&&t.taken){
         rows.push({k:'stall',cause:'br',why:`${code(I.txt)} se toma y se resuelve en E. Las dos instrucciones que entraron detrás por la predicción «no tomado» se vacían (FlushD, FlushE): esta es la primera de las dos.`});
         rows.push({k:'stall',cause:'br',why:`Segunda instrucción vaciada por el salto tomado ${code(I.txt)}: estaba en F cuando el salto llegó a E.`});
-        prevTaken=I;
-      } else prevNotTaken=I;
+      } else if(miss){
+        rows.push({k:'stall',cause:'br',why:`${code(I.txt)} se predijo «tomado» y en F ya se buscó el destino, pero al resolverse en E resulta que no se toma: las dos instrucciones del destino se vacían (FlushD, FlushE). Esta es la primera de las dos.`});
+        rows.push({k:'stall',cause:'br',why:`Segunda instrucción vaciada: ${code(I.txt)} no se toma y lo que se buscó en el destino no sirve.`});
+      }
+      prev={I,taken:t.taken,miss};
     }
   });
   rows.forEach(r=>{r.key=r.k==='ins'?'i'+r.pc:r.k;});
@@ -467,6 +511,7 @@ function solveNOP(prog){
   });
   out.forEach((I,i)=>{I.pc=i;});
   out.forEach(I=>{if(I.t==='b'){I.target=I.ext?out.length:idx[I.target];}});
+  out.mem=prog.mem;out.dlabels=prog.dlabels;
   return out;
 }
 function solveNopRows(prog){
@@ -571,15 +616,36 @@ loop:   add     R5, R5, #-2
         str     R6, [R7]
         cmp     R5, #0
         bne     loop`},
+  bgt:{name:'Ejercicio con BGT y BNE',short:'Ejercicio BGT y BNE',lim:24,
+    fig:'Todas las palabras que se leen de memoria son mayores que cero, así que BGT se toma siempre y las instrucciones 8 a 10 no llegan a ejecutarse. R5 va de 0 a 12 de 2 en 2: el bucle da 6 vueltas.',
+    code:`        MOV     R5, #0
+        MOV     R6, #0
+        MOV     R7, #100
+        MOV     R2, #8
+loop:   LDR     R9, [R6]
+        CMP     R9, #0
+        BGT     etiqueta
+        ADD     R9, R9, #5
+        ADD     R6, R6, #4
+        STR     R9, [R7]
+etiqueta: ADD   R7, R7, #4
+        ADD     R5, R5, #2
+        CMP     R5, #12
+        BNE     loop
+        ADD     R7, R7, #4
+        STR     R6, [R7]
+
+        .data                   ; memoria de datos, desde la dirección 0
+datos:  .word   3, 8, 5, 2, 7, 1  ; todas las palabras son > 0`},
   custom:{name:'Tu código',short:'Tu código',lim:0,fig:'Código escrito a mano. Si el bucle es largo, usa la plantilla de 24 filas.',code:''}
 };
-const HASH={t92:'transp-98',e38:'ejercicio-3-8',t100:'transp-100',e10:'ejercicio-10',e11:'ejercicio-11',e12:'ejercicio-12',e13:'ejercicio-13'};
+const HASH={t92:'transp-98',e38:'ejercicio-3-8',t100:'transp-100',e10:'ejercicio-10',e11:'ejercicio-11',e12:'ejercicio-12',e13:'ejercicio-13',bgt:'ejercicio-bgt'};
 
 /* ================= Estado ================= */
 const $=s=>document.querySelector(s);
 const COLS=['--i0','--i1','--i2','--i3','--i4','--i5'];
 const STN=['F','D','E','M','WB'];
-const ST={preset:'t92',mode:'hu',lim:0,code:PRESETS.t92.code,
+const ST={preset:'t92',mode:'hu',pred:'nt',lim:0,code:PRESETS.t92.code,
   prog:[],sol:[],R:0,C:0,fwd:[],trunc:false,
   rows:[],act:0,arrows:[],pend:null,
   rowsOk:false,rowsChecked:false,fwOk:false,fwChecked:false,cyOk:false,showMiss:false};
@@ -590,7 +656,8 @@ function build(){
   if(errs.length||!prog.length){$('#srcErr').textContent=errs[0]||'El código está vacío';return false;}
   $('#srcErr').textContent='';
   ST.prog=prog;
-  if(ST.mode==='hu'){const {trace,trunc}=runRef(prog);ST.sol=solveHU(prog,trace);ST.trunc=trunc;ST.nIns=trace.length;}
+  {const tr=runRef(prog).trace;ST.memWarn=tr.some(t=>t.undef)&&prog.some(C=>C.t==='cmp'&&prog.some(L=>L.t==='ldr'&&L.lit===undefined&&srcs(C).includes(L.dst)));}
+  if(ST.mode==='hu'){const {trace,trunc}=runRef(prog);ST.sol=solveHU(prog,trace,ST.pred);ST.trunc=trunc;ST.nIns=trace.length;}
   else{const r=solveNopRows(prog);ST.sol=r.rows;ST.trunc=r.trunc;ST.nIns=ST.sol.filter(x=>x.k==='ins').length;}
   const L=ST.sol.length;
   ST.R=ST.lim&&L>ST.lim?ST.lim:Math.min(L+2,140);
@@ -606,24 +673,37 @@ const colOf=pc=>COLS[pc%COLS.length];
 function txtOfKey(k){if(!k)return '';if(k==='stall')return 'stall';if(k==='nop')return 'nop';return ST.prog[+k.slice(1)].txt;}
 
 /* ================= Cabecera del ejercicio ================= */
+/* Sección de datos del código (.data / .word), para enseñarla bajo el programa */
+function dataListing(){
+  const L=ST.code.split(/\r?\n/);
+  const i=L.findIndex(l=>/^\s*(?:\w+\s*:\s*)?\.(data\b|section\s+\.?data)/i.test(l));
+  if(i<0)return '';
+  const esc=t=>t.replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  const d=L.slice(i).filter(l=>l.trim()).map(l=>`   ${esc(l.replace(/^\s+/,'').replace(/^(\w+:)\s*/,(m,a)=>a.padEnd(8)))}`);
+  return '\n\n'+d.join('\n');
+}
 function renderExercise(){
   const P=PRESETS[ST.preset];
   $('#exT').textContent=P.name;
   $('#exF').textContent=P.fig;
+  const LWd=Math.max(8,...ST.prog.map(I=>I.lbl?I.lbl.length+2:0));
   $('#listing').innerHTML=ST.prog.map((I,i)=>{
-    const lb=I.lbl?`<span class="lb">${(I.lbl+':').padEnd(8)}</span>`:' '.repeat(8);
-    return `<span class="cm">${String(i+1).padStart(2)} </span>${lb}${I.txt}`;}).join('\n');
+    const lb=I.lbl?`<span class="lb">${(I.lbl+':').padEnd(LWd)}</span>`:' '.repeat(LWd);
+    return `<span class="cm">${String(i+1).padStart(2)} </span>${lb}${I.txt}`;}).join('\n')+dataListing();
+  $('#predF').classList.toggle('hidden',ST.mode!=='hu');
   const L=ST.sol.length,total=L+4;
   const nStall=ST.sol.filter(r=>r.k==='stall').length,nNop=ST.sol.filter(r=>r.k==='nop').length;
   const partial=ST.R<L;
   $('#facts').innerHTML=`
     <p>${ST.mode==='hu'
-      ?'Procesador <b>con unidad de riesgos</b>: anticipa desde M y WB, para un ciclo tras un LDR y predice los saltos como «no tomado», resolviéndolos en E.'
+      ?(ST.pred==='nt'?'Procesador <b>con unidad de riesgos</b>: anticipa desde M y WB, para un ciclo tras un LDR y predice los saltos como «no tomado», resolviéndolos en E.'
+        :`Procesador <b>con unidad de riesgos</b>: anticipa desde M y WB, para un ciclo tras un LDR y usa la predicción ${PRED[ST.pred]}. El destino del salto se conoce ya en F, así que un salto bien predicho no cuesta nada; el salto se resuelve en E y cada fallo cuesta 2 ciclos.`)
       :'Procesador <b>sin unidad de riesgos</b>: no anticipa ni para el cauce, así que el compilador separa las dependencias con NOP y pone dos NOP detrás de cada salto.'}</p>
     <p>La plantilla tiene <b>${ST.R} filas</b> y <b>${ST.C} ciclos</b>. ${partial
-      ?`Es más corta que el programa: rellena solo lo que cabe; los ciclos del paso 3 son los del programa entero.`
+      ?`Es más corta que el programa: rellena solo lo que cabe; los ciclos y el CPI de abajo son los del programa entero.`
       :`Sobran dos filas al final: si el programa termina antes, déjalas vacías.`}</p>
     ${ST.trunc?'<p class="err">El programa no termina en 400 instrucciones: revisa el bucle.</p>':''}
+    ${ST.memWarn?'<div class="aside" style="border-color:var(--over);color:var(--ink)"><b>Ojo con la memoria de datos:</b> este programa compara un valor leído con LDR, pero lee direcciones que no están inicializadas y valen 0. Si el enunciado da los valores (por ejemplo, «todas las palabras son mayores que cero»), añádelos al final del código con <code>.data</code> y <code>.word</code>.</div>':''}
     <div class="aside">Cada fila arranca un ciclo después que la anterior, como en la transparencia 98: <b>F</b> búsqueda (<i>fetch</i>), <b>D</b> decodificación y lectura de registros, <b>E</b> ejecución, <b>M</b> memoria y <b>WB</b> escritura de registros (<i>writeback</i>). En la transparencia 98 se llaman BI, LR, E, M y ER. Por eso una parada ocupa una fila entera.</div>`;
   void total;void nStall;void nNop;
 }
@@ -852,7 +932,7 @@ function checkRows(){
   for(let r=0;r<ST.R;r++){if(ST.rows[r]===expKey(r)){if(expKey(r))ok++;}else if(firstBad<0)firstBad=r;}
   ST.rowsOk=firstBad<0;
   paintGrid();renderSteps();
-  if(ST.rowsOk){note(`¡Todas las filas están bien! ${ST.mode==='hu'?'Pasa al paso 2 para dibujar las anticipaciones.':'Sin unidad de riesgos no hay anticipaciones: pasa al paso 3 para contar los ciclos.'}`,'good');return;}
+  if(ST.rowsOk){note(`¡Todas las filas están bien! ${ST.mode==='hu'?'Ahora dibuja las anticipaciones.':'Sin unidad de riesgos no hay anticipaciones: los ciclos y el CPI están debajo.'}`,'good');return;}
   const filled=ST.rows.filter(Boolean).length;
   note(`${ok} de ${Math.min(ST.R,ST.sol.length)} filas correctas (${filled} rellenas). Las que están mal tienen ✗; pulsa <b>Pista</b> para ver por qué falla la primera.`,'bad');
 }
@@ -886,7 +966,7 @@ function missWhy(f){
     ?`${code(Q.txt)} (fila ${f.to+1}) necesita ${R} en E en el ciclo ${f.c}. En ese ciclo ${code(P.txt)} lo tiene en su etapa <b>M</b> (ALUOutM) y todavía no lo ha escrito en el banco de registros: ForwardE = 10.`
     :`${code(Q.txt)} (fila ${f.to+1}) necesita ${R} en E en el ciclo ${f.c}. En ese ciclo ${code(P.txt)} lo está escribiendo en su etapa <b>WB</b> (ResultW), pero ${code(Q.txt)} leyó el banco de registros un ciclo antes, en su etapa D: ForwardE = 01.`;
 }
-function needRows(){if(ST.rowsOk)return false;note('Para corregir las flechas, las filas tienen que estar bien: vuelve al paso 1 y pulsa <b>Comprobar</b> (o <b>Ver solución</b>).','warn');return true;}
+function needRows(){if(ST.rowsOk)return false;note('Para corregir las flechas, las filas tienen que estar bien: completa las filas y pulsa <b>Comprobar</b> (o <b>Ver solución</b>).','warn');return true;}
 function checkFw(){
   if(needRows())return;
   ST.fwChecked=true;
@@ -894,7 +974,7 @@ function checkFw(){
   const bad=ST.arrows.length-good,miss=ST.fwd.length-good;
   ST.fwOk=bad===0&&miss===0;
   paintGrid();renderFwList();renderSteps();renderLegend();
-  if(ST.fwOk)note(`¡Perfecto! Las ${ST.fwd.length} anticipaciones están bien. Pasa al paso 3.`,'good');
+  if(ST.fwOk)note(`¡Perfecto! Las ${ST.fwd.length} anticipaciones están bien. Los ciclos y el CPI están debajo.`,'good');
   else note(`${good} bien, ${bad} ${bad===1?'sobra o está mal colocada':'sobran o están mal colocadas'} y ${miss} ${miss===1?'falta':'faltan'}. Debajo del dibujo tienes el porqué de cada flecha.${miss?' Pulsa <b>Pista</b> para buscar las que faltan.':''}`,'bad');
 }
 function fwHint(){
@@ -939,29 +1019,30 @@ function totals(){
 }
 const fmt=(x,d)=>x.toFixed(d).replace('.',',');
 function modeTotals(mode){
-  if(mode==='hu'){const {trace}=runRef(ST.prog);const rows=solveHU(ST.prog,trace);return {total:rows.length+4,nIns:trace.length};}
+  if(mode==='hu'){const {trace}=runRef(ST.prog);const rows=solveHU(ST.prog,trace,ST.pred);return {total:rows.length+4,nIns:trace.length};}
   const r=solveNopRows(ST.prog).rows;const n=r.filter(x=>x.k==='ins').length;return {total:r.length+4,nIns:n};
 }
 function renderCompare(){
   const f=Math.max(1,+$('#freq').value||1200);
   const A=modeTotals('nop'),B=modeTotals('hu');
-  const row=(lbl,T,cur)=>{const cpi=T.total/T.nIns,t=T.total/f*1000;return `<tr${cur?' class="cur"':''}><td>${lbl}</td><td>${T.total}</td><td>${fmt(cpi,2)}</td><td>${fmt(t,2)} ns</td><td>${fmt(f/cpi,1)}</td></tr>`;};
-  $('#cmpt').innerHTML=`<thead><tr><th>Procesador</th><th>Ciclos</th><th>CPI</th><th>Tiempo</th><th>MIPS</th></tr></thead><tbody>${row('Sin unidad (NOP)',A,ST.mode==='nop')}${row('Con unidad de riesgos',B,ST.mode==='hu')}</tbody>`;
+  const row=(lbl,T,cur)=>{const cpi=T.total/T.nIns,t=T.total/f*1000;return `<tr${cur?' class="cur"':''}><td>${lbl}</td><td>${T.total}</td><td>${fmt(cpi,3)}</td><td>${fmt(t,2)} ns = ${fmt(t/1000,3)} µs</td><td>${fmt(f/cpi,1)}</td></tr>`;};
+  $('#cmpt').innerHTML=`<thead><tr><th>Procesador</th><th>Ciclos</th><th>CPI</th><th>Tiempo</th><th>MIPS</th></tr></thead><tbody>${row('Sin unidad (NOP)',A,ST.mode==='nop')}${row('Con unidad de riesgos'+(ST.pred==='nt'?'':' (predicción '+{t:'«tomado»',btfn:'estática'}[ST.pred]+')'),B,ST.mode==='hu')}</tbody>`;
   const tc=1000/f;
-  $('#cmpf').innerHTML=`t_ciclo = 1 / f = 1 / ${f} MHz = ${fmt(tc,4)} ns<br>tiempo = n_ciclos × t_ciclo · MIPS = f (MHz) / CPI<br>Aceleración = ciclos sin unidad / ciclos con unidad = ${A.total} / ${B.total} = <span class="res">${fmt(A.total/B.total,2)}</span>`;
+  $('#cmpf').innerHTML=`t_ciclo = 1 / f = 1 / ${f} MHz = ${fmt(tc,4)} ns<br>tiempo = n_ciclos × t_ciclo · MIPS = f (MHz) / CPI<br>Aceleración = ciclos sin unidad / ciclos con unidad = ${A.total} / ${B.total} = <span class="res">${fmt(A.total/B.total,3)}</span>`;
 }
 function renderCycles(){
   renderCompare();
   const T=totals();
   const t=[[4,'Llenado del cauce','--line-strong'],[T.nIns,'Instrucciones ejecutadas','--accent']];
-  if(ST.mode==='hu'){t.push([T.nStL,'Paradas por LDR','--ctl']);t.push([2*T.nTaken,`Vaciado: 2 × ${T.nTaken} saltos tomados`,'--bad']);}
+  const brw=ST.pred==='nt'?'saltos tomados':'saltos mal predichos';
+  if(ST.mode==='hu'){t.push([T.nStL,'Paradas por LDR','--ctl']);t.push([2*T.nTaken,`Vaciado: 2 × ${T.nTaken} ${brw}`,'--bad']);}
   else t.push([T.nNop,'NOP ejecutadas','--over']);
-  t.push([T.total,'Ciclos','--ok']);t.push([fmt(T.cpi,2),'CPI','--ok']);
+  t.push([T.total,'Ciclos','--ok']);t.push([fmt(T.cpi,3),'CPI','--ok']);
   $('#tiles').innerHTML=t.map(([v,l,c])=>`<div class="tile" style="--tc:var(${c})"><div class="tv">${v}</div><div class="tl">${l}</div></div>`).join('');
   $('#formula').innerHTML=ST.mode==='hu'
-    ?`n_ciclos = 4 (llenado) + instrucciones + paradas por LDR + 2 × saltos tomados<br>n_ciclos = 4 + ${T.nIns} + ${T.nStL} + 2 × ${T.nTaken} = <span class="res">${T.total} ciclos</span><br>CPI = n_ciclos / instrucciones = ${T.total} / ${T.nIns} = <span class="res">${fmt(T.cpi,2)}</span>`
-    :`n_ciclos = 4 (llenado) + instrucciones + NOP ejecutadas<br>n_ciclos = 4 + ${T.nIns} + ${T.nNop} = <span class="res">${T.total} ciclos</span><br>CPI = n_ciclos / instrucciones útiles = ${T.total} / ${T.nIns} = <span class="res">${fmt(T.cpi,2)}</span>`;
-  $('#cyNote').innerHTML=`Son los ciclos del <b>programa completo</b>: el número de filas de la escalera (${T.L}) más los 4 ciclos que tarda en vaciarse el cauce tras la última.${ST.R<T.L?` La plantilla solo muestra las ${ST.R} primeras filas.`:''}${(()=>{if(ST.mode!=='hu')return '';const bs=ST.sol.filter(x=>x.k==='ins'&&ST.prog[x.pc].t==='b');const nt=bs.filter(x=>!x.taken).length;return nt?` ${nt===1?'Un salto no se toma':nt+' saltos no se toman'} y no ${nt===1?'suma':'suman'} vaciado.`:'';})()}${ST.mode==='nop'?' Las NOP no cuentan como instrucciones en el CPI.':''}`;
+    ?`n_ciclos = 4 (llenado) + instrucciones + paradas por LDR + 2 × ${brw}<br>n_ciclos = 4 + ${T.nIns} + ${T.nStL} + 2 × ${T.nTaken} = <span class="res">${T.total} ciclos</span><br>CPI = n_ciclos / instrucciones = ${T.total} / ${T.nIns} = <span class="res">${fmt(T.cpi,3)}</span>`
+    :`n_ciclos = 4 (llenado) + instrucciones + NOP ejecutadas<br>n_ciclos = 4 + ${T.nIns} + ${T.nNop} = <span class="res">${T.total} ciclos</span><br>CPI = n_ciclos / instrucciones útiles = ${T.total} / ${T.nIns} = <span class="res">${fmt(T.cpi,3)}</span>`;
+  $('#cyNote').innerHTML=`Son los ciclos del <b>programa completo</b>: el número de filas de la escalera (${T.L}) más los 4 ciclos que tarda en vaciarse el cauce tras la última.${ST.R<T.L?` La plantilla solo muestra las ${ST.R} primeras filas.`:''}${(()=>{if(ST.mode!=='hu')return '';const bs=ST.sol.filter(x=>x.k==='ins'&&ST.prog[x.pc].t==='b');if(ST.pred!=='nt'){const ok=bs.length-T.nTaken;return ` Con la predicción ${PRED[ST.pred]} se ejecutan ${bs.length} saltos: ${T.nTaken===1?'1 mal predicho, que suma 2 ciclos':T.nTaken+' mal predichos, que suman 2 ciclos cada uno'}, y ${ok===1?'1 bien predicho, que no suma nada':ok+' bien predichos, que no suman nada'}.`;}const nt=bs.filter(x=>!x.taken).length;return nt?` ${nt===1?'Un salto no se toma':nt+' saltos no se toman'} y no ${nt===1?'suma':'suman'} vaciado.`:'';})()}${ST.mode==='nop'?' Las NOP no cuentan como instrucciones en el CPI.':''}`;
 }
 
 /* ================= Estado de la plantilla (sin pasos) ================= */
@@ -1029,8 +1110,10 @@ function renderRules(){
   R.innerHTML=`<h3>Filas de stall</h3>
   <p>Procesador con unidad de riesgos de la transparencia 90. Solo dos situaciones meten filas de <b>stall</b>:</p>
   <ul><li><b>LDR seguido de una instrucción que usa el registro cargado</b>: un stall entre las dos (transparencias 78 a 80). Si hay otra instrucción entre medias, no hace falta.</li>
-  <li><b>Salto tomado</b>: dos stall detrás del salto, porque se predice «no tomado» y el salto se resuelve en E; las dos instrucciones que entraron detrás se vacían (transparencias 87 a 89).</li>
-  <li>Un salto <b>no tomado</b> no cuesta nada: la predicción acierta.</li>
+  ${ST.pred==='nt'?`<li><b>Salto tomado</b>: dos stall detrás del salto, porque se predice «no tomado» y el salto se resuelve en E; las dos instrucciones que entraron detrás se vacían (transparencias 87 a 89).</li>
+  <li>Un salto <b>no tomado</b> no cuesta nada: la predicción acierta.</li>`:`<li><b>Salto mal predicho</b>: dos stall detrás del salto, porque se resuelve en E y las dos instrucciones que entraron por el camino equivocado se vacían.</li>
+  <li>Un salto <b>bien predicho</b> no cuesta nada: si se predice «tomado», el destino ya se conoce en F y se busca en el ciclo siguiente.</li>
+  <li>Predicción ${PRED[ST.pred]}${ST.pred==='btfn'?': los saltos hacia instrucciones anteriores (bucles) se predicen «tomado» y los que van hacia instrucciones posteriores, «no tomado»':''}.</li>`}
   <li>Las dependencias entre instrucciones aritméticas no paran el cauce: se resuelven anticipando.</li></ul>
   <div class="aside">Para saber cuántas veces se toma el salto, sigue el registro que controla el bucle: en el ejemplo, R5 empieza en 2 y se decrementa en cada vuelta, así que <code>bne</code> se toma en la primera vuelta y no en la segunda.</div>
   <h3>Anticipaciones</h3>
@@ -1072,6 +1155,7 @@ function loadPreset(k,keepHash){
 function restart(){if(!build())return;renderExercise();renderGrid();renderWork();$('#gw').scrollTop=0;$('#gw').scrollLeft=0;}
 $('#preset').addEventListener('change',e=>{const k=e.target.value;if(k==='custom'){$('#editBox').open=true;$('#src').focus();ST.preset='custom';$('#exT').textContent=PRESETS.custom.name;$('#exF').textContent='Escribe el código y pulsa «Cargar este código».';return;}loadPreset(k);});
 $('#lim').addEventListener('change',e=>{ST.lim=+e.target.value;restart();});
+$('#pred').addEventListener('change',e=>{ST.pred=e.target.value;restart();});
 $('#modeSeg').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;ST.mode=b.dataset.m;$('#modeSeg').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));restart();});
 $('#load').addEventListener('click',()=>{
   const txt=$('#src').value;const {prog,errs}=parseProg(txt);
@@ -1090,7 +1174,5 @@ loadPreset(fromHash(),true);
 window.__ST=ST;
 })();
 </script>
-<script data-goatcounter="https://juanjoual.goatcounter.com/count"
-        async src="//gc.zgo.at/count.js"></script>
 </body>
 </html>
