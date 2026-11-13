@@ -131,13 +131,31 @@
     @media (max-width: 640px) { .stair { display: none; } }
 
     /* Demos */
-    main.wrap { flex: 1; padding-block: 32px 56px; }
+    main.wrap { flex: 1; padding-block: 32px 56px; display: flex; flex-direction: column; gap: 44px; }
+    .block { scroll-margin-top: 16px; }
     .sect {
-      display: flex; align-items: baseline; justify-content: space-between;
-      gap: 8px 16px; flex-wrap: wrap; margin-bottom: 16px;
+      display: flex; align-items: flex-end; justify-content: space-between;
+      gap: 8px 16px; flex-wrap: wrap;
+      margin-bottom: 16px; padding-bottom: 10px;
+      border-bottom: 1px solid var(--line);
     }
-    .sect h2 { font-size: 24px; font-weight: 700; letter-spacing: .01em; }
+    .sect .kicker {
+      display: block;
+      font: 600 13px var(--f-display);
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+    .sect h2 { font-size: 30px; line-height: 1.05; font-weight: 700; letter-spacing: .01em; margin-top: 2px; }
     .sect .count { font: 600 12.5px var(--f-mono); color: var(--muted); }
+    .soon {
+      border: 1.5px dashed var(--line-strong);
+      border-radius: 6px;
+      padding: 26px 22px;
+      color: var(--muted);
+      background: color-mix(in srgb, var(--panel) 55%, transparent);
+    }
+    .soon b { display: block; color: var(--ink); font: 700 20px var(--f-display); letter-spacing: .01em; margin-bottom: 2px; }
 
     .grid {
       display: grid;
@@ -277,13 +295,7 @@
     </div>
   </header>
 
-  <main class="wrap">
-    <div class="sect">
-      <h2>Demos</h2>
-      <span class="count" id="count"></span>
-    </div>
-    <div class="grid" id="grid"></div>
-  </main>
+  <main class="wrap" id="demos"></main>
 
   <footer>
     <a class="egg" id="egg" href="game-boy-arm/" aria-label="Demo secreta"><span class="spr"></span></a>
@@ -296,11 +308,23 @@
   <script>
     /* =========================================================
        EDITA AQUÍ TUS DEMOS
+       Las demos van agrupadas en secciones. En cada sección:
+       - antetitulo y titulo: lo que se ve en la cabecera
+       - prefijo: cómo se numeran sus demos ("3." → Demo 3.1, 3.2…)
+       - vacia: texto que se muestra mientras no tenga demos
+       - demos: la lista de demos de esa sección
+       En cada demo:
        - carpeta: nombre de la carpeta en el repo (sin "/" delante)
        - color: i0 a i7 (la franja de color de la tarjeta)
-       Para añadir una demo, copia un bloque { ... } y cámbialo.
+       Para añadir una demo, copia un bloque { ... } dentro de la
+       sección que toque y cámbialo.
        ========================================================= */
-    const DEMOS = [
+    const SECCIONES = [
+      {
+        antetitulo: "Tema 3",
+        titulo: "Procesador segmentado",
+        prefijo: "3.",
+        demos: [
       {
         carpeta: "camino-critico-monociclo",
         titulo: "Camino crítico del monociclo",
@@ -344,6 +368,34 @@
         color: "i7"
       },
       {
+        carpeta: "prediccion-saltos",
+        titulo: "Predicción de saltos",
+        descripcion: "La carrera de los predictores: seis estrategias de predicción ejecutan el mismo programa en el cauce de 5 etapas y cada fallo cuesta 2 ciclos de vaciado. Intenta ganarles, mira por dentro cómo decide cada uno con el BTB y comprueba qué pasa al alargar y ensanchar el cauce.",
+        etiquetas: ["Saltos", "Predictores", "BTB"],
+        color: "i0"
+      },
+      {
+        carpeta: "superescalar",
+        titulo: "Superescalar de doble emisión",
+        descripcion: "Ejecuta un código en el segmentado y en tres superescalares con el mismo hardware: en orden, fuera de orden y con renombramiento. Avanza ciclo a ciclo, pulsa una instrucción para saber por qué espera y sigue el renombramiento paso a paso, como en la transparencia 119.",
+        etiquetas: ["Emisión múltiple", "Fuera de orden", "Renombramiento"],
+        color: "i1"
+      }
+        ]
+      },
+      {
+        antetitulo: "Tema 4",
+        titulo: "Memoria",
+        prefijo: "4.",
+        vacia: "Las demos de jerarquía de memoria irán apareciendo aquí a lo largo del tema.",
+        demos: []
+      },
+      {
+        antetitulo: "Para seguir explorando",
+        titulo: "Demos adicionales",
+        prefijo: "Extra ",
+        demos: [
+      {
         carpeta: "monociclo-multiciclo-segmentado",
         titulo: "Monociclo, multiciclo y segmentado",
         descripcion: "Las tres microarquitecturas ejecutan el mismo programa en paralelo, cada una con su propio reloj sobre un eje de tiempo común. Incluye la ecuación de rendimiento, el origen de cada Tc y la comparativa con SPECINT2000.",
@@ -356,6 +408,8 @@
         descripcion: "Ejecuta un programa ARM ciclo a ciclo en el procesador segmentado de 5 etapas: camino de datos animado, unidad de riesgos con anticipación, bloqueos y vaciados, diagrama multiciclo y estado de registros y memoria.",
         etiquetas: ["Segmentación", "Riesgos", "ARM"],
         color: "i1"
+      }
+        ]
       }
     ];
 
@@ -380,13 +434,13 @@
 
     const arrow = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 5l7 7-7 7"/></svg>';
 
-    document.getElementById("grid").innerHTML = DEMOS.map((d, i) => {
+    const card = (d, num) => {
       const dir = d.carpeta.replace(/^\/+/, "").replace(/\/?$/, "/");
       const tags = (d.etiquetas || []).map(t => `<span class="tag">${esc(t)}</span>`).join("");
       return `
         <a class="card" href="${encodeURI(dir)}" style="--ic:var(--${esc(d.color || "i0")})">
           <div class="hd">
-            <span class="num">Demo ${String(i + 1).padStart(2, "0")}</span>
+            <span class="num">${esc(num)}</span>
             <span class="path">/${esc(dir)}</span>
           </div>
           <h3>${esc(d.titulo || d.carpeta)}</h3>
@@ -394,10 +448,26 @@
           ${tags ? `<div class="tags">${tags}</div>` : ""}
           <span class="go">Abrir demo ${arrow}</span>
         </a>`;
-    }).join("");
+    };
 
-    document.getElementById("count").textContent =
-      DEMOS.length === 1 ? "1 demo" : `${DEMOS.length} demos`;
+    document.getElementById("demos").innerHTML = SECCIONES.map((s, k) => {
+      const n = s.demos.length;
+      const count = n === 1 ? "1 demo" : `${n} demos`;
+      const body = n
+        ? `<div class="grid">${s.demos.map((d, i) => card(d, (s.prefijo === "Extra " ? "Extra " : "Demo " + (s.prefijo || "")) + (i + 1))).join("")}</div>`
+        : `<div class="soon"><b>Próximamente</b>${esc(s.vacia || "Aún no hay demos en esta sección.")}</div>`;
+      return `
+        <section class="block" aria-labelledby="sec-${k}">
+          <div class="sect">
+            <div>
+              <span class="kicker">${esc(s.antetitulo || "")}</span>
+              <h2 id="sec-${k}">${esc(s.titulo)}</h2>
+            </div>
+            <span class="count">${count}</span>
+          </div>
+          ${body}
+        </section>`;
+    }).join("");
   </script>
 <script data-goatcounter="https://juanjoual.goatcounter.com/count"
         async src="//gc.zgo.at/count.js"></script>

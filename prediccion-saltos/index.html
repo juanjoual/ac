@@ -1,0 +1,1367 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style>
+<title>Predicción de saltos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@400;600&family=Source+Sans+3:wght@400;600;700&display=swap">
+<style>
+/* Layout: tercera de la serie con sus mismos tokens — cabecera, tarjetas de programas, carrera con una calle por predictor (casillas de acierto y fallo) y panel de coste con barras de CPI de todas las estrategias a la vez */
+:root{
+  --paper:#f2f4f8; --panel:#ffffff; --sunk:#f7f8fb; --ink:#152033; --muted:#566377; --line:#d6dce5; --line-strong:#9aa6b8;
+  --accent:#2148c9; --accent-ink:#ffffff;
+  --ok:#0a8273; --over:#b47600; --bad:#c0392b; --ctl:#7a3fc0;
+  --wire:#6f7b8e; --bar:#28324a; --bar-ink:#ffffff; --band:#e8ecf3;
+  --i0:#2563c4; --i1:#cf5f1c; --i2:#2c8a4d; --i3:#c02f80; --i4:#6a4bd0; --i5:#a67a0e;
+  --f-display:"Barlow Condensed","Arial Narrow",sans-serif;
+  --f-body:"Source Sans 3","Segoe UI",system-ui,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --paper:#0e131b; --panel:#151c27; --sunk:#111821; --ink:#e2e8f1; --muted:#95a2b6; --line:#273244; --line-strong:#56637a;
+  --accent:#7d9fff; --accent-ink:#0b1224;
+  --ok:#35c4b2; --over:#f0b42a; --bad:#ff6e62; --ctl:#b590ff;
+  --wire:#7f8ca1; --bar:#c3cde0; --bar-ink:#0e131b; --band:#18202d;
+  --i0:#6aa2ec; --i1:#f2935c; --i2:#5fc187; --i3:#ea72b8; --i4:#a38bf2; --i5:#e2b24b;
+  color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --paper:#0e131b; --panel:#151c27; --sunk:#111821; --ink:#e2e8f1; --muted:#95a2b6; --line:#273244; --line-strong:#56637a;
+  --accent:#7d9fff; --accent-ink:#0b1224;
+  --ok:#35c4b2; --over:#f0b42a; --bad:#ff6e62; --ctl:#b590ff;
+  --wire:#7f8ca1; --bar:#c3cde0; --bar-ink:#0e131b; --band:#18202d;
+  --i0:#6aa2ec; --i1:#f2935c; --i2:#5fc187; --i3:#ea72b8; --i4:#a38bf2; --i5:#e2b24b;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--paper);color:var(--ink);font:15px/1.5 var(--f-body);-webkit-font-smoothing:antialiased}
+.wrap{max-width:1380px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0}
+h2{font-size:26px;font-weight:700;letter-spacing:.01em;line-height:1.1}
+p{margin:0}
+code,.mono{font-family:var(--f-mono);font-size:.88em}
+sub{font-size:.72em}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.top{border-bottom:1px solid var(--line);background:var(--panel)}
+.top .wrap{padding-block:24px 18px;display:flex;flex-wrap:wrap;gap:18px 40px;align-items:flex-end;justify-content:space-between}
+.top .intro{min-width:0;flex:1 1 520px}
+.eyebrow{font:600 12.5px var(--f-display);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+h1{font-size:clamp(32px,4.4vw,50px);line-height:1;font-weight:700;margin-top:6px}
+.lede{margin-top:10px;max-width:72ch;color:var(--muted)}
+.lede a{color:var(--accent)}
+.hstat{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap}
+.hstat .lab{width:100%}
+.hstat .big{font:700 42px/1 var(--f-display);font-variant-numeric:tabular-nums}
+.hstat .big small{font-size:20px;color:var(--muted);font-weight:600}
+.hstat .arrow{font:600 26px/1 var(--f-display);color:var(--muted);padding-bottom:6px}
+.hstat .big.after{color:var(--bad)}
+
+.steps{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:color-mix(in srgb,var(--paper) 92%,transparent);backdrop-filter:blur(6px);border-bottom:1px solid var(--line)}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--paper)}
+.steps .wrap{display:flex;gap:6px;overflow-x:auto;padding-block:10px;scrollbar-width:thin}
+.stp{flex:1 0 auto;display:flex;align-items:center;gap:8px;padding:6px 10px 6px 6px;border:1px solid var(--line);border-radius:5px;background:var(--panel);cursor:pointer;text-align:left;min-width:0}
+.stp:hover{border-color:var(--accent)}
+.stp .n{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font:700 13px var(--f-display);border:1px solid var(--line-strong);color:var(--muted);flex-shrink:0}
+.stp .t{font:600 14.5px var(--f-display);letter-spacing:.02em;white-space:nowrap}
+.stp.done .n{background:color-mix(in srgb,var(--accent) 14%,var(--panel));border-color:var(--accent);color:var(--accent)}
+.stp.cur{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 9%,var(--panel))}
+.stp.cur .n{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+
+main.wrap{padding-block:16px 48px;display:flex;flex-direction:column;gap:16px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:16px;min-width:0}
+.head{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:flex-end;justify-content:space-between;margin-bottom:12px}
+.head .ti{min-width:0;flex:1 1 400px}
+.head .k{font:600 12.5px var(--f-display);letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+.head .fig{font-size:13.5px;color:var(--muted);margin-top:3px}
+.nav{display:flex;gap:6px}
+.btn{border:1px solid var(--line-strong);background:var(--panel);border-radius:5px;padding:6px 12px;font-weight:600;font-size:13.5px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{filter:brightness(1.08);color:var(--accent-ink)}
+.btn.good{border-color:var(--ok);color:var(--ok)}
+.btn:disabled{opacity:.4;cursor:default;pointer-events:none}
+.btn svg{width:14px;height:14px;fill:currentColor}
+
+/* Camino de datos */
+.dpbox{overflow-x:auto;border:1px solid var(--line);border-radius:5px;background:var(--sunk)}
+#dp{display:block;width:100%;min-width:880px;height:auto;user-select:none}
+#dp .gone{display:none}
+#dp .band{fill:transparent;transition:fill .3s}
+#dp .band.alt{fill:var(--band)}
+#dp .band.occ{fill:color-mix(in srgb,var(--c) 12%,transparent)}
+#dp .band.flu{fill:color-mix(in srgb,var(--bad) 13%,transparent)}
+#dp .tag rect{fill:var(--panel);stroke:var(--line);transition:fill .25s,stroke .25s}
+#dp .tag text{fill:var(--muted);font:700 12px var(--f-display);letter-spacing:.1em;text-anchor:middle;text-transform:uppercase}
+#dp .tag.occ rect{fill:color-mix(in srgb,var(--c) 22%,var(--panel));stroke:var(--c)}
+#dp .tag.occ text{fill:var(--ink);font:600 11.5px var(--f-mono);letter-spacing:0;text-transform:none}
+#dp .tag.bub rect{fill:var(--sunk);stroke:var(--line-strong);stroke-dasharray:4 3}
+#dp .tag.bub text{fill:var(--muted);font:italic 600 11.5px var(--f-body);letter-spacing:0;text-transform:none}
+#dp .tag.flu rect{fill:color-mix(in srgb,var(--bad) 16%,var(--panel));stroke:var(--bad)}
+#dp .tag.flu text{fill:var(--bad);text-decoration:line-through}
+#dp .w{fill:none;stroke:var(--wire);stroke-width:1.6;stroke-linejoin:round;stroke-linecap:round;transition:stroke .2s,opacity .2s}
+#dp .w.hl{stroke:var(--accent);stroke-width:3}
+#dp .w.good{stroke:var(--ok);stroke-width:3.4;stroke-dasharray:9 6;animation:flow .5s linear infinite}
+#dp .w.bad{stroke:var(--bad);stroke-width:3.4;stroke-dasharray:7 4;animation:flow .5s linear infinite}
+#dp .w.dim,#dp .hz.dim{opacity:.18}
+#dp .hz{fill:none;stroke:var(--ctl);stroke-width:1.3;opacity:.75}
+#dp .hz.on{stroke-width:3.4;opacity:1;stroke-dasharray:8 5;animation:flowup .5s linear infinite}
+@keyframes flow{to{stroke-dashoffset:-15}}
+@keyframes flowup{to{stroke-dashoffset:13}}
+#dp .blk rect,#dp .blk polygon{fill:var(--panel);stroke:var(--line-strong);stroke-width:1.4;transition:fill .2s,stroke .2s,opacity .2s}
+#dp .blk text{fill:var(--ink);font:600 12.5px var(--f-display);text-anchor:middle;letter-spacing:.02em}
+#dp .blk .pt{fill:var(--muted);font:500 9px var(--f-mono);letter-spacing:0}
+#dp .blk .pt.s{text-anchor:start} #dp .blk .pt.e{text-anchor:end}
+#dp .blk.hl rect,#dp .blk.hl polygon{fill:color-mix(in srgb,var(--accent) 22%,var(--panel));stroke:var(--accent);stroke-width:2.6}
+#dp .blk.good rect,#dp .blk.good polygon{fill:color-mix(in srgb,var(--ok) 22%,var(--panel));stroke:var(--ok);stroke-width:2.6}
+#dp .blk.bad rect,#dp .blk.bad polygon{fill:color-mix(in srgb,var(--bad) 18%,var(--panel));stroke:var(--bad);stroke-width:2.6}
+#dp .blk.dim{opacity:.25}
+#dp .blk.hzu rect{fill:color-mix(in srgb,var(--ctl) 8%,var(--panel));stroke:var(--ctl);stroke-width:1.6}
+#dp .blk.hzu.off{opacity:.3}
+#dp .blk.hzu text.ttl{fill:var(--ctl);font:700 13px var(--f-display);letter-spacing:.08em;text-anchor:start;text-transform:uppercase}
+#dp .bar rect{fill:var(--bar);stroke:none;transition:fill .2s,stroke .2s}
+#dp .bar text{fill:var(--bar-ink);font:700 10.5px var(--f-display);letter-spacing:.1em;text-anchor:middle}
+#dp .bar.hold rect{fill:var(--ctl)}
+#dp .bar.clr rect{fill:var(--bad)}
+#dp .bar .ck{fill:none;stroke:var(--bar-ink);stroke-width:1.2}
+#dp .wl{fill:var(--muted);font:500 9.5px var(--f-mono);paint-order:stroke;stroke:var(--sunk);stroke-width:3px}
+#dp .wl.cl{fill:var(--ctl)}
+#dp .wl.e{text-anchor:end} #dp .wl.m{text-anchor:middle}
+#dp .wl.on{fill:var(--ctl);font-weight:600}
+#dp .dot{fill:var(--wire)}
+#dp .pill rect{fill:var(--panel);stroke:var(--line-strong);stroke-width:1}
+#dp .pill text{fill:var(--muted);font:500 9.5px var(--f-mono);text-anchor:middle}
+#dp .pill.on rect{fill:color-mix(in srgb,var(--ctl) 22%,var(--panel));stroke:var(--ctl);stroke-width:1.6}
+#dp .pill.on text{fill:var(--ink);font-weight:600}
+#dp #callout rect{fill:var(--panel);stroke:var(--bad);stroke-width:1.6}
+#dp #callout text{fill:var(--bad);font:600 12.5px var(--f-mono);text-anchor:middle}
+#dp #callout.good rect{stroke:var(--ok)} #dp #callout.good text{fill:var(--ok)}
+#dp #callout.ctl rect{stroke:var(--ctl)} #dp #callout.ctl text{fill:var(--ctl)}
+.note{margin-top:10px;padding:9px 12px;border-radius:5px;background:var(--sunk);border:1px solid var(--line);border-left:4px solid var(--accent);font-size:14.5px;min-height:2.9em}
+.note.bad{border-left-color:var(--bad)} .note.good{border-left-color:var(--ok)} .note.ctl{border-left-color:var(--ctl)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:8px;font-size:13px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.legend i{display:inline-block;width:22px;height:0;border-top:3px solid}
+
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);gap:16px;align-items:start}
+@media (max-width:1000px){.two{grid-template-columns:minmax(0,1fr)}}
+.explain{display:flex;flex-direction:column;gap:10px;max-width:68ch;min-width:0}
+.explain p{font-size:15.5px}
+.explain .aside{font-size:14px;color:var(--muted);padding:10px 12px;border:1px dashed var(--line-strong);border-radius:5px}
+.explain .aside b{color:var(--ink)}
+.explain ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px}
+.lab{display:flex;flex-direction:column;gap:12px;min-width:0}
+.lh{font:600 12px var(--f-display);letter-spacing:.11em;text-transform:uppercase;color:var(--muted)}
+.row{display:flex;gap:8px 12px;flex-wrap:wrap;align-items:center}
+.clock{font:700 26px/1 var(--f-display);font-variant-numeric:tabular-nums;min-width:96px}
+.khint{font-size:13px;color:var(--muted);display:inline-flex;align-items:center;gap:6px}
+kbd{font:600 11.5px var(--f-mono);padding:1px 6px;border:1px solid var(--line-strong);border-bottom-width:2px;border-radius:4px;background:var(--panel);color:var(--ink)}
+.box{padding:10px 12px;border-radius:5px;background:var(--sunk);border:1px solid var(--line);font-size:14.5px}
+.box.bad{border-color:color-mix(in srgb,var(--bad) 55%,var(--line));background:color-mix(in srgb,var(--bad) 8%,var(--panel))}
+.box.good{border-color:color-mix(in srgb,var(--ok) 55%,var(--line));background:color-mix(in srgb,var(--ok) 8%,var(--panel))}
+.box.warn{border-color:color-mix(in srgb,var(--over) 55%,var(--line));background:color-mix(in srgb,var(--over) 8%,var(--panel))}
+.seg{display:inline-flex;border:1px solid var(--line-strong);border-radius:5px;overflow:hidden;background:var(--sunk);flex-wrap:wrap}
+.seg button{border:0;background:none;padding:6px 12px;font-weight:600;font-size:13.5px;cursor:pointer;border-right:1px solid var(--line)}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed=true]{background:var(--accent);color:var(--accent-ink)}
+.segl{font-size:13px;color:var(--muted);font-weight:600}
+
+/* Programa */
+.prog{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:3px;font:13px var(--f-mono)}
+.prog li{display:flex;gap:10px;align-items:center;padding:3px 8px;border-radius:4px;border-left:4px solid var(--c)}
+.prog li .a{color:var(--muted);font-size:11.5px;min-width:3.4em}
+.prog li .lbl{color:var(--accent);font-weight:600}
+.prog li.on{background:color-mix(in srgb,var(--c) 12%,var(--panel))}
+.prog li.nop{color:var(--muted);border-left-style:dashed}
+.prog li.ins{background:color-mix(in srgb,var(--over) 12%,var(--panel));color:var(--ink)}
+/* NOP huecos */
+.slot{display:flex;align-items:center;gap:6px;padding-left:12px}
+.slot button{border:1px dashed var(--line-strong);background:none;border-radius:4px;font:600 11.5px var(--f-mono);color:var(--muted);padding:1px 8px;cursor:pointer}
+.slot button:hover{border-color:var(--accent);color:var(--accent)}
+.slot .nopb{border-style:solid;border-color:var(--over);color:var(--over);background:color-mix(in srgb,var(--over) 10%,var(--panel))}
+
+/* Diagrama multiciclo */
+.mcw{overflow:auto;border:1px solid var(--line);border-radius:5px;max-height:460px}
+table.mc{border-collapse:separate;border-spacing:0;font:11.5px var(--f-mono);min-width:100%}
+table.mc th,table.mc td{border-bottom:1px solid var(--line);border-right:1px solid color-mix(in srgb,var(--line) 60%,transparent);height:28px;padding:0 2px;text-align:center;min-width:36px;white-space:nowrap}
+table.mc thead th{background:var(--sunk);color:var(--muted);font-weight:600;position:sticky;top:0;z-index:2}
+table.mc th.cur{background:var(--accent);color:var(--accent-ink)}
+table.mc .rh{position:sticky;left:0;background:var(--panel);text-align:left;padding:0 10px 0 8px;border-left:4px solid var(--c,var(--line));font-weight:600;z-index:1}
+table.mc thead .rh{background:var(--sunk);border-left-color:transparent;z-index:3}
+table.mc .rh .a{color:var(--muted);font-weight:400;font-size:10.5px;margin-right:6px}
+table.mc .rh.bub{font-style:italic;color:var(--muted);font-family:var(--f-body);font-weight:600}
+table.mc .rh.fl{color:var(--muted);text-decoration:line-through}
+table.mc .rh.err{color:var(--bad)}
+table.mc .rh.nop{color:var(--muted);font-weight:400}
+table.mc td.k{background:color-mix(in srgb,var(--c) 20%,var(--panel));color:color-mix(in srgb,var(--c) 75%,var(--ink));font-weight:600}
+table.mc td.k.idle{background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--c) 12%,var(--panel)) 0 4px,var(--panel) 4px 8px);color:var(--muted)}
+table.mc td.k.stl{background:repeating-linear-gradient(90deg,color-mix(in srgb,var(--ctl) 22%,var(--panel)) 0 3px,var(--panel) 3px 6px);color:var(--ctl);box-shadow:inset 0 0 0 1.5px var(--ctl)}
+table.mc td.k.fl{background:color-mix(in srgb,var(--bad) 14%,var(--panel));color:var(--bad);text-decoration:line-through}
+table.mc td.k.bb{background:repeating-linear-gradient(135deg,var(--sunk) 0 4px,var(--panel) 4px 8px);color:var(--muted);font-style:italic}
+table.mc td.k.bad{box-shadow:inset 0 0 0 2px var(--bad);color:var(--bad)}
+table.mc td.k.fw{box-shadow:inset 0 0 0 2px var(--ok)}
+table.mc td i.fw{font-style:normal;font-size:9.5px;color:var(--ok);margin-left:2px}
+table.mc td i.st{font-style:normal;font-size:9.5px;color:var(--bad);margin-left:1px}
+table.mc td.k.cur{outline:2px solid var(--accent);outline-offset:-2px}
+table.mc td.cur:not(.k){background:color-mix(in srgb,var(--accent) 8%,transparent)}
+.mkeys{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12.5px;color:var(--muted)}
+.mkeys span{display:inline-flex;align-items:center;gap:6px}
+.mkeys i{display:inline-block;width:18px;height:12px;border-radius:2px}
+
+/* Señales de la unidad de riesgos */
+.sigt{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:6px}
+.sg{padding:6px 9px;border-radius:5px;border:1px solid var(--line);background:var(--sunk);display:flex;flex-direction:column;gap:1px;min-width:0}
+.sg .n{font:600 11.5px var(--f-mono);color:var(--muted);overflow-wrap:anywhere}
+.sg .v{font:700 17px/1.1 var(--f-mono);font-variant-numeric:tabular-nums}
+.sg.on{border-color:var(--ctl);background:color-mix(in srgb,var(--ctl) 12%,var(--panel))}
+.sg.on .v{color:var(--ctl)}
+.sg.gd{border-color:var(--ok);background:color-mix(in srgb,var(--ok) 10%,var(--panel))}
+.sg.gd .v{color:var(--ok)}
+.code{margin:0;padding:10px 12px;border-radius:5px;background:var(--sunk);border:1px solid var(--line);font:12.5px/1.75 var(--f-mono);overflow-x:auto;white-space:pre}
+.code .ln{display:block;padding:0 6px;margin:0 -6px;border-radius:3px}
+.code .ln.on{background:color-mix(in srgb,var(--ok) 18%,var(--panel));color:var(--ink);font-weight:600}
+.code .ln.onc{background:color-mix(in srgb,var(--ctl) 18%,var(--panel));color:var(--ink);font-weight:600}
+.code .cm{color:var(--muted)}
+.code .val{color:var(--ctl);font-weight:600}
+
+.reads{display:flex;flex-direction:column;gap:5px}
+.rd{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:6px 10px;border-radius:5px;border:1px solid var(--line);border-left:4px solid var(--c,var(--line));font-size:14px;background:var(--panel)}
+.rd .s{font:700 12px var(--f-display);letter-spacing:.08em;text-transform:uppercase;padding:2px 8px;border-radius:3px;white-space:nowrap}
+.rd .s.ok{background:color-mix(in srgb,var(--ok) 16%,var(--panel));color:var(--ok)}
+.rd .s.bad{background:color-mix(in srgb,var(--bad) 16%,var(--panel));color:var(--bad)}
+.rd .s.pend{background:var(--sunk);color:var(--muted)}
+.rd code{font-weight:600}
+
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}
+.tile{padding:10px 12px;border-radius:5px;background:var(--sunk);border:1px solid var(--line);border-top:3px solid var(--tc,var(--line-strong))}
+.tile .tv2{font:700 28px/1.05 var(--f-display);font-variant-numeric:tabular-nums}
+.tile .tl{font-size:12.5px;color:var(--muted);margin-top:2px}
+
+/* Laboratorio */
+.edit{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+@media (max-width:620px){.edit{grid-template-columns:minmax(0,1fr)}}
+textarea#src{width:100%;min-height:230px;resize:vertical;border:1px solid var(--line-strong);border-radius:5px;background:var(--sunk);padding:8px 10px;font:13px/1.55 var(--f-mono);tab-size:8}
+select#preset{border:1px solid var(--line-strong);border-radius:5px;background:var(--panel);padding:6px 8px;font-weight:600;font-size:13.5px;max-width:100%}
+.err{color:var(--bad);font:600 13px var(--f-mono)}
+.eqs{margin:0;padding:10px 12px;border-radius:5px;background:var(--sunk);border:1px solid var(--line);font:12.5px/1.8 var(--f-mono);overflow-x:auto;white-space:pre}
+.eqs .v1{color:var(--ctl);font-weight:700}
+.eqs .v0{color:var(--muted)}
+
+/* Rendimiento */
+.sl8{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,2fr) 56px;gap:4px 12px;align-items:center;font-size:14px}
+.sl8 output{font:600 13px var(--f-mono);text-align:right;font-variant-numeric:tabular-nums}
+.sl8 input{width:100%;accent-color:var(--accent);margin:0}
+@media (max-width:520px){.sl8{grid-template-columns:minmax(0,1fr) 56px}.sl8 input{grid-column:1 / -1;grid-row:auto}}
+.cpibar{display:flex;height:34px;border-radius:4px;overflow:hidden;border:1px solid var(--line)}
+.cpibar div{display:flex;align-items:center;justify-content:center;font:600 11.5px var(--f-mono);white-space:nowrap;overflow:hidden;min-width:0;transition:flex-basis .25s}
+.cpibar .b0{background:color-mix(in srgb,var(--accent) 26%,var(--panel))}
+.cpibar .b1{background:repeating-linear-gradient(90deg,color-mix(in srgb,var(--ctl) 30%,var(--panel)) 0 3px,var(--panel) 3px 6px);color:var(--ctl)}
+.cpibar .b2{background:color-mix(in srgb,var(--bad) 22%,var(--panel));color:var(--bad)}
+.formula{padding:10px 12px;border-radius:5px;background:var(--sunk);border:1px solid var(--line);font:13px/1.7 var(--f-mono);overflow-x:auto}
+.formula .res{color:var(--accent);font-weight:600}
+a{color:var(--accent)}
+.foot{color:var(--muted);font-size:13px;padding-top:4px}
+@media (prefers-reduced-motion: reduce){#dp *{animation:none!important;transition:none!important}}
+
+/* ===== Carrera de predictores ===== */
+.lede a{color:var(--accent)}
+.hstat .big.after{color:var(--bad)}
+.secth{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:flex-end;justify-content:space-between;margin-bottom:12px}
+.secth .k{font:600 12.5px var(--f-display);letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+.secth h2{margin-top:2px}
+.secth p{color:var(--muted);font-size:14px;max-width:70ch;margin-top:3px}
+
+/* programas */
+.progs{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px}
+.pc{display:flex;flex-direction:column;gap:6px;text-align:left;padding:10px 12px;border:1px solid var(--line);border-radius:6px;background:var(--panel);cursor:pointer;min-width:0;transition:border-color .15s,transform .15s,box-shadow .15s}
+.pc:hover{border-color:var(--accent);transform:translateY(-1px)}
+.pc[aria-pressed=true]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);background:color-mix(in srgb,var(--accent) 7%,var(--panel))}
+.pc .nm{font:700 17px/1.1 var(--f-display);letter-spacing:.01em}
+.pc .bl{font-size:13px;color:var(--muted);line-height:1.35}
+.pc .ft{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:auto;font:600 11.5px var(--f-mono);color:var(--muted)}
+.tag{display:inline-block;align-self:flex-start;font:700 10.5px var(--f-display);letter-spacing:.1em;text-transform:uppercase;padding:1px 6px;border-radius:3px;color:var(--tg);background:color-mix(in srgb,var(--tg) 12%,var(--panel));border:1px solid color-mix(in srgb,var(--tg) 40%,var(--line))}
+.dif{display:inline-flex;gap:2px;align-items:center}
+.dif i{width:6px;height:11px;border-radius:1.5px;background:var(--line)}
+.dif i.on{background:var(--over)}
+.dif i.on.h{background:var(--bad)}
+
+/* carrera */
+.race{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
+@media (max-width:1050px){.race{grid-template-columns:minmax(0,1fr)}}
+.ctrl{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center;margin-bottom:10px}
+.btn.big{padding:9px 16px;font-size:15px}
+.btn.big svg{width:16px;height:16px}
+.clockl{margin-left:auto;font:600 13px var(--f-body);color:var(--muted);font-variant-numeric:tabular-nums;text-align:right}
+.clockl b{font:700 24px/1 var(--f-display);color:var(--ink);margin-right:4px}
+.lanes{display:flex;flex-direction:column;gap:6px}
+.lane{display:grid;grid-template-columns:200px minmax(0,1fr) 112px;gap:10px;align-items:center;padding:8px 10px;border:1px solid var(--line);border-left:4px solid var(--c);border-radius:6px;background:var(--panel);transition:background .3s,border-color .3s}
+.lane.win{background:color-mix(in srgb,var(--ok) 9%,var(--panel));border-color:color-mix(in srgb,var(--ok) 55%,var(--line));border-left-color:var(--c)}
+.lane.you{border-style:solid;border-width:2px 2px 2px 4px;border-color:var(--ink);border-left-color:var(--ink)}
+@media (max-width:640px){.lane{grid-template-columns:minmax(0,1fr) 116px}.st b{font-size:17px}.lane .trk{grid-column:1/-1;grid-row:2}}
+.who{display:flex;flex-direction:column;gap:2px;min-width:0}
+.who .r1{display:flex;align-items:center;gap:7px}
+.who b{font:700 16px/1.1 var(--f-display);letter-spacing:.01em}
+.who .kd{font:600 10.5px var(--f-display);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.who .kd.x{color:var(--over)}
+.who .rl{font-size:12px;color:var(--muted);line-height:1.3}
+.pos{min-width:30px;height:24px;padding:0 4px;border-radius:4px;display:inline-grid;place-items:center;font:700 14px var(--f-display);background:var(--sunk);color:var(--muted);border:1px solid var(--line);flex:none}
+.pos.p1{background:var(--ok);color:var(--accent-ink);border-color:var(--ok)}
+.pos.p2,.pos.p3{background:color-mix(in srgb,var(--ok) 22%,var(--panel));color:var(--ok);border-color:color-mix(in srgb,var(--ok) 50%,var(--line))}
+.pos.pop{animation:popb .45s cubic-bezier(.2,.9,.3,1.4)}
+@keyframes popb{from{transform:scale(.3)}}
+.live{display:flex;align-items:center;gap:3px;font:600 10.5px var(--f-mono);color:var(--muted);margin-top:2px;min-height:16px;flex-wrap:wrap}
+.live .s{padding:0 4px;border-radius:2px;border:1px solid var(--line);background:var(--sunk);line-height:14px}
+.live .s.on{background:var(--c);border-color:var(--c);color:var(--accent-ink)}
+.trk{display:flex;flex-direction:column;gap:5px;min-width:0}
+.cells{display:flex;flex-wrap:wrap;gap:2px;--cw:8px}
+.cells i{width:var(--cw);height:13px;border-radius:1.5px;background:var(--sunk);box-shadow:inset 0 0 0 1px var(--line);flex:none}
+.cells i.h{background:color-mix(in srgb,var(--ok) 60%,var(--panel));box-shadow:none}
+.cells i.m{background:var(--bad);box-shadow:none}
+.cells i.n{animation:cell .3s ease-out}
+.cells i.cur{outline:2px solid var(--ink);outline-offset:1px}
+@keyframes cell{from{transform:scaleY(.2);opacity:.2}}
+.bar{position:relative;height:6px;border-radius:3px;background:var(--sunk);box-shadow:inset 0 0 0 1px var(--line);overflow:visible}
+.bar i{position:absolute;left:0;top:0;bottom:0;border-radius:3px;background:var(--c)}
+.bar .meta{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--ink);opacity:.5}
+.st{display:grid;grid-template-columns:auto auto;gap:0 6px;align-items:baseline;justify-content:end;text-align:right;font-variant-numeric:tabular-nums}
+.st b{font:700 20px/1.1 var(--f-display);white-space:nowrap}
+.st span{font-size:11.5px;color:var(--muted);text-align:left}
+.st b.l{color:var(--bad)}
+.fin{font:600 11.5px var(--f-mono);color:var(--muted);white-space:nowrap}
+.fin b{color:var(--ink)}
+
+/* columna derecha */
+.side{display:flex;flex-direction:column;gap:12px;min-width:0}
+.prog{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px;font:12.5px var(--f-mono)}
+.prog li{display:flex;gap:8px;align-items:center;padding:2px 8px;border-radius:4px;border-left:3px solid var(--line);min-width:0}
+.prog li .a{color:var(--muted);font-size:11px;min-width:3em}
+.prog li .lb{color:var(--accent);font-weight:600}
+.prog li.br{border-left-color:var(--ctl);font-weight:600}
+.prog li .cm{color:var(--muted);font-size:11px;margin-left:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;font-weight:400}
+.prog li.cur{background:color-mix(in srgb,var(--accent) 14%,var(--panel));outline:2px solid var(--accent);outline-offset:-2px}
+.prog li .dir{font:600 10.5px var(--f-body);color:var(--ctl);white-space:nowrap}
+.pnote{font-size:13.5px;color:var(--muted);line-height:1.45}
+.pnote b{color:var(--ink)}
+
+/* juego */
+.game{border:2px solid var(--accent);border-radius:8px;padding:12px;background:color-mix(in srgb,var(--accent) 6%,var(--panel));display:flex;flex-direction:column;gap:10px}
+.game .gh{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.game .gh b{font:700 13px var(--f-display);letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
+.game .gh span{font:600 13px var(--f-mono);color:var(--muted)}
+.game .ins{font:700 24px/1.1 var(--f-mono);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.game .ins small{font:600 12px var(--f-body);color:var(--ctl)}
+.hist{display:flex;gap:3px;align-items:center;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
+.hist .c{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:3px;font:700 11px var(--f-mono)}
+.hist .c.T{background:color-mix(in srgb,var(--ok) 22%,var(--panel));color:var(--ok);border:1px solid color-mix(in srgb,var(--ok) 50%,var(--line))}
+.hist .c.N{background:var(--sunk);color:var(--muted);border:1px solid var(--line)}
+.gbtns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.gbtns .btn{justify-content:center;padding:12px 8px;font-size:15px}
+.fb{font:600 14px var(--f-body);min-height:1.5em}
+.fb.ok{color:var(--ok)} .fb.ko{color:var(--bad)}
+.fb.ani{animation:fbp .35s ease-out}
+@keyframes fbp{from{transform:translateY(4px);opacity:0}}
+.rank{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:3px;font-size:14px}
+.rank li{display:grid;grid-template-columns:30px minmax(0,1fr) auto;gap:8px;align-items:center;padding:3px 6px;border-radius:4px}
+.rank li.you{background:color-mix(in srgb,var(--accent) 14%,var(--panel));font-weight:700}
+.rank li span:last-child{font:600 12.5px var(--f-mono);color:var(--muted)}
+.verdict{font:700 19px/1.2 var(--f-display)}
+
+/* dónde falla */
+.tw{overflow-x:auto;border:1px solid var(--line);border-radius:5px}
+table.t{border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums}
+table.t th,table.t td{padding:4px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+table.t th:first-child,table.t td:first-child{text-align:left}
+table.t thead th{background:var(--sunk);font:600 11.5px var(--f-display);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+table.t tr:last-child td{border-bottom:0}
+table.t td.m{font-family:var(--f-mono);font-size:12px}
+table.t td.best{color:var(--ok);font-weight:700}
+table.t td.worst{color:var(--bad);font-weight:700}
+table.t td small{color:var(--muted);font-weight:400}
+
+/* coste */
+.cost{display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:900px){.cost{grid-template-columns:minmax(0,1fr)}}
+.ctlcol{display:flex;flex-direction:column;gap:10px;min-width:0}
+.nctl{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border:1px solid var(--line);border-radius:5px;background:var(--sunk);min-width:0}
+.nctl .nh{display:flex;align-items:baseline;justify-content:space-between;gap:6px 14px;flex-wrap:wrap}
+.nctl label{font:600 12px var(--f-display);letter-spacing:.11em;text-transform:uppercase;color:var(--muted)}
+.nctl .nbig{font:700 34px/1 var(--f-display);font-variant-numeric:tabular-nums;color:var(--accent)}
+.nctl .nbig small{font:600 15px var(--f-display);color:var(--muted);margin-left:5px;letter-spacing:.02em}
+.nctl input[type=range]{width:100%;height:24px;margin:0;accent-color:var(--accent)}
+.nctl .sub{font-size:12.5px;color:var(--muted)}
+.nctl .sub b{color:var(--ink)}
+.btnrow{display:flex;flex-wrap:wrap;gap:6px}
+.btn.sm{padding:4px 9px;font-size:12.5px}
+.btn[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.toss{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border:1px solid color-mix(in srgb,var(--bad) 45%,var(--line));border-radius:5px;background:color-mix(in srgb,var(--bad) 6%,var(--panel))}
+.toss .tn{font:700 34px/1 var(--f-display);color:var(--bad);font-variant-numeric:tabular-nums}
+.toss .tn small{font:600 14px var(--f-body);color:var(--muted);margin-left:6px}
+.tgrid{display:grid;gap:2px;grid-template-columns:repeat(var(--p),minmax(0,12px))}
+.tgrid i{height:10px;border-radius:1.5px;background:var(--bad);opacity:.85}
+.tgrid i.n{animation:cell .3s ease-out}
+.cbars{display:flex;flex-direction:column;gap:5px}
+.cb{display:grid;grid-template-columns:150px minmax(0,1fr) 128px;gap:10px;align-items:center}
+@media (max-width:560px){.cb{grid-template-columns:96px minmax(0,1fr) 84px}}
+.cb .nm{font:700 14.5px/1.1 var(--f-display);display:flex;align-items:center;gap:6px;min-width:0}
+.cb .nm i{width:10px;height:10px;border-radius:2px;background:var(--c);flex:none}
+.cb .nm small{font:500 11px var(--f-body);color:var(--muted)}
+.cb .tr{position:relative;height:24px;border-radius:3px;background:var(--sunk);box-shadow:inset 0 0 0 1px var(--line);overflow:hidden;display:flex}
+.cb .tr div{height:100%;transition:width .25s ease;flex:none}
+.cb .tr .b0{background:color-mix(in srgb,var(--accent) 30%,var(--panel))}
+.cb .tr .b1{background:repeating-linear-gradient(90deg,color-mix(in srgb,var(--ctl) 35%,var(--panel)) 0 3px,var(--panel) 3px 6px)}
+.cb .tr .b2{background:var(--bad);opacity:.82}
+.cb.dash .tr .b2{background:repeating-linear-gradient(135deg,var(--bad) 0 5px,color-mix(in srgb,var(--bad) 45%,var(--panel)) 5px 10px)}
+.cb .v{font:600 12.5px var(--f-mono);font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+.cb .v b{font:700 17px var(--f-display);color:var(--ink)}
+.cb .v .x{color:var(--bad)}
+.cb.ref .nm{color:var(--muted)}
+.headline{font:700 clamp(20px,2.4vw,26px)/1.15 var(--f-display);text-wrap:balance}
+.headline .bad{color:var(--bad)} .headline .ok{color:var(--ok)}
+.ckey{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:12.5px;color:var(--muted)}
+.ckey span{display:inline-flex;align-items:center;gap:6px}
+.ckey i{display:inline-block;width:14px;height:10px;border-radius:2px}
+.sl1{display:grid;grid-template-columns:minmax(0,1fr) 64px;gap:4px 12px;align-items:center;font-size:13.5px}
+.sl1 input{width:100%;accent-color:var(--accent);margin:0;grid-column:1/-1}
+.sl1 output{font:600 13px var(--f-mono);text-align:right;font-variant-numeric:tabular-nums}
+
+/* retos */
+.retos{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}
+.reto{display:flex;flex-direction:column;gap:8px;padding:12px 14px;border:1px solid var(--line);border-radius:6px;background:var(--panel)}
+.reto .n{font:700 12px var(--f-display);letter-spacing:.12em;text-transform:uppercase;color:var(--over)}
+.reto .q{font:700 17px/1.2 var(--f-display);text-wrap:balance}
+.reto .ans{font-size:13.5px;line-height:1.45;padding:8px 10px;border-radius:5px;background:var(--sunk);border:1px solid var(--line);border-left:4px solid var(--ok)}
+.reto .btn{align-self:flex-start;margin-top:auto}
+
+/* cómo funciona */
+details.how{border:1px solid var(--line);border-radius:6px;background:var(--panel)}
+details.how>summary{cursor:pointer;padding:12px 16px;font:700 18px var(--f-display);list-style:none;display:flex;align-items:center;gap:10px}
+details.how>summary::-webkit-details-marker{display:none}
+details.how>summary::before{content:"+";display:inline-grid;place-items:center;width:22px;height:22px;border-radius:4px;border:1px solid var(--line-strong);font:700 15px var(--f-mono);color:var(--accent)}
+details.how[open]>summary::before{content:"−"}
+details.how>summary small{font:500 13px var(--f-body);color:var(--muted)}
+.howg{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:10px;padding:0 16px 16px}
+.hc{padding:10px 12px;border:1px solid var(--line);border-top:3px solid var(--c);border-radius:5px;background:var(--sunk);font-size:13.5px;line-height:1.45;display:flex;flex-direction:column;gap:5px;min-width:0}
+.hc h3{font-size:16px}
+.hc.wide{grid-column:1/-1}
+.fsmw{overflow-x:auto}
+#fsm{display:block;width:100%;min-width:520px;max-width:760px;height:auto}
+#fsm .stt rect{fill:var(--panel);stroke:var(--line-strong);stroke-width:1.4}
+#fsm .stt.tk rect{fill:color-mix(in srgb,var(--ok) 10%,var(--panel))}
+#fsm .stt text{fill:var(--ink);font:600 13px var(--f-display);text-anchor:middle}
+#fsm .stt text.p{fill:var(--muted);font:500 11px var(--f-body)}
+#fsm .ar{fill:none;stroke:var(--wire);stroke-width:1.5}
+#fsm .al{fill:var(--muted);font:500 11px var(--f-mono);text-anchor:middle}
+#fsm .hd{fill:var(--muted);font:600 11px var(--f-display);letter-spacing:.1em;text-transform:uppercase;text-anchor:middle}
+#fsm marker path{fill:var(--wire)}
+@media (prefers-reduced-motion:reduce){.cells i.n,.pos.pop,.fb.ani,.tgrid i.n{animation:none}.pc{transition:none}}
+#dp .blk.hzu text.sub{fill:var(--ink);font:600 11.5px var(--f-mono);text-anchor:start;letter-spacing:0}
+#dp .blk.hzu text.sub2{fill:var(--muted);font:500 10.5px var(--f-mono);text-anchor:start;letter-spacing:0}
+#dp .blk.hzu.on rect{fill:color-mix(in srgb,var(--ctl) 20%,var(--panel));stroke-width:2.6}
+#dp .blk.hzu.good rect{fill:color-mix(in srgb,var(--ok) 16%,var(--panel));stroke:var(--ok)}
+#dp .blk.cmp text.big{font:700 20px var(--f-mono)}
+#dp .hz.good{stroke:var(--ok);stroke-width:3.2;opacity:1;stroke-dasharray:8 5;animation:flow .5s linear infinite}
+#dp .hz.bad{stroke:var(--bad);stroke-width:3.4;opacity:1;stroke-dasharray:7 4;animation:flow .5s linear infinite}
+#dp .wl.good{fill:var(--ok);font-weight:600}
+#dp .wl.bad{fill:var(--bad);font-weight:600}
+#dp .tag.wrong rect{stroke-dasharray:4 3}
+#dp .blk.ctlb rect{stroke:var(--ctl);fill:color-mix(in srgb,var(--ctl) 8%,var(--panel))}
+#fsm .stt rect{transition:fill .25s,stroke .25s}
+#fsm .stt.cur rect{stroke:var(--accent);stroke-width:3;fill:color-mix(in srgb,var(--accent) 18%,var(--panel))}
+#fsm .stt.prev rect{stroke:var(--accent);stroke-dasharray:4 3}
+#fsm .ar.on{stroke:var(--accent);stroke-width:3;stroke-dasharray:8 5;animation:flow .5s linear infinite}
+#fsm .ar.on.bad{stroke:var(--bad)}
+#fsm .al.on{fill:var(--accent);font-weight:600}
+#fsm .al.on.bad{fill:var(--bad)}
+.dctl{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;margin-bottom:10px}
+.dctl .clock{font:700 22px/1 var(--f-display);font-variant-numeric:tabular-nums}
+.dctl .clock small{font:500 13px var(--f-body);color:var(--muted)}
+.dctl .seg button:disabled{opacity:1}
+.hc[data-s]{cursor:pointer;transition:border-color .15s,background .15s}
+.hc[data-s]:hover{border-color:var(--accent)}
+.hc.sel{background:color-mix(in srgb,var(--c) 9%,var(--panel));outline:2px solid var(--c);outline-offset:-1px}
+.hc .pick{font:600 11.5px var(--f-display);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-top:auto}
+.hc.sel .pick{color:var(--ink)}
+.codec{border:1px solid var(--line);border-radius:6px;background:var(--panel);display:flex;flex-direction:column;min-width:0}
+.codeh{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border-bottom:1px solid var(--line);background:var(--sunk);border-radius:6px 6px 0 0}
+.codeh b{font:700 15px var(--f-display);letter-spacing:.01em}
+.codec .prog{padding:6px 4px}
+.csrc{font-variant-ligatures:none;margin:0;padding:10px 12px;font:12.5px/1.6 var(--f-mono);white-space:pre;overflow-x:auto;color:var(--ink)}
+.csrc .cm{color:var(--muted)}
+.csrc .kw{color:var(--ctl);font-weight:600}
+.seg.sm button{padding:3px 10px;font-size:12.5px}
+</style>
+</head><body>
+
+<header class="top">
+  <div class="wrap">
+    <div class="intro">
+      <div class="eyebrow">Tema 3 · de 3.4 a 3.5/3.6 · Predicción de saltos · ARM</div>
+      <h1>La carrera de los predictores</h1>
+      <p class="lede">Continuación de <a href="https://juanjoual.github.io/ac/riesgos-segmentado/">Riesgos del segmentado</a>. Elige un programa y lanza la carrera: seis estrategias de predicción ejecutan el mismo código en nuestro cauce de 5 etapas y cada fallo les cuesta 2 ciclos de vaciado. Después, intenta ganarles tú, mira por dentro cómo decide cada uno y comprueba qué pasa al alargar y ensanchar el cauce.</p>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="panel" aria-labelledby="h-prog">
+    <div class="secth"><div><div class="k">1 · Elige el circuito</div><h2 id="h-prog">Programas</h2><p>Las barras indican lo difícil que es el programa para el predictor de 2 bits. <kbd>↑</kbd> <kbd>↓</kbd> cambian de programa.</p></div></div>
+    <div class="progs" id="progs"></div>
+  </section>
+
+  <section class="panel" aria-labelledby="h-race">
+    <div class="secth"><div><div class="k">2 · Carrera</div><h2 id="h-race">Carrera</h2><p id="raceSub"></p></div></div>
+    <div class="race">
+      <div style="min-width:0;display:flex;flex-direction:column;gap:12px">
+        <div class="ctrl">
+          <button class="btn primary big" id="go"></button>
+          <button class="btn big" id="play"></button>
+          <div class="seg" id="speed" role="group" aria-label="Velocidad"><button data-v="14000">Lenta</button><button data-v="6000" aria-pressed="true">Normal</button><button data-v="2200">Rápida</button></div>
+          <button class="btn" id="reseed" hidden>Otros datos</button>
+          <div class="clockl" id="clock"></div>
+        </div>
+        <div class="lanes" id="lanes"></div>
+        <div class="ckey"><span><i style="background:color-mix(in srgb,var(--ok) 60%,var(--panel))"></i>acierto</span><span><i style="background:var(--bad)"></i>fallo: 2 ciclos de vaciado</span><span><i style="background:var(--sunk);box-shadow:inset 0 0 0 1px var(--line)"></i>salto aún no decidido</span><span><i style="background:var(--i0);height:6px"></i>instrucciones terminadas</span></div>
+        <div>
+          <div class="lh" style="margin-bottom:6px">¿Dónde falla cada uno? · fallos por salto en todo el programa</div>
+          <div class="tw" id="where"></div>
+        </div>
+      </div>
+      <aside class="side" id="side"></aside>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="h-how">
+    <div class="secth"><div><div class="k">3 · Por dentro del cauce</div><h2 id="h-how">Cómo decide cada predictor</h2><p id="howSub">El cauce de 5 etapas con el predictor en BI y la decisión del salto en E. Elige un predictor y avanza salto a salto por el programa elegido.</p></div></div>
+    <div class="dctl">
+      <div class="seg" id="dstrat" role="group" aria-label="Predictor del diagrama"></div>
+      <button class="btn" id="dPrev">Anterior</button><button class="btn primary" id="dNext">Siguiente</button><button class="btn" id="dPlay"></button><button class="btn" id="dReset" aria-label="Volver al primer salto" title="Volver al primer salto"></button>
+      <div class="clock" id="dClk"></div>
+    </div>
+    <div class="dpbox" id="dpbox">
+<svg id="dp" viewBox="0 100 1180 410" role="img" aria-labelledby="dpTitle">
+<title id="dpTitle">Cauce ARM de 5 etapas: lógica del PC en BI, decisión del salto en E</title>
+<g id="bands">
+  <rect class="band" data-st="0" x="0" y="100" width="330" height="410"/>
+  <rect class="band alt" data-st="1" x="344" y="100" width="196" height="410"/>
+  <rect class="band" data-st="2" x="554" y="100" width="246" height="410"/>
+  <rect class="band alt" data-st="3" x="814" y="100" width="176" height="410"/>
+  <rect class="band" data-st="4" x="1004" y="100" width="176" height="410"/>
+</g>
+<g id="wires">
+  <!-- BI: cadena de multiplexores del PC (PCSrcW → PredTakenF → corrección) -->
+  <path class="w" id="w_m0_m1" data-show="2" d="M28 340H36V356H44"/>
+  <path class="w" id="w_m1_m2" data-show="2" d="M60 340H68V324H76"/>
+  <path class="w" id="w_m0_m2" data-show="1" d="M28 340H68V324H76"/>
+  <path class="w" id="w_m2_pc" d="M92 340H104"/>
+  <path class="w" id="w_pc_im" d="M132 340H150"/>
+  <path class="w" id="w_pc_add" d="M140 340V432H150"/>
+  <path class="w" id="w_pc_pred" data-show="2" d="M140 340V272H236V256"/>
+  <path class="w" id="w_im" d="M240 340H332"/>
+  <path class="w" id="w_p4" d="M190 432H200V470H9V356H12"/>
+  <path class="w" id="w_p4d" data-show="2" d="M200 432H332"/>
+  <path class="w" id="w_btb" data-show="2" d="M214 200H40V324H44"/>
+  <path class="w" id="w_rw" d="M1130 340H1150V498H4V324H12"/>
+  <!-- LR, E, M, ER -->
+  <path class="w" id="w_instrd" d="M342 340H400"/>
+  <path class="w" id="w_rf" d="M484 340H542"/>
+  <path class="w" id="w_p4e" data-show="2" d="M342 432H542"/>
+  <path class="w" id="w_alu_in" d="M552 340H600"/>
+  <path class="w" id="w_alu" d="M672 340H802"/>
+  <path class="w" id="w_alu_r" data-show="2" d="M720 340V398H740"/>
+  <path class="w" id="w_p4r" data-show="2" d="M552 432H740"/>
+  <path class="w" id="w_fix" data-show="2" d="M756 415H776V482H72V356H76"/>
+  <path class="w" id="w_fix1" data-show="1" d="M720 340V482H72V356H76"/>
+  <path class="w" id="w_dm" d="M812 340H856"/>
+  <path class="w" id="w_dmo" d="M948 340H992"/>
+  <path class="w" id="w_wb" d="M1002 340H1046"/>
+  <!-- control -->
+  <path class="hz" id="c_sel" data-show="2" d="M214 236H52V314"/>
+  <path class="hz" id="c_pd" data-show="2" d="M324 184H332M342 184H542"/>
+  <path class="hz" id="c_pe" data-show="2" d="M552 184H736V196"/>
+  <path class="hz" id="c_bt" d="M650 232H720"/>
+  <path class="hz" id="c_out" data-show="2" d="M776 224H796"/>
+  <path class="hz" id="c_m2" d="M84 296V314"/>
+  <path class="hz" id="c_m0" d="M20 366V380"/>
+  <path class="hz" id="c_rm" data-show="2" d="M748 442V454"/>
+  <path class="hz" id="fl_d" d="M337 460V470"/>
+  <path class="hz" id="fl_e" d="M547 460V470"/>
+  <circle class="dot" cx="140" cy="340" r="3"/><circle class="dot" cx="720" cy="340" r="3"/><circle class="dot" data-show="2" cx="200" cy="432" r="3"/>
+</g>
+<g id="blocks">
+  <g class="blk" id="M0"><polygon points="12,310 28,318 28,362 12,370"/><text class="pt s" x="15" y="328">1</text><text class="pt s" x="15" y="360">0</text></g>
+  <g class="blk" id="M1" data-show="2"><polygon points="44,310 60,318 60,362 44,370"/><text class="pt s" x="47" y="328">1</text><text class="pt s" x="47" y="360">0</text></g>
+  <g class="blk" id="M2"><polygon points="76,310 92,318 92,362 76,370"/><text class="pt s" x="79" y="328">0</text><text class="pt s" x="79" y="360">1</text></g>
+  <g class="blk" id="PC"><rect x="104" y="322" width="28" height="36" rx="2"/><text x="118" y="344">PC</text></g>
+  <g class="blk" id="IM"><rect x="150" y="290" width="90" height="100" rx="3"/><text x="195" y="336">Memoria de</text><text x="195" y="352">instrucciones</text></g>
+  <g class="blk" id="ADD4"><rect x="150" y="415" width="40" height="34" rx="3"/><text x="170" y="437">+4</text></g>
+  <g class="blk hzu" id="PRED" data-show="2"><rect x="214" y="150" width="110" height="106" rx="4"/><text class="ttl" id="predT" x="222" y="168">Predictor</text><text class="sub" id="predS" x="222" y="190"></text><text class="sub2" id="predS2" x="222" y="210"></text><text class="sub2" id="predS3" x="222" y="230"></text></g>
+  <g class="blk" id="RF"><rect x="400" y="300" width="84" height="80" rx="3"/><text x="442" y="336">Banco de</text><text x="442" y="352">registros</text></g>
+  <g class="blk ctlb" id="COND"><rect x="576" y="212" width="74" height="44" rx="3"/><text x="613" y="238">Cond Unit</text></g>
+  <g class="blk" id="ALU"><rect x="600" y="300" width="72" height="80" rx="3"/><text x="636" y="344">ALU</text></g>
+  <g class="blk cmp" id="CMP" data-show="2"><rect x="720" y="196" width="56" height="56" rx="3"/><text class="big" x="748" y="224">≠</text><text x="748" y="243">¿fallo?</text></g>
+  <g class="blk" id="RMUX" data-show="2"><polygon points="740,384 756,392 756,438 740,446"/><text class="pt s" x="743" y="402">1</text><text class="pt s" x="743" y="436">0</text></g>
+  <g class="blk" id="DM"><rect x="856" y="300" width="92" height="80" rx="3"/><text x="902" y="336">Memoria</text><text x="902" y="352">de datos</text></g>
+  <g class="blk" id="RES"><rect x="1046" y="310" width="84" height="60" rx="3"/><text x="1088" y="344">ResultW</text></g>
+</g>
+<g id="bars">
+  <g class="bar" id="BAR0"><rect x="332" y="140" width="10" height="320"/></g>
+  <g class="bar" id="BAR1"><rect x="542" y="140" width="10" height="320"/></g>
+  <g class="bar" id="BAR2"><rect x="802" y="140" width="10" height="320"/></g>
+  <g class="bar" id="BAR3"><rect x="992" y="140" width="10" height="320"/></g>
+</g>
+<g id="labels">
+  <text class="wl" x="244" y="333">InstrF</text>
+  <text class="wl" id="l_p4" x="204" y="427">PCPlus4F</text>
+  <text class="wl m" id="l_btb" data-show="2" x="128" y="195">destino (BTB)</text>
+  <text class="wl cl" id="l_psel" data-show="2" x="132" y="231">PredTakenF</text>
+  <text class="wl cl" id="l_pd" data-show="2" x="346" y="179">PredTakenD</text>
+  <text class="wl cl" id="l_pe" data-show="2" x="556" y="179">PredTakenE</text>
+  <text class="wl cl" id="l_bt" x="652" y="226">BranchTakenE</text>
+  <text class="wl cl" id="l_btn" data-show="1" x="652" y="250">→ PC' · FlushD · FlushE</text>
+  <text class="wl cl" id="l_out" data-show="2" x="756" y="190">FalloE</text>
+  <text class="wl" x="676" y="334">ALUResultE</text>
+  <text class="wl" id="l_p4e" data-show="2" x="556" y="427">PCPlus4E</text>
+  <text class="wl cl m" id="l_m2" data-show="2" x="84" y="292">FalloE</text>
+  <text class="wl cl m" id="l_m2n" data-show="1" x="84" y="292">BranchTakenE</text>
+  <text class="wl cl" id="l_m0" x="24" y="391">PCSrcW</text>
+  <text class="wl cl e" id="l_rm" data-show="2" x="744" y="456">BranchTakenE</text>
+  <text class="wl cl" id="l_fd" x="341" y="469">FlushD</text>
+  <text class="wl cl" id="l_fe" x="551" y="469">FlushE</text>
+  <text class="wl" id="l_fix" data-show="2" x="600" y="478">PC correcto</text>
+  <text class="wl" id="l_fix1" data-show="1" x="600" y="478">ALUResultE → PC'</text>
+  <text class="wl" id="l_rw" x="860" y="494">ResultW → PC'</text>
+</g>
+<g id="tags">
+  <g class="tag" data-st="0"><rect x="6" y="106" width="318" height="22" rx="3"/><text x="165" y="121">Fetch · BI</text></g>
+  <g class="tag" data-st="1"><rect x="350" y="106" width="184" height="22" rx="3"/><text x="442" y="121">Decode · LR</text></g>
+  <g class="tag" data-st="2"><rect x="560" y="106" width="234" height="22" rx="3"/><text x="677" y="121">Execute · E</text></g>
+  <g class="tag" data-st="3"><rect x="820" y="106" width="164" height="22" rx="3"/><text x="902" y="121">Memory · M</text></g>
+  <g class="tag" data-st="4"><rect x="1010" y="106" width="164" height="22" rx="3"/><text x="1092" y="121">Writeback · ER</text></g>
+</g>
+<g id="callout" class="gone"><rect x="300" y="262" width="440" height="24" rx="4"/><text x="560" y="278.5"></text></g>
+</svg>
+    </div>
+    <div class="note" id="note" aria-live="polite"></div>
+    <div class="legend"><span><i style="border-color:var(--ctl)"></i>predicción en BI</span><span><i style="border-color:var(--ok)"></i>acierto · destino del BTB</span><span><i style="border-color:var(--bad)"></i>fallo: vaciado (flush) de BI y LR y corrección del PC</span></div>
+    <div class="howg" id="howg" style="padding:14px 0 0"></div>
+  </section>
+
+  <section class="panel" aria-labelledby="h-cost">
+    <div class="secth"><div><div class="k">4 · ¿Cuánto cuesta fallar?</div><h2 id="h-cost">Más etapas, más ancho, más caro</h2><p>Los mismos fallos del programa elegido, en cauces más profundos y más anchos. En nuestro cauce las diferencias son moderadas; mueve los controles y mira cómo se separan.</p></div></div>
+    <div class="cost">
+      <div class="ctlcol">
+        <div class="nctl"><div class="nh"><label for="sN">Profundidad</label><div class="nbig" id="oN"></div></div><input type="range" id="sN" min="5" max="20" value="5"><div class="sub" id="oP"></div></div>
+        <div class="nctl"><div class="nh"><label for="sW">Anchura de emisión</label><div class="nbig" id="oW"></div></div><input type="range" id="sW" min="1" max="8" value="1"><div class="sub" id="oI"></div></div>
+        <div class="btnrow" id="presets"><button class="btn sm" data-n="5" data-w="1">Nuestro cauce</button><button class="btn sm" data-n="8" data-w="2">Cortex-A7</button><button class="btn sm" data-n="15" data-w="3">Cortex-A15</button></div>
+        <div class="toss"><div class="lh">Cada fallo tira</div><div class="tn" id="tossN"></div><div class="tgrid" id="tossG"></div></div>
+        <div class="sl1"><label for="sH">Predictor imaginario: aciertos</label><output id="oH"></output><input type="range" id="sH" min="50" max="100" step="1" value="90"></div>
+      </div>
+      <div style="min-width:0;display:flex;flex-direction:column;gap:10px">
+        <div class="headline" id="headline"></div>
+        <div class="cbars" id="cbars"></div>
+        <div class="ckey"><span><i style="background:color-mix(in srgb,var(--accent) 30%,var(--panel))"></i>CPI ideal (1/W)</span><span><i style="background:repeating-linear-gradient(90deg,color-mix(in srgb,var(--ctl) 35%,var(--panel)) 0 3px,var(--panel) 3px 6px)"></i>paradas por LDR</span><span><i style="background:var(--bad)"></i>vaciados por fallos de predicción</span></div>
+        <div class="formula" id="model"></div>
+      </div>
+    </div>
+  </section>
+
+  <p class="foot">Sección 7.7.3 (predicción de saltos) y figura 7.62, sección 7.7.1 y ejemplo 7.9 (cauces profundos), sección 7.7.4 (superescalar), ejemplo de código 6.17, tabla 7.7 y sección 7.8 (Cortex-A7 y Cortex-A15) de <i>Digital Design and Computer Architecture, ARM Edition</i> (Harris &amp; Harris); diapositivas 85 a 89 y 113 del Tema 3. El bucle FOR es el del libro; el resto de programas usa solo ADD, SUB, AND, ORR, LDR, STR, CMP y B con condición. El predictor con historia global va más allá del libro. Teclado: <kbd>Espacio</kbd> lanza o pausa la carrera; <kbd>←</kbd> <kbd>→</kbd> mueven el reloj de la carrera y, jugando, predicen no tomado / tomado (también <kbd>N</kbd> y <kbd>T</kbd>); <kbd>↑</kbd> <kbd>↓</kbd> cambian de programa. Re Pág / Av Pág de los mandos de presentación funcionan como ← →.</p>
+</main>
+<script>
+(function(){
+"use strict";
+/* ================= Motor: ensamblador, intérprete, predictores y cauce de 5 etapas ================= */
+const CONDS={EQ:f=>f.Z,NE:f=>!f.Z,GE:f=>f.N===f.V,LT:f=>f.N!==f.V,GT:f=>!f.Z&&f.N===f.V,LE:f=>f.Z||f.N!==f.V,AL:()=>true};
+const regOf=s=>{const m=/^R(\d{1,2})$/i.exec((s||'').trim());return m?+m[1]:null;};
+const immOf=s=>{s=(s||'').trim();return s[0]==='#'?parseInt(s.slice(1),10):null;};
+/* Programa: lista de [etiqueta, instrucción, comentario]; una etiqueta sin instrucción apunta al final */
+function assemble(lines){
+  const out=[],L={};
+  lines.forEach(([lbl,asm,cm])=>{if(lbl)L[lbl]=out.length;if(asm)out.push({asm,cm:cm||'',lbl:lbl||null});});
+  out.forEach((I,pc)=>{
+    I.pc=pc;
+    const sp=I.asm.indexOf(' ');const mn=I.asm.slice(0,sp<0?I.asm.length:sp).toUpperCase();
+    const ops=sp<0?[]:I.asm.slice(sp+1).split(/,(?![^\[]*\])/).map(s=>s.trim());
+    I.mn=mn;
+    if(mn[0]==='B'&&(mn==='B'||CONDS[mn.slice(1)])){I.t='b';I.cond=mn==='B'?'AL':mn.slice(1);I.label=ops[0];I.target=L[ops[0]];I.back=I.target<=pc;}
+    else if(mn==='CMP'){I.t='cmp';I.a=regOf(ops[0]);I.b=regOf(ops[1]);I.imm=immOf(ops[1]);}
+    else if(mn==='LDR'||mn==='STR'){I.t=mn.toLowerCase();I.d=regOf(ops[0]);const m=/\[\s*(\w+)\s*(?:,\s*#(-?\d+))?\s*\]/.exec(ops[1]);I.a=regOf(m[1]);I.off=m[2]?+m[2]:0;}
+    else{I.t='dp';I.op=mn;if(mn==='MOV'){I.d=regOf(ops[0]);I.b=regOf(ops[1]);I.imm=immOf(ops[1]);}else{I.d=regOf(ops[0]);I.a=regOf(ops[1]);I.b=regOf(ops[2]);I.imm=immOf(ops[2]);}}
+    I.srcs=[];if(I.t==='dp'||I.t==='cmp'||I.t==='ldr'||I.t==='str'){if(I.a!=null)I.srcs.push(I.a);if(I.b!=null)I.srcs.push(I.b);if(I.t==='str')I.srcs.push(I.d);}
+    I.dst=(I.t==='dp'||I.t==='ldr')?I.d:null;
+  });
+  return {prog:out,labels:L,end:out.length};
+}
+/* Ejecución de referencia: traza del camino correcto. runs = veces que se ejecuta el código seguido */
+function execute(P,mem0,runs){
+  const tr=[];let memOut=null;
+  for(let r=0;r<(runs||1);r++){
+    const R=new Array(16).fill(0),f={N:false,Z:false,C:false,V:false},mem=new Map(Object.entries(mem0||{}).map(([k,v])=>[+k,v]));
+    let pc=0,guard=0;
+    while(pc<P.prog.length&&guard++<60000){
+      const I=P.prog[pc];const B=I.imm!=null?I.imm:(I.b!=null?R[I.b]:0);const A=I.a!=null?R[I.a]:0;
+      const t={pc,run:r,taken:false};
+      if(I.t==='dp'){let v;switch(I.op){case'MOV':v=B;break;case'ADD':v=A+B;break;case'SUB':v=A-B;break;case'AND':v=A&B;break;case'ORR':v=A|B;break;}R[I.d]=v|0;}
+      else if(I.t==='cmp'){const r2=(A-B)|0;f.N=r2<0;f.Z=r2===0;f.C=(A>>>0)>=(B>>>0);f.V=((A^B)&(A^r2))<0;}
+      else if(I.t==='ldr'){R[I.d]=mem.get(A+I.off)||0;}
+      else if(I.t==='str'){mem.set(A+I.off,R[I.d]);}
+      if(I.t==='b'){t.taken=CONDS[I.cond](f);pc=t.taken?I.target:pc+1;}else pc++;
+      tr.push(t);
+    }
+    memOut=mem;
+  }
+  tr.mem=memOut;
+  return tr;
+}
+/* ---------- Predictores ---------- */
+const ST2=['Fuertemente no tomado','Débilmente no tomado','Débilmente tomado','Fuertemente tomado'];
+const ST2C=['FNT','DNT','DT','FT'];
+const GH_BITS=4;
+function makePred(kind,opt){
+  opt=opt||{};
+  const tab=new Map();let ghr=0;const H=opt.hbits||GH_BITS;
+  const P={kind,tab,
+    key(I){return kind==='gh'?I.pc+':'+ghr:I.pc;},
+    state(I){const k=P.key(I);if(!tab.has(k))tab.set(k,kind==='b1'?(opt.init1||0):(opt.init2!=null?opt.init2:1));return tab.get(k);},
+    predict(I){
+      switch(kind){
+        case'nt':return {taken:false};
+        case't':return {taken:true};
+        case'btfn':return {taken:I.back};
+        case'b1':{const s=P.state(I);return {taken:s===1,s,key:P.key(I)};}
+        case'b2':case'gh':{const s=P.state(I);return {taken:s>=2,s,key:P.key(I),ghr};}
+      }
+    },
+    update(I,taken,pr){
+      if(kind==='b1'){tab.set(pr.key,taken?1:0);return taken?1:0;}
+      if(kind==='b2'||kind==='gh'){const s=tab.get(pr.key);const n=taken?Math.min(3,s+1):Math.max(0,s-1);tab.set(pr.key,n);if(kind==='gh')ghr=((ghr<<1)|(taken?1:0))&((1<<H)-1);return n;}
+      return null;
+    }
+  };
+  return P;
+}
+/* ---------- Cauce de 5 etapas: predicción en BI (destino del BTB), decisión en E, vaciado de 2 ---------- */
+function pipeline(P,trace,pred,snap){
+  const prog=P.prog,n=prog.length;
+  const filler={t:'x',pc:-1,srcs:[],dst:null,asm:'(fuera del código)'};
+  let curC=0;const cyc=snap?[]:null;
+  let k=0,wrong=false,pcW=0;
+  const br=[],ret=[0];          // ret[c] = instrucciones terminadas al acabar el ciclo c
+  const fetch=()=>{
+    if(!wrong){
+      if(k>=trace.length)return null;
+      const t=trace[k];const x={I:prog[t.pc],ok:true};k++;
+      if(x.I.t==='b'){const pr=pred.predict(x.I);x.pr=pr;x.bi=br.length;
+        br.push({pc:x.I.pc,run:t.run,pred:pr.taken,actual:t.taken,hit:pr.taken===t.taken,sBefore:pr.s,ghr:pr.ghr,cF:curC+1});
+        if(pr.taken!==t.taken){wrong=true;pcW=pr.taken?x.I.target:x.I.pc+1;}}
+      return x;
+    }
+    const I=pcW<n?prog[pcW]:filler;const x={I,ok:false};
+    if(I.t==='b'){const pr=pred.predict(I);pcW=pr.taken?I.target:pcW+1;}else pcW++;
+    return x;
+  };
+  let S={F:fetch(),D:null,E:null,M:null,W:null};
+  let stalls=0,done=0;
+  for(let c=1;c<100000;c++){
+    curC=c;
+    if(S.W&&S.W.ok)done++;
+    let mis=false,stall=false;const E=S.E;
+    if(E&&E.ok&&E.I.t==='b'){const b=br[E.bi];b.sAfter=pred.update(E.I,b.actual,E.pr);b.cE=c;mis=!b.hit;if(mis){wrong=false;pcW=0;}}
+    if(!mis&&E&&E.I&&E.I.t==='ldr'&&S.D&&S.D.I&&S.D.I.srcs.includes(E.I.dst)){stall=true;stalls++;}
+    ret.push(done);
+    if(snap)cyc.push({c,S:{F:S.F,D:S.D,E:S.E,M:S.M,W:S.W},flu:mis?{F:!!(S.F&&S.F.I),D:!!(S.D&&S.D.I)}:{},stall});
+    const nS={W:S.M,M:S.E};
+    if(stall){nS.E={bub:true};nS.D=S.D;nS.F=S.F;}
+    else if(mis){nS.E={bub:true};nS.D={bub:true};nS.F=fetch();}
+    else{nS.E=S.D;nS.D=S.F;nS.F=fetch();}
+    S=nS;
+    if(!['F','D','E','M','W'].some(s=>S[s]&&S[s].ok)&&k>=trace.length)break;
+  }
+  const miss=br.filter(b=>!b.hit).length;
+  // ciclos como en el libro: llenado (4) + 1 por instrucción + paradas + 2 por fallo
+  return {br,ret,cyc,cycles:trace.length+4+stalls+2*miss,instr:trace.length,stalls,miss,lost:2*miss};
+}
+function run(P,mem,runs,kind,opt){const tr=execute(P,mem,runs);const pred=makePred(kind,opt);return Object.assign(pipeline(P,tr,pred,opt&&opt.snap),{trace:tr});}
+/* ---------- Programas ---------- */
+function lcg(seed){let s=seed>>>0;return()=>{s=(Math.imul(s,1664525)+1013904223)>>>0;return s;};}
+function rndArr(seed,n,max){const r=lcg(seed);const a=[];for(let i=0;i<n;i++)a.push((r()>>>16)%max);return a;}
+const toMem=(a,base)=>{const m={};a.forEach((v,i)=>m[(base||0)+i*4]=v);return m;};
+/* Cada programa: src, runs, data(seed) → {mem, show} */
+const PROGS={
+  'for':{name:'Bucle FOR del libro',tag:'libro',runs:3,
+    blurb:'Suma de 0 a 9. Se ejecuta 3 veces seguidas.',
+    src:[[null,'MOV R1, #0'],[null,'MOV R0, #0'],['FOR','CMP R0, #10'],[null,'BGE DONE','sale en la iteración 11'],[null,'ADD R1, R1, R0'],[null,'ADD R0, R0, #1'],[null,'B FOR'],['DONE',null]],
+    note:'Ejemplo de código 6.17, el que usa el apartado 7.7.3. Según el libro, el predictor de 1 bit falla 2 veces por ejecución del bucle y el de 2 bits, 1.'},
+  matriz:{name:'Recorrer una matriz 8×8',tag:'bucles',runs:1,
+    blurb:'Dos bucles anidados que suman 64 elementos.',
+    src:[['FIL','AND R1, R1, #0','j = 0'],['COL','LDR R2, [R4, #0]','a[i][j]'],[null,'ADD R3, R3, R2','suma'],[null,'ADD R4, R4, #4'],[null,'ADD R1, R1, #1','j++'],[null,'CMP R1, #8'],[null,'BLT COL','bucle interno: 8 vueltas'],[null,'ADD R0, R0, #1','i++'],[null,'CMP R0, #8'],[null,'BLT FIL','bucle externo: 8 vueltas']],
+    data:s=>({mem:toMem(rndArr(s,64,256))}),
+    note:'Bucles con la comprobación al final, como los genera un compilador. El salto interno se toma 7 veces y no se toma a la 8.ª.'},
+  rgba:{name:'Píxeles RGBA',tag:'bucles',runs:1,
+    blurb:'16 píxeles × 4 canales: un bucle interno muy corto.',
+    src:[['PIX','AND R1, R1, #0','canal = 0'],['CAN','LDR R2, [R4, #0]'],[null,'ADD R2, R2, #16','aclara el canal'],[null,'STR R2, [R4, #0]'],[null,'ADD R4, R4, #4'],[null,'ADD R1, R1, #1'],[null,'CMP R1, #4'],[null,'BLT CAN','4 canales: R, G, B, A'],[null,'ADD R0, R0, #1'],[null,'CMP R0, #16'],[null,'BLT PIX','16 píxeles']],
+    data:s=>({mem:toMem(rndArr(s,64,200))}),
+    note:'El bucle interno solo da 4 vueltas: la salida, que falla en casi todos los predictores, pesa mucho más que en un bucle largo.'},
+  alterno:{name:'If par / impar',tag:'patrón',runs:1,
+    blurb:'Un if que se cumple una vuelta sí y otra no.',
+    src:[['BUC','AND R2, R0, #1','R2 = i AND 1'],[null,'CMP R2, #0'],[null,'BEQ SIG','tomado si i es par'],[null,'ADD R3, R3, #1','cuenta los impares'],['SIG','ADD R0, R0, #1','i++'],[null,'CMP R0, #32'],[null,'BLT BUC']],
+    note:'BEQ sigue el patrón T, N, T, N… Recordar solo lo que pasó la última vez es justo lo peor que se puede hacer.'},
+  cada3:{name:'Tarea cada 3 vueltas',tag:'patrón',runs:1,
+    blurb:'Un contador que cada 3 vueltas hace algo especial.',
+    src:[['BUC','ADD R2, R2, #1','c++'],[null,'CMP R2, #3'],[null,'BNE SIG','tomado 2 de cada 3 vueltas'],[null,'AND R2, R2, #0','c = 0'],[null,'ADD R3, R3, #1','tarea especial'],['SIG','ADD R0, R0, #1'],[null,'CMP R0, #36'],[null,'BLT BUC']],
+    note:'BNE sigue el patrón T, T, N. Es un caso típico de los programas de vídeo o juegos: refrescar algo cada N fotogramas.'},
+  maximo:{name:'Máximo de un vector',tag:'datos',runs:1,
+    blurb:'Busca el mayor de 64 números aleatorios.',
+    src:[[null,'LDR R3, [R1, #0]','max = a[0]'],['BUC','ADD R1, R1, #4'],[null,'ADD R0, R0, #1'],[null,'CMP R0, #64'],[null,'BGE FIN'],[null,'LDR R2, [R1, #0]','a[i]'],[null,'CMP R2, R3'],[null,'BLE BUC','no supera al máximo'],[null,'ADD R3, R2, #0','max = a[i]'],[null,'B BUC'],['FIN',null]],
+    data:s=>({mem:toMem(rndArr(s,64,1000))}),
+    note:'Depende de los datos, pero casi siempre sale igual: con datos aleatorios, un elemento nuevo supera al máximo de los anteriores muy pocas veces.'},
+  aleatorio:{name:'Umbral con datos aleatorios',tag:'datos',runs:1,pair:'ordenado',
+    blurb:'Suma los elementos ≥ 128 de 64 bytes aleatorios.',
+    src:[['BUC','LDR R2, [R1, #0]','R2 = a[i]'],[null,'CMP R2, #128'],[null,'BLT SIG','depende del dato'],[null,'ADD R3, R3, R2','suma los ≥ 128'],['SIG','ADD R1, R1, #4'],[null,'ADD R0, R0, #1'],[null,'CMP R0, #64'],[null,'BLT BUC']],
+    data:s=>({mem:toMem(rndArr(s,64,256))}),
+    note:'BLT SIG es una moneda al aire: ningún predictor sabe si el siguiente dato será mayor o menor que 128.'},
+  ordenado:{name:'Umbral con datos ordenados',tag:'datos',runs:1,pair:'aleatorio',
+    blurb:'El mismo código y los mismos 64 datos, ordenados.',
+    src:null,data:s=>({mem:toMem(rndArr(s,64,256).sort((a,b)=>a-b))}),
+    note:'Mismo código y mismos valores que «datos aleatorios», ordenados: BLT SIG se toma en la primera mitad y deja de tomarse en la segunda.'},
+  burbuja:{name:'Ordenación burbuja',tag:'clásico',runs:1,
+    blurb:'Ordena 16 números: dos bucles y un intercambio.',
+    src:[[null,'ADD R5, R5, #15','15 pasadas'],['EXT','AND R1, R1, #0','dirección = 0'],[null,'AND R0, R0, #0','j = 0'],['INT','LDR R2, [R1, #0]','a[j]'],[null,'LDR R3, [R1, #4]','a[j+1]'],[null,'CMP R2, R3'],[null,'BLE NOSW','ya están en orden'],[null,'STR R3, [R1, #0]','intercambia'],[null,'STR R2, [R1, #4]'],['NOSW','ADD R1, R1, #4'],[null,'ADD R0, R0, #1'],[null,'CMP R0, R5'],[null,'BLT INT'],[null,'SUB R5, R5, #1'],[null,'CMP R5, #0'],[null,'BGT EXT']],
+    data:s=>({mem:toMem(rndArr(s,16,100))}),
+    note:'El salto del intercambio (BLE NOSW) depende de los datos: al principio es casi aleatorio y, según el vector se ordena, casi siempre se toma.'},
+  criba:{name:'Criba de Eratóstenes',tag:'clásico',runs:1,
+    blurb:'Encuentra los primos menores que 64.',
+    src:[[null,'ADD R0, R0, #2','i = 2'],[null,'ADD R7, R7, #8','R7 = 4·i (dirección de i)'],[null,'ADD R4, R4, #1','R4 = 1 (marca)'],['EXT','LDR R2, [R7, #0]','¿i ya tachado?'],[null,'CMP R2, #0'],[null,'BNE SIG','compuesto: no tacha'],[null,'ADD R3, R3, #1','un primo más'],[null,'ADD R8, R7, R7','dirección de j = 2i'],[null,'ADD R9, R0, R0','j = 2i'],['TAC','CMP R9, #64'],[null,'BGE SIG','fin del bucle interno'],[null,'STR R4, [R8, #0]','tacha j'],[null,'ADD R8, R8, R7'],[null,'ADD R9, R9, R0','j += i'],[null,'B TAC'],['SIG','ADD R0, R0, #1'],[null,'ADD R7, R7, #4'],[null,'CMP R0, #64'],[null,'BLT EXT']],
+    note:'Tres saltos condicionales muy distintos: BNE SIG sigue la secuencia de primos y compuestos, y BGE SIG cierra bucles de longitud variable: 30 vueltas para i = 2 y ninguna para los primos mayores que 31.'},
+  strlen:{name:'Longitud de cadenas',tag:'clásico',runs:1,
+    blurb:'Recorre 8 cadenas hasta su carácter nulo, como strlen.',
+    src:[['CAR','LDR R2, [R1, #0]','carácter'],[null,'ADD R1, R1, #4'],[null,'CMP R2, #0'],[null,'BNE CAR','hasta el \'\\0\''],[null,'ADD R3, R3, #1','una cadena más'],[null,'CMP R3, #8'],[null,'BLT CAR']],
+    data:s=>{const r=lcg(s+7);const m={};let a=0;const lens=[];for(let i=0;i<8;i++){const L=3+((r()>>>16)%10);lens.push(L);for(let j=0;j<L;j++){m[a]=65+((r()>>>16)%26);a+=4;}m[a]=0;a+=4;}return {mem:m,lens};},
+    note:'Como un bucle FOR, pero cada cadena tiene una longitud distinta (de 3 a 12 caracteres): la salida del bucle llega en un momento diferente cada vez.'}
+};
+PROGS.ordenado.src=PROGS.aleatorio.src;
+const PROG_IDS=Object.keys(PROGS);
+const STRATS=[
+  {id:'nt',name:'Siempre no tomado',short:'No tomado',rule:'Busca siempre PC + 4. Es nuestro cauce.',kind:'estática'},
+  {id:'t',name:'Siempre tomado',short:'Tomado',rule:'Salta siempre al destino del BTB.',kind:'estática'},
+  {id:'btfn',name:'Atrás tomado, delante no',short:'Atrás T / delante NT',rule:'Los saltos hacia atrás cierran bucles.',kind:'estática'},
+  {id:'b1',name:'1 bit',short:'1 bit',rule:'Repite lo que hizo el salto la última vez.',kind:'dinámica'},
+  {id:'b2',name:'2 bits',short:'2 bits',rule:'Contador de 4 estados: si está seguro, un solo fallo no le hace cambiar.',kind:'dinámica'},
+  {id:'gh',name:'Historia global',short:'Historia global',rule:'Mira también los 4 últimos saltos del programa.',kind:'fuera del libro',extra:true}
+];
+
+/* Código C equivalente (el del bucle FOR es el del libro, ejemplo de código 6.17) */
+const CSRC={
+  'for':`int i;
+int sum = 0;
+for (i = 0; i < 10; i = i + 1) {
+  sum = sum + i;
+}`,
+  matriz:`// el compilador pone la comprobación al final de cada bucle
+for (i = 0; i < 8; i = i + 1)
+  for (j = 0; j < 8; j = j + 1)
+    suma = suma + a[i][j];`,
+  rgba:`for (p = 0; p < 16; p = p + 1)        // 16 píxeles
+  for (c = 0; c < 4; c = c + 1)        // canales R, G, B, A
+    img[p][c] = img[p][c] + 16;        // aclara el canal`,
+  alterno:`for (i = 0; i < 32; i = i + 1)
+  if ((i & 1) != 0)                    // i impar
+    impares = impares + 1;`,
+  cada3:`c = 0;
+for (i = 0; i < 36; i = i + 1) {
+  c = c + 1;
+  if (c == 3) {                        // cada 3 vueltas
+    c = 0;
+    tareas = tareas + 1;
+  }
+}`,
+  maximo:`max = a[0];
+for (i = 1; i < 64; i = i + 1)
+  if (a[i] > max)
+    max = a[i];`,
+  aleatorio:`// a[] tiene 64 valores aleatorios entre 0 y 255
+for (i = 0; i < 64; i = i + 1)
+  if (a[i] >= 128)
+    suma = suma + a[i];`,
+  ordenado:`// a[] tiene los mismos 64 valores, ordenados
+for (i = 0; i < 64; i = i + 1)
+  if (a[i] >= 128)
+    suma = suma + a[i];`,
+  burbuja:`for (n = 15; n > 0; n = n - 1)        // pasadas
+  for (j = 0; j < n; j = j + 1)
+    if (a[j] > a[j+1]) {               // intercambia
+      t = a[j];
+      a[j] = a[j+1];
+      a[j+1] = t;
+    }`,
+  criba:`primos = 0;
+for (i = 2; i < 64; i = i + 1)
+  if (tachado[i] == 0) {               // i es primo
+    primos = primos + 1;
+    for (j = 2*i; j < 64; j = j + i)
+      tachado[j] = 1;                  // tacha sus múltiplos
+  }`,
+  strlen:`// 8 cadenas seguidas en memoria
+for (k = 0; k < 8; k = k + 1) {
+  do {
+    car = *p;
+    p = p + 1;
+  } while (car != '\\0');               // hasta el carácter nulo
+}`
+};
+/* ================= Interfaz: carrera de predictores ================= */
+const $=s=>document.querySelector(s);
+const ICON={
+  play:'<svg viewBox="0 0 16 16"><path d="M4 2.5v11l9-5.5z"/></svg>',
+  pause:'<svg viewBox="0 0 16 16"><path d="M4 2.5h3v11H4zM9 2.5h3v11H9z"/></svg>',
+  user:'<svg viewBox="0 0 16 16"><path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm-5.5 6.5c0-3 2.5-4.8 5.5-4.8s5.5 1.8 5.5 4.8z"/></svg>',
+  prev:'<svg viewBox="0 0 16 16"><path d="M10.5 2 4.5 8l6 6 1.2-1.2L6.9 8l4.8-4.8z"/></svg>',
+  next:'<svg viewBox="0 0 16 16"><path d="M5.5 2 4.3 3.2 9.1 8l-4.8 4.8L5.5 14l6-6z"/></svg>',
+  reset:'<svg viewBox="0 0 16 16"><path d="M8 2.5a5.5 5.5 0 1 1-5.2 3.7l1.5.5A3.9 3.9 0 1 0 8 4.1V6L4.8 3.3 8 .6z"/></svg>',
+  x:'<svg viewBox="0 0 16 16"><path d="M3.5 2.4 8 6.9l4.5-4.5 1.1 1.1L9.1 8l4.5 4.5-1.1 1.1L8 9.1l-4.5 4.5-1.1-1.1L6.9 8 2.4 3.5z"/></svg>'
+};
+const COLS=['--i0','--i1','--i2','--i3','--i4','--i5'];
+const TAGC={libro:'--accent',bucles:'--i2','patrón':'--i4',datos:'--i1','clásico':'--i3'};
+const DEP=new Set(['maximo','aleatorio','ordenado','burbuja','strlen']);
+const nf=(x,d=2)=>x.toLocaleString('es-ES',{maximumFractionDigits:d,minimumFractionDigits:0});
+const nf2=(x,d=2)=>x.toLocaleString('es-ES',{maximumFractionDigits:d,minimumFractionDigits:d});
+const hex=n=>'0x'+(n*4).toString(16).toUpperCase().padStart(2,'0');
+const TN=t=>t?'tomado':'no tomado';
+const GAME_N=32;
+const reduce=(()=>{try{return matchMedia('(prefers-reduced-motion: reduce)').matches;}catch(e){return false;}})();
+
+const state={lang:'arm',prog:'for',seed:2026,dur:6000,race:{c:0,max:1,run:false,last:0},game:null,you:null,N:5,W:1,H:90,lanes:[],youLane:null,perfect:0};
+const cache={};
+function simFor(id,strat){
+  const d=PROGS[id];const key=id+'|'+strat+'|'+(d.data?state.seed:'');
+  if(cache[key])return cache[key];
+  const P=assemble(d.src);const data=d.data?d.data(state.seed):{mem:{}};
+  const r=run(P,data.mem,d.runs,strat);
+  r.P=P;r.id=id;r.strat=strat;r.nb=r.br.length;
+  r.pm=[0];r.br.forEach((b,i)=>r.pm.push(r.pm[i]+(b.hit?0:1)));
+  return cache[key]=r;
+}
+const sims=id=>STRATS.map(s=>simFor(id,s.id));
+
+/* ---------- modelo de coste ---------- */
+const Pof=N=>N-3;
+const TcOf=N=>740/N+90;
+function cpiParts(sim,missPerInstr,N,W){const p={ideal:1/W,ld:sim.stalls/sim.instr,br:missPerInstr*Pof(N)};p.total=p.ideal+p.ld+p.br;return p;}
+
+/* ================= Programas ================= */
+function difOf(id){const s=simFor(id,'b2');return Math.max(1,Math.min(5,Math.ceil(10*s.miss/s.nb)));}
+function renderProgs(){
+  $('#progs').innerHTML=PROG_IDS.map(id=>{const d=PROGS[id];const s=simFor(id,'nt');const df=difOf(id);
+    return `<button class="pc" data-id="${id}" aria-pressed="${id===state.prog}"><span class="tag" style="--tg:var(${TAGC[d.tag]})">${d.tag}</span><span class="nm">${d.name}</span><span class="bl">${d.blurb}</span><span class="ft"><span>${s.nb} saltos · ${s.instr} instr.</span><span class="dif" title="Dificultad para el predictor de 2 bits: ${df} de 5">${[1,2,3,4,5].map(k=>`<i class="${k<=df?'on'+(df>=4?' h':''):''}"></i>`).join('')}</span></span></button>`;}).join('');
+  document.querySelectorAll('#progs .pc').forEach(b=>b.onclick=()=>selectProg(b.dataset.id));
+}
+function selectProg(id,opts){
+  opts=opts||{};
+  if(!PROGS[id])id='for';
+  if(id!==state.prog)state.you=null;
+  state.prog=id;state.game=null;
+  document.querySelectorAll('#progs .pc').forEach(b=>b.setAttribute('aria-pressed',b.dataset.id===id));
+  if(!opts.noHash){try{history.replaceState(null,'','#'+id);}catch(e){}}
+  buildRace();
+  if(opts.run)startRace(true);else setClock(state.race.max);
+  renderCost();dpSync();
+}
+
+/* ================= Carrera ================= */
+function laneHTML(i,name,kind,rule,col,extra,you){
+  return `<div class="lane${you?' you':''}" id="lane${i}" style="--c:var(${col})">
+    <div class="who"><div class="r1"><span class="pos">–</span><b>${name}</b></div><span class="kd${extra?' x':''}">${kind}</span><span class="rl">${rule}</span><div class="live"></div></div>
+    <div class="trk"><div class="cells"></div><div class="bar" title="Instrucciones terminadas"><i></i></div><div class="fin"></div></div>
+    <div class="st"><b class="a">–</b><span>aciertos</span><b class="l">0</b><span>ciclos<br>perdidos</span></div></div>`;
+}
+function buildRace(){
+  stopRace();
+  const id=state.prog,d=PROGS[id];const S=sims(id);const nb=S[0].nb;
+  const g=state.game;
+  let h='';
+  if(g)h+=laneHTML('Y','Tú','jugador','Solo ves el salto y lo que hizo antes.','--ink',false,true);
+  S.forEach((s,i)=>{const st=STRATS[i];h+=laneHTML(i,st.name,st.id==='nt'?'estática · nuestro cauce':st.kind,st.rule,COLS[i],st.extra);});
+  $('#lanes').innerHTML=h;
+  const mk=(el,sim,you)=>{const cells=el.querySelector('.cells');cells.innerHTML='<i></i>'.repeat(nb);
+    return {el,sim,you,cells:[...cells.children],k:0,pos:el.querySelector('.pos'),bar:el.querySelector('.bar i'),fin:el.querySelector('.fin'),a:el.querySelector('.st .a'),l:el.querySelector('.st .l'),live:el.querySelector('.live'),ranked:false};};
+  state.youLane=g?mk($('#laneY'),null,true):null;
+  state.lanes=S.map((s,i)=>mk($('#lane'+i),s));
+  const cyc=S.map(s=>s.cycles);state.lanes.forEach(L=>{L.rank=1+cyc.filter(c=>c<L.sim.cycles).length;});
+  const perfect=S[0].instr+4+S[0].stalls;state.perfect=perfect;
+  state.race.max=Math.max(...cyc);state.race.c=0;
+  $('#reseed').hidden=!DEP.has(id);
+  $('#raceSub').textContent=d.name+' · '+S[0].instr+' instrucciones · '+nb+' saltos'+(d.runs>1?' · el código se ejecuta '+d.runs+' veces seguidas':'')+'. Cada salto es una casilla: se pinta cuando la etapa E lo decide.';
+  sizeCells();renderSide();renderWhere();updButtons();
+}
+function sizeCells(){
+  const c=document.querySelector('#lanes .cells');if(!c||!state.lanes.length)return;const w=c.clientWidth||600;const nb=state.lanes[0].sim.nb;
+  const rows=nb>200?4:3;const cw=Math.max(3,Math.min(14,Math.floor(w*rows/nb)-2));
+  document.querySelectorAll('#lanes .cells').forEach(e=>e.style.setProperty('--cw',cw+'px'));
+}
+/* revela las k primeras casillas de una calle */
+function reveal(L,k,anim){
+  if(k>L.k){for(let i=L.k;i<k;i++){const hit=L.you?state.game.hits[i]:L.sim.br[i].hit;L.cells[i].className=(hit?'h':'m')+(anim&&k-L.k<12&&!reduce?' n':'');}}
+  else if(k<L.k){for(let i=k;i<L.k;i++)L.cells[i].className='';}
+  L.k=k;
+  const miss=L.you?state.game.hits.slice(0,k).filter(x=>!x).length:L.sim.pm[k];
+  L.a.textContent=k?nf(100*(k-miss)/k,1)+' %':'–';L.l.textContent=2*miss;
+  if(!L.you)liveState(L);
+}
+function liveState(L){
+  const k=L.k;if(!k){L.live.innerHTML='';return;}
+  const b=L.sim.br[k-1];const asm=`<span>${L.sim.P.prog[b.pc].asm}</span>`;
+  switch(L.sim.strat){
+    case'b1':L.live.innerHTML=asm+` · bit <span class="s on">${b.sAfter?'T':'N'}</span>`;break;
+    case'b2':L.live.innerHTML=asm+' '+[0,1,2,3].map(s=>`<span class="s${s===b.sAfter?' on':''}">${ST2C[s]}</span>`).join('');break;
+    case'gh':{const h=((b.ghr<<1)|(b.actual?1:0))&15;L.live.innerHTML='historia '+[3,2,1,0].map(j=>`<span class="s${(h>>j)&1?' on':''}">${(h>>j)&1?'T':'N'}</span>`).join('');break;}
+    default:L.live.innerHTML=asm+` → ${b.pred?'T':'N'}`;
+  }
+}
+function setClock(c,anim){
+  const R=state.race;c=Math.max(0,Math.min(R.max,c));R.c=c;
+  if(state.game)return;
+  state.lanes.forEach(L=>{
+    const br=L.sim.br;let k=L.k;
+    while(k<br.length&&br[k].cE<=c)k++;while(k>0&&br[k-1].cE>c)k--;
+    if(k!==L.k)reveal(L,k,anim);
+    const r=L.sim.ret;L.bar.style.width=(100*r[Math.min(Math.floor(c),r.length-1)]/L.sim.instr)+'%';
+    const done=c>=L.sim.cycles;
+    if(done&&!L.ranked){L.ranked=true;L.pos.textContent=L.rank+'.º';L.pos.className='pos p'+L.rank+(anim&&!reduce?' pop':'');L.el.classList.toggle('win',L.rank===1);L.fin.innerHTML=`meta en <b>${L.sim.cycles}</b> ciclos · ${L.sim.miss} fallos × 2 = +${L.sim.lost}`;}
+    else if(!done&&L.ranked){L.ranked=false;L.pos.textContent='–';L.pos.className='pos';L.el.classList.remove('win');}
+    if(!done)L.fin.textContent=L.k+' de '+br.length+' saltos decididos';
+  });
+  $('#clock').innerHTML=`<b>${Math.floor(c)}</b>ciclos<br>con predicción perfecta: ${state.perfect}`;
+}
+let raf=null;
+function tick(t){
+  const R=state.race;if(!R.run)return;
+  const dt=R.last?Math.min(100,t-R.last):16;R.last=t;
+  setClock(R.c+dt/state.dur*R.max,true);
+  if(R.c>=R.max){stopRace();updButtons();return;}
+  raf=requestAnimationFrame(tick);
+}
+function startRace(fresh){
+  if(state.game){state.game=null;buildRace();}
+  const R=state.race;if(fresh||R.c>=R.max)setClock(0);
+  R.run=true;R.last=0;raf=requestAnimationFrame(tick);updButtons();
+}
+function stopRace(){const R=state.race;R.run=false;if(raf)cancelAnimationFrame(raf);raf=null;}
+function toggleRace(){if(state.race.run){stopRace();updButtons();}else startRace(false);}
+function updButtons(){
+  const R=state.race,g=state.game;
+  $('#go').innerHTML=R.run?ICON.pause+'Pausa':ICON.play+(R.c>0&&R.c<R.max?'Continuar':'¡Carrera!');
+  $('#play').innerHTML=g?ICON.x+'Salir del juego':ICON.user+'Juega tú: '+Math.min(GAME_N,state.lanes[0].sim.nb)+' saltos';
+  $('#play').classList.toggle('good',!g);
+  $('#go').disabled=!!(g&&!g.done);
+  document.querySelectorAll('#speed button').forEach(b=>b.disabled=!!g);
+}
+
+/* ---------- juego ---------- */
+function startGame(){
+  stopRace();
+  const nb=simFor(state.prog,'nt').nb;
+  state.game={G:Math.min(GAME_N,nb),i:0,hits:[],done:false,fb:null};
+  buildRace();
+  $('#clock').innerHTML='';
+  gameRender();
+}
+function guess(t){
+  const g=state.game;if(!g||g.done)return;
+  const b=state.lanes[0].sim.br[g.i];const hit=t===b.actual;
+  g.hits.push(hit);g.i++;
+  g.fb={hit,actual:b.actual,asm:state.lanes[0].sim.P.prog[b.pc].asm};
+  if(g.i>=g.G){g.done=true;state.you={miss:g.hits.filter(x=>!x).length,G:g.G};renderCost();}
+  gameRender();
+}
+function gameRows(){const g=state.game;const rows=[{n:'Tú',m:state.you?state.you.miss:0,you:true},...state.lanes.map((L,i)=>({n:STRATS[i].name,m:L.sim.pm[g.G]}))];rows.forEach(r=>r.rank=1+rows.filter(x=>x.m<r.m).length);return rows;}
+function gameRender(){
+  const g=state.game;const all=[state.youLane,...state.lanes];
+  all.forEach(L=>{reveal(L,g.i,true);L.bar.style.width=(100*g.i/g.G)+'%';
+    L.cells.forEach((c,j)=>c.classList.toggle('cur',j===g.i&&!g.done));
+    L.fin.textContent=g.i+' de '+g.G+' saltos';});
+  if(g.done){const rows=gameRows();all.forEach((L,i)=>{const r=rows[i];L.pos.textContent=r.rank+'.º';L.pos.className='pos p'+r.rank+(reduce?'':' pop');L.el.classList.toggle('win',r.rank===1);});}
+  else all.forEach(L=>{L.pos.textContent='–';L.pos.className='pos';L.el.classList.remove('win');});
+  updButtons();renderSide();
+}
+
+/* ---------- columna derecha ---------- */
+function listingHTML(P,cur){
+  let h='<ol class="prog">'+P.prog.map((I,i)=>`<li class="${I.t==='b'?'br':''}${i===cur?' cur':''}"><span class="a">${hex(i)}</span>${I.lbl?'<span class="lb">'+I.lbl+'</span>':''}<span>${I.asm}</span>${I.t==='b'&&I.cond!=='AL'?`<span class="dir" title="${I.back?'hacia atrás':'hacia delante'}">${I.back?'↑':'↓'}</span>`:''}${I.cm?`<span class="cm">; ${I.cm}</span>`:''}</li>`).join('');
+  const end=Object.entries(P.labels).find(([k,v])=>v===P.prog.length);
+  if(end)h+=`<li><span class="a">${hex(P.prog.length)}</span><span class="lb">${end[0]}</span></li>`;
+  return h+'</ol>';
+}
+function renderSide(){
+  const d=PROGS[state.prog];const s0=state.lanes[0].sim;const g=state.game;const P=s0.P;
+  let h='';
+  if(g&&!g.done){
+    const b=s0.br[g.i];const I=P.prog[b.pc];
+    const past=s0.br.slice(0,g.i).filter(x=>x.pc===b.pc).slice(-8);
+    const fb=g.fb?`<div class="fb ${g.fb.hit?'ok':'ko'}${reduce?'':' ani'}">${g.fb.hit?'✓ Acierto':'✕ Fallo: 2 ciclos perdidos'} · <code>${g.fb.asm}</code> salió ${TN(g.fb.actual)}</div>`:'<div class="fb">Ves lo mismo que un predictor: el salto y lo que hizo las veces anteriores.</div>';
+    h+=`<div class="game"><div class="gh"><b>Juega tú</b><span>salto ${g.i+1} de ${g.G}</span></div>
+      <div class="ins">${I.asm}<small>${I.cond==='AL'?'incondicional':I.back?'↑ hacia atrás':'↓ hacia delante'}</small></div>
+      <div class="hist">Las últimas veces: ${past.length?past.map(x=>`<span class="c ${x.actual?'T':'N'}">${x.actual?'T':'N'}</span>`).join(''):'<i>es la primera vez</i>'}</div>
+      <div class="gbtns"><button class="btn" id="gN">← No tomado</button><button class="btn primary" id="gT">Tomado →</button></div>${fb}</div>`;
+  }else if(g&&g.done){
+    const rows=gameRows();const b2=rows[5].m,me=rows[0].m,diff=me-b2;
+    const v=diff<0?'<span style="color:var(--ok)">¡Le has ganado al predictor de 2 bits!</span>':diff===0?'Empate con el predictor de 2 bits.':`El predictor de 2 bits gana por ${diff} fallo${diff===1?'':'s'}.`;
+    h+=`<div class="game"><div class="gh"><b>Resultado</b><span>${g.G} saltos</span></div><div class="verdict">${v}</div>
+      <ol class="rank">${rows.slice().sort((a,b)=>a.m-b.m).map(r=>`<li class="${r.you?'you':''}"><span class="pos p${r.rank}">${r.rank}.º</span><span>${r.n}</span><span>${r.m} fallo${r.m===1?'':'s'}</span></li>`).join('')}</ol>
+      <div class="btnrow"><button class="btn primary" id="again">Jugar otra vez</button><button class="btn" id="toRace">Ver la carrera completa</button></div>
+      <div class="pnote">Tu resultado aparece también en «¿Cuánto cuesta fallar?».</div></div>`;
+  }
+  h+=`<div class="codec"><div class="codeh"><b>Código · ${d.name}</b><div class="seg sm" id="lang" role="group" aria-label="Lenguaje"><button data-v="arm" aria-pressed="${state.lang==='arm'}">ARM</button><button data-v="c" aria-pressed="${state.lang==='c'}">C</button></div></div>${state.lang==='c'?cHTML(state.prog):listingHTML(P,g&&!g.done?s0.br[g.i].pc:-1)}</div>`;
+  h+=`<div class="pnote"><span class="tag" style="--tg:var(${TAGC[d.tag]})">${d.tag}</span> ${d.note}</div>`;
+  if(state.prog==='strlen')h+=`<div class="pnote">Longitudes de las cadenas: ${PROGS.strlen.data(state.seed).lens.join(', ')} caracteres.</div>`;
+  if(state.prog==='maximo'){const s=simFor('maximo','nt');const n=s.br.filter(b=>s.P.prog[b.pc].mn==='BLE'&&!b.actual).length;h+=`<div class="pnote">Con estos datos, el máximo cambia ${n} veces.</div>`;}
+  $('#side').innerHTML=h;
+  document.querySelectorAll('#lang button').forEach(b=>b.onclick=()=>{state.lang=b.dataset.v;renderSide();});
+  if(g&&!g.done){$('#gN').onclick=()=>guess(false);$('#gT').onclick=()=>guess(true);}
+  if(g&&g.done){$('#again').onclick=startGame;$('#toRace').onclick=()=>{state.game=null;buildRace();startRace(true);};}
+}
+
+function cHTML(id){
+  const esc=t=>t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const kw=/\b(int|for|if|do|while)\b/g;
+  const lines=CSRC[id].split('\n').map(l=>{l=l.replace(/\s{2,}\/\//,'  //');const k=l.indexOf('//');const code=k<0?l:l.slice(0,k),cm=k<0?'':l.slice(k);return esc(code).replace(kw,'<span class="kw">$1</span>')+(cm?'<span class="cm">'+esc(cm)+'</span>':'');});
+  return '<pre class="csrc">'+lines.join('\n')+'</pre>';
+}
+/* ---------- dónde falla ---------- */
+function renderWhere(){
+  const S=sims(state.prog);const P=S[0].P;const runs=PROGS[state.prog].runs;
+  const brs=P.prog.filter(I=>I.t==='b');
+  const cell=(s,pc)=>{const bs=s.br.filter(b=>b.pc===pc);const m=bs.filter(b=>!b.hit).length;
+    if(runs>1){const per=[...Array(runs)].map((_,r)=>bs.filter(b=>b.run===r&&!b.hit).length);return {m,t:`${m} <small>(${per.join('+')})</small>`};}
+    return {m,t:String(m)};};
+  let h=`<table class="t"><thead><tr><th>Salto</th><th>Veces</th><th>Se toma</th>${STRATS.map(s=>`<th title="${s.name}">${s.short}</th>`).join('')}</tr></thead><tbody>`;
+  brs.forEach(I=>{const bs=S[0].br.filter(b=>b.pc===I.pc);const cs=S.map(s=>cell(s,I.pc));const mn=Math.min(...cs.slice(0,5).map(c=>c.m)),mx=Math.max(...cs.map(c=>c.m));
+    h+=`<tr><td class="m">${I.asm}</td><td>${bs.length}</td><td>${bs.filter(b=>b.actual).length}</td>${cs.map((c,i)=>`<td class="${c.m===mn&&i<5?'best':c.m===mx&&mx>mn?'worst':''}">${c.t}</td>`).join('')}</tr>`;});
+  const tot=S.map(s=>s.miss);const mn=Math.min(...tot.slice(0,5));
+  h+=`<tr><td><b>Total</b> <small>fallos (% aciertos)</small></td><td>${S[0].nb}</td><td>${S[0].br.filter(b=>b.actual).length}</td>${tot.map((m,i)=>`<td class="${m===mn&&i<5?'best':''}"><b>${m}</b> <small>(${nf(100*(1-m/S[0].nb),0)} %)</small></td>`).join('')}</tr></tbody></table>`;
+  $('#where').innerHTML=h;
+}
+
+/* ================= Coste ================= */
+function renderCost(){
+  const N=state.N,W=state.W,P=Pof(N);
+  $('#oN').innerHTML=N+'<small>etapas</small>';$('#oW').innerHTML=W+'<small>instr./ciclo</small>';
+  $('#oP').innerHTML=`Penalización por fallo <b>P = ${N} − 3 = ${P} ciclo${P===1?'':'s'}</b> · T<sub>c</sub> ≈ ${nf(TcOf(N),0)} ps`;
+  $('#oI').innerHTML=`Hasta <b>${W}</b> instrucci${W===1?'ón':'ones'} por ciclo · CPI ideal ${nf2(1/W)}`;
+  $('#oH').textContent=state.H+' %';
+  $('#tossN').innerHTML=(P*W)+`<small>instrucciones = ${P} ciclo${P===1?'':'s'} × ${W} de ancho</small>`;
+  const tg=$('#tossG');const was=tg.children.length;tg.style.setProperty('--p',P);tg.innerHTML=[...Array(P*W)].map((_,i)=>`<i class="${i>=was&&!reduce?'n':''}"></i>`).join('');
+  document.querySelectorAll('#presets button').forEach(b=>b.setAttribute('aria-pressed',+b.dataset.n===N&&+b.dataset.w===W));
+  const S=sims(state.prog);const s0=S[0];const bpi=s0.nb/s0.instr;
+  const rows=[{n:'Perfecta',sub:'nunca falla',c:'--line-strong',mpi:0,ref:true}];
+  S.forEach((s,i)=>rows.push({n:STRATS[i].short,c:COLS[i],mpi:s.miss/s.instr,acc:1-s.miss/s.nb}));
+  rows.push({n:'Imaginario',c:'--muted',mpi:(1-state.H/100)*bpi,dash:true,acc:state.H/100});
+  if(state.you)rows.push({n:'Tú',c:'--ink',mpi:state.you.miss/state.you.G*bpi,acc:1-state.you.miss/state.you.G,sub:'tus '+state.you.G+' saltos'});
+  // escala fija por programa: el peor caso con 20 etapas y 1 de ancho
+  const worstMpi=Math.max(...rows.map(r=>r.mpi),.5*bpi);const scale=cpiParts(s0,worstMpi,20,1).total;
+  const c0=cpiParts(s0,0,N,W).total;
+  $('#cbars').innerHTML=rows.map(r=>{const p=cpiParts(s0,r.mpi,N,W);const x=p.total/c0;
+    const sub=r.sub||nf(100*r.acc,1)+' % aciertos';
+    return `<div class="cb${r.dash?' dash':''}${r.ref?' ref':''}" style="--c:var(${r.c})" title="IPC ${nf2(1/p.total)} de ${W} posibles · ${nf(p.total*TcOf(N),0)} ps por instrucción"><div class="nm"><i></i><span>${r.n}<br><small>${sub}</small></span></div>
+      <div class="tr"><div class="b0" style="width:${100*p.ideal/scale}%"></div><div class="b1" style="width:${100*p.ld/scale}%"></div><div class="b2" style="width:${100*p.br/scale}%"></div></div>
+      <div class="v"><b>${nf2(p.total)}</b> CPI${r.ref?'':` · <span class="${x>=1.5?'x':''}">×${nf2(x)}</span>`}</div></div>`;}).join('');
+  const book=rows.slice(1,6);const worst=book.reduce((a,b)=>b.mpi>a.mpi?b:a),best=book.reduce((a,b)=>b.mpi<a.mpi?b:a);
+  const xw=cpiParts(s0,worst.mpi,N,W).total/c0,xb=cpiParts(s0,best.mpi,N,W).total/c0;
+  const pre={'5,1':'En nuestro cauce','8,2':'En un Cortex-A7','15,3':'En un Cortex-A15'}[N+','+W]||`Con ${N} etapas y ${W} de ancho`;
+  $('#headline').innerHTML=`${pre}, «${worst.n}» tarda <span class="${xw>=1.5?'bad':'ok'}">×${nf2(xw)}</span> lo que tardaría acertando siempre, y «${best.n}», <span class="${xb>=1.5?'bad':'ok'}">×${nf2(xb)}</span>.`;
+  $('#model').innerHTML=`CPI = 1/W + paradas por LDR + fallos por instrucción × P<br>${PROGS[state.prog].name}: ${nf(100*bpi,1)} % de saltos y ${nf2(s0.stalls/s0.instr)} paradas por instrucción.<br><span style="color:var(--muted)">P = etapas − 3: el salto se decide en la antepenúltima etapa, como E en nuestro cauce. Régimen permanente, sin los 4 ciclos de llenado. Tiempo por instrucción = CPI × T<sub>c</sub>, con T<sub>c</sub> = 740/N + 90 ps (ejemplo 7.9). Según el libro, los buenos predictores aciertan más del 90 %.</span>`;
+}
+
+/* ================= Eventos ================= */
+$('#go').onclick=toggleRace;
+$('#play').onclick=()=>{if(state.game){state.game=null;buildRace();setClock(state.race.max);}else startGame();};
+document.querySelectorAll('#speed button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#speed button').forEach(x=>x.setAttribute('aria-pressed',x===b));state.dur=+b.dataset.v;});
+$('#reseed').onclick=()=>{state.seed=(state.seed*7+13)%100000;Object.keys(cache).forEach(k=>delete cache[k]);state.you=null;renderProgs();selectProg(state.prog,{run:true});};
+['sN','sW','sH'].forEach(id=>$('#'+id).oninput=()=>{state.N=+$('#sN').value;state.W=+$('#sW').value;state.H=+$('#sH').value;renderCost();});
+document.querySelectorAll('#presets button').forEach(b=>b.onclick=()=>{state.N=+b.dataset.n;state.W=+b.dataset.w;$('#sN').value=state.N;$('#sW').value=state.W;renderCost();});
+document.addEventListener('keydown',e=>{
+  if(e.altKey||e.ctrlKey||e.metaKey)return;
+  if(e.target.matches('textarea,select,input:not([type=range])'))return;
+  const g=state.game&&!state.game.done;
+  if(e.key===' '||e.key==='Spacebar'){e.preventDefault();if(document.activeElement&&document.activeElement.blur)document.activeElement.blur();if(!state.game)toggleRace();return;}
+  if(g&&(e.key==='t'||e.key==='T')){guess(true);return;}
+  if(g&&(e.key==='n'||e.key==='N')){guess(false);return;}
+  if(e.target.matches('input[type=range]'))return;
+  if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();const i=PROG_IDS.indexOf(state.prog)+(e.key==='ArrowDown'?1:-1);selectProg(PROG_IDS[(i+PROG_IDS.length)%PROG_IDS.length]);return;}
+  const fwd=e.key==='ArrowRight'||e.key==='PageDown',back=e.key==='ArrowLeft'||e.key==='PageUp';
+  if(!fwd&&!back)return;e.preventDefault();
+  if(g){guess(fwd);return;}
+  if(state.game)return;
+  stopRace();setClock(state.race.c+(fwd?1:-1)*Math.max(1,state.race.max/40));updButtons();
+});
+const fromHash=()=>{const h=(location.hash||'').slice(1);return PROGS[h]?h:'for';};
+window.addEventListener('hashchange',()=>{const id=fromHash();if(id!==state.prog)selectProg(id,{noHash:true});});
+let rz=null;window.addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(sizeCells,120);});
+/* ================= Por dentro del cauce: camino de datos salto a salto ================= */
+const dsvg=$('#dp');
+const byId=id=>dsvg.querySelector('#'+id);
+const dnote=$('#note');
+const ST=['F','D','E','M','W'];
+const HLC=['hl','good','bad','dim','on','clr','occ','bub','flu'];
+const dstate={strat:'b2',v:null,timer:null};
+const snapCache={};
+function simSnap(id,strat){
+  const d=PROGS[id];const key=id+'|'+strat+'|'+(d.data?state.seed:'');
+  if(snapCache[key])return snapCache[key];
+  Object.keys(snapCache).forEach(k=>delete snapCache[k]);   // solo uno en memoria
+  const P=assemble(d.src);const data=d.data?d.data(state.seed):{mem:{}};
+  const r=run(P,data.mem,d.runs,strat,{snap:true});r.P=P;r.strat=strat;
+  return snapCache[key]=r;
+}
+function clearHL(){
+  dsvg.querySelectorAll('.w,.blk,.bar,.band,.tag,.hz,.wl').forEach(el=>el.classList.remove(...HLC));
+  dsvg.querySelectorAll('.band,.tag').forEach(el=>el.style.removeProperty('--c'));
+  const co=byId('callout');co.classList.add('gone');co.classList.remove('good','ctl');
+}
+function cls(ids,c){ids.forEach(id=>{const el=byId(id);if(el)el.classList.add(c);});}
+const TAGDEF=['Fetch · BI','Decode · LR','Execute · E','Memory · M','Writeback · ER'];
+function setTags(arr){
+  dsvg.querySelectorAll('#tags .tag').forEach((g,i)=>{
+    const t=g.querySelector('text');const band=dsvg.querySelector('.band[data-st="'+i+'"]');const v=arr&&arr[i];
+    g.classList.remove('occ','bub','flu');band.classList.remove('occ','flu');
+    if(!v){t.textContent=TAGDEF[i];return;}
+    t.textContent=v.text;
+    if(v.bub){g.classList.add('bub');return;}
+    g.classList.add('occ');g.style.setProperty('--c','var('+v.c+')');band.classList.add('occ');band.style.setProperty('--c','var('+v.c+')');
+    if(v.flu){g.classList.add('flu');band.classList.add('flu');}
+  });
+}
+function callout(text,kind){const co=byId('callout');co.classList.remove('gone','good','ctl');if(kind)co.classList.add(kind);const t=co.querySelector('text');t.textContent=text;const w=Math.min(1000,text.length*7.4+28);const r=co.querySelector('rect');r.setAttribute('width',w);r.setAttribute('x',Math.max(4,560-w/2));t.setAttribute('x',Math.max(4,560-w/2)+w/2);}
+function inRange(spec,s){const [a,b]=spec.split('-');const lo=+a,hi=b===undefined?lo:+b;return s>=lo&&s<=hi;}
+function dpLayout(){const s=dstate.strat==='nt'?1:2;dsvg.querySelectorAll('[data-show]').forEach(el=>el.classList.toggle('gone',!inRange(el.dataset.show,s)));}
+function predLines(sim,b){
+  const I=sim.P.prog[b.pc];const st=sim.strat;
+  const ttl={t:'Siempre T',btfn:'Estática',b1:'BTB · 1 bit',b2:'BTB · 2 bits',gh:'Hist. global'}[st]||'';
+  let l2='';
+  if(st==='btfn')l2=I.back?'hacia atrás':'hacia delante';
+  else if(st==='b1')l2='bit = '+b.sBefore+' ('+(b.sBefore?'T':'NT')+')';
+  else if(st==='b2')l2='estado '+ST2C[b.sBefore];
+  else if(st==='gh')l2='hist. '+b.ghr.toString(2).padStart(4,'0')+' · '+ST2C[b.sBefore];
+  else if(st==='t')l2='destino '+hex(I.target);
+  return [ttl,I.asm,l2,'→ predice '+(b.pred?'T':'NT')];
+}
+function paintDP(sim,p){
+  clearHL();
+  const sn=sim.cyc[p.c-1];const b=sim.br[p.i];const I=sim.P.prog[b.pc];const res=p.ph==='res';
+  setTags(ST.map(st=>{const x=sn.S[st];if(!x)return null;if(x.bub)return{text:'burbuja',bub:true};const fl=res&&sn.flu[st];return{text:(fl?'✕ ':'')+x.I.asm,c:x.I.pc>=0?COLS[x.I.pc%6]:'--line-strong',flu:fl};}));
+  const hasPred=sim.strat!=='nt';
+  if(hasPred){const L=predLines(sim,b);['predT','predS','predS2','predS3'].forEach((id,k)=>{byId(id).textContent=L[k];});}
+  if(!res){
+    // BI: el PC busca el salto y el siguiente PC sale de la cadena de multiplexores
+    cls(['PC','IM','w_pc_im','w_m2_pc','M2'],'hl');
+    if(hasPred){cls(['PRED'],'on');cls(['w_pc_pred'],'hl');
+      if(b.pred){cls(['w_btb','c_sel','l_btb','l_psel'],'good');cls(['M1','w_m1_m2'],'hl');}
+      else cls(['w_pc_add','ADD4','w_p4','l_p4','M0','w_m0_m1','M1','w_m1_m2'],'hl');}
+    else cls(['w_pc_add','ADD4','w_p4','l_p4','M0','w_m0_m2'],'hl');
+    callout('BI · '+I.asm+' → predicción: '+TN(b.pred)+' · siguiente búsqueda en '+(b.pred?hex(I.target):hex(I.pc+1)),b.pred?'good':'ctl');
+  }else{
+    // E: la Cond Unit decide el salto; si no coincide con la predicción, se corrige el PC y se vacían BI y LR
+    cls(['COND'],'hl');cls(['c_bt','l_bt'],'on');
+    if(hasPred)cls(['c_pe','l_pe'],'on');
+    if(b.hit){if(hasPred)cls(['CMP'],'good');callout('E · '+I.asm+': '+TN(b.actual)+', como se predijo · acierto, 0 ciclos perdidos','good');}
+    else{
+      if(hasPred){cls(['CMP','c_out','l_out','RMUX','w_fix','l_fix','c_rm','l_rm'],'bad');cls(b.actual?['w_alu_r','ALU']:['w_p4r','l_p4e'],'bad');}
+      else cls(['w_fix1','l_fix1','ALU','l_btn'],'bad');
+      cls(['M2','w_m2_pc','c_m2',hasPred?'l_m2':'l_m2n','fl_d','fl_e','l_fd','l_fe'],'bad');
+      cls(['BAR0','BAR1'],'clr');
+      callout('E · '+I.asm+': '+TN(b.actual)+', se predijo '+TN(b.pred)+' · fallo: se vacían BI y LR, 2 ciclos perdidos');}
+  }
+}
+function describe(sim,p){
+  const b=sim.br[p.i];const I=sim.P.prog[b.pc];const st=sim.strat;const c=p.c;const sn=sim.cyc[c-1];
+  const seen=sim.br.slice(0,p.i).some(x=>x.pc===b.pc);
+  const why={nt:()=>'el cauce siempre predice no tomado',t:()=>'esta estrategia siempre predice tomado',btfn:()=>'es un salto hacia '+(I.back?'atrás':'delante'),
+    b1:()=>'el bit de historia vale '+b.sBefore+': '+(b.sBefore?'la última vez se tomó':seen?'la última vez no se tomó':'es su valor inicial'),
+    b2:()=>'el contador está en «'+ST2[b.sBefore].toLowerCase()+'»',
+    gh:()=>'con historia global '+b.ghr.toString(2).padStart(4,'0')+', su contador está en «'+ST2[b.sBefore].toLowerCase()+'»'}[st]();
+  if(p.ph==='pred')return [`<b>Ciclo ${c} · BI.</b> Se busca <code>${I.asm}</code> (${hex(I.pc)}). Predicción: <b>${TN(b.pred)}</b>, porque ${why}. La siguiente instrucción se busca en ${b.pred?hex(I.target)+' (destino'+(st!=='nt'?' guardado en el BTB':'')+')':hex(I.pc+1)+' (PC + 4)'}.`,'ctl'];
+  const fl=['F','D'].map(s=>sn.S[s]).filter(x=>x&&x.I).map(x=>'<code>'+x.I.asm+'</code>');
+  const upd=st==='b1'?` El bit pasa a ${b.sAfter}.`:(st==='b2'||st==='gh')?` El contador pasa de ${ST2C[b.sBefore]} a ${ST2C[b.sAfter]}.`:'';
+  if(b.hit)return [`<b>Ciclo ${c} · E.</b> <code>${I.asm}</code> ${b.actual?'se toma':'no se toma'} y se había predicho ${TN(b.pred)}: <b>acierto</b>. Las instrucciones que vienen detrás son las correctas y no se pierde ningún ciclo.${upd}`,'good'];
+  return [`<b>Ciclo ${c} · E.</b> <code>${I.asm}</code> ${b.actual?'se toma':'no se toma'}, pero se había predicho ${TN(b.pred)}: <b>fallo</b>. FlushD y FlushE vacían ${fl.join(' y ')||'BI y LR'} y el PC se corrige a ${b.actual?hex(I.target)+' (ALUResultE)':hex(I.pc+1)+' (PCPlus4E)'}. Penalización: <b>2 ciclos</b>.${upd}`,'bad'];
+}
+/* ---------- máquina de estados de 2 bits (fig. 7.62) ---------- */
+function fsmSVG(){
+  const cx=pos=>110+pos*150;const y0=70,h=56;
+  let s=`<svg id="fsm" viewBox="0 0 680 200" role="img" aria-label="Diagrama de estados del predictor de dos bits (figura 7.62)"><defs><marker id="fsmM" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z"/></marker></defs>`;
+  s+=`<text class="hd" x="${(cx(0)+cx(1))/2}" y="18">predice tomado</text><text class="hd" x="${(cx(2)+cx(3))/2}" y="18">predice no tomado</text><line x1="335" y1="8" x2="335" y2="190" stroke="var(--line-strong)" stroke-dasharray="3 4"/>`;
+  for(let st=0;st<3;st++){const a=3-st,bp=3-(st+1);s+=`<path class="ar" id="tk${st}" d="M${cx(a)-24} ${y0}C${cx(a)-24} ${y0-38} ${cx(bp)+24} ${y0-38} ${cx(bp)+24} ${y0}" marker-end="url(#fsmM)"/><text class="al" id="ltk${st}" x="${(cx(a)+cx(bp))/2}" y="${y0-30}">tomado</text>`;}
+  for(let st=3;st>0;st--){const a=3-st,bp=3-(st-1);s+=`<path class="ar" id="nt${st}" d="M${cx(a)+24} ${y0+h}C${cx(a)+24} ${y0+h+38} ${cx(bp)-24} ${y0+h+38} ${cx(bp)-24} ${y0+h}" marker-end="url(#fsmM)"/><text class="al" id="lnt${st}" x="${(cx(a)+cx(bp))/2}" y="${y0+h+42}">no tomado</text>`;}
+  s+=`<path class="ar" id="tk3" d="M${cx(0)-60} ${y0+14}C${cx(0)-96} ${y0+6} ${cx(0)-96} ${y0+50} ${cx(0)-60} ${y0+42}" marker-end="url(#fsmM)"/><text class="al" id="ltk3" x="${cx(0)-58}" y="${y0+h+42}">tomado</text>`;
+  s+=`<path class="ar" id="nt0" d="M${cx(3)+60} ${y0+14}C${cx(3)+96} ${y0+6} ${cx(3)+96} ${y0+50} ${cx(3)+60} ${y0+42}" marker-end="url(#fsmM)"/><text class="al" id="lnt0" x="${cx(3)+58}" y="${y0+h+42}">no tomado</text>`;
+  [3,2,1,0].forEach(st=>{const pos=3-st;const nm=ST2[st].split(' ');s+=`<g class="stt${st>=2?' tk':''}" id="fs${st}"><rect x="${cx(pos)-60}" y="${y0}" width="120" height="${h}" rx="6"/><text x="${cx(pos)}" y="${y0+22}">${nm[0]}</text><text x="${cx(pos)}" y="${y0+38}">${nm.slice(1).join(' ')}</text><text class="p" x="${cx(pos)}" y="${y0+51}">${ST2C[st]}</text></g>`;});
+  return s+'</svg>';
+}
+function paintFSM(sim,p){
+  const f=$('#fsm');if(!f)return;
+  f.querySelectorAll('.stt').forEach(g=>g.classList.remove('cur','prev'));
+  f.querySelectorAll('.ar,.al').forEach(g=>g.classList.remove('on','bad'));
+  const t=$('#fsmTxt');
+  if(sim.strat!=='b2'){if(t)t.textContent='Elige el predictor de 2 bits para ver moverse el estado en cada salto.';return;}
+  const b=sim.br[p.i];const I=sim.P.prog[b.pc];
+  if(p.ph==='res'){
+    f.querySelector('#fs'+b.sAfter).classList.add('cur');if(b.sAfter!==b.sBefore)f.querySelector('#fs'+b.sBefore).classList.add('prev');
+    const id=(b.actual?'tk':'nt')+b.sBefore;[f.querySelector('#'+id),f.querySelector('#l'+id)].forEach(e=>{e.classList.add('on');if(!b.hit)e.classList.add('bad');});
+    t.innerHTML=`<code>${I.asm}</code> ${b.actual?'se toma':'no se toma'}: ${ST2C[b.sBefore]} → ${ST2C[b.sAfter]}.`;
+  }else{f.querySelector('#fs'+b.sBefore).classList.add('cur');t.innerHTML=`<code>${I.asm}</code> está en ${ST2C[b.sBefore]}: predice ${TN(b.sBefore>=2)}.`;}
+}
+/* ---------- tarjetas ---------- */
+function renderHow(){
+  const f=simFor('for','b1'),f2=simFor('for','b2');const pc=f.P.prog.findIndex(I=>I.mn==='BGE');
+  const per=s=>[0,1,2].map(r=>s.br.filter(b=>b.pc===pc&&b.run===r&&!b.hit).length).join(' + ');
+  const C=[
+    ['nt','--i0','Siempre no tomado','Lo que ya hace nuestro cauce: sigue buscando en PC + 4, sin predictor ni BTB. El salto se decide en E y, si se toma, FlushD y FlushE vacían BI y LR: <b>2 ciclos</b> de penalización por fallo de predicción.'],
+    ['t','--i1','Siempre tomado','Para saltar ya en BI hace falta conocer el destino antes de decodificar la instrucción: lo da el branch target buffer.'],
+    ['btfn','--i2','Atrás tomado, delante no tomado','Predicción <b>estática</b>: los saltos hacia atrás suelen cerrar bucles, que se repiten. Los saltos hacia delante son difíciles de predecir sin saber más del programa.'],
+    ['b1','--i3','Predictor de 1 bit',`Predicción <b>dinámica</b>: recuerda si el salto se tomó la última vez. En un bucle falla en la primera y en la última iteración. En el bucle FOR del libro, <code>BGE DONE</code> falla ${per(f)} veces en sus 3 ejecuciones (la primera vez el bit ya empieza en «no tomado»).`],
+    ['b2','--i4','Predictor de 2 bits · figura 7.62',`Cuatro estados. Desde un estado «fuertemente» hacen falta dos fallos seguidos para cambiar la predicción, así que en un bucle solo falla la última iteración. En el bucle FOR del libro, <code>BGE DONE</code> falla ${per(f2)} veces. El libro no fija el estado inicial; aquí es «débilmente no tomado».`],
+    [null,'--ctl','Branch target buffer','Tabla con los últimos cientos o miles de saltos: PC del salto, <b>destino</b> e <b>historia</b>. Se consulta con el PC en BI, antes de decodificar, para decidir qué buscar en el ciclo siguiente. En la demo el BTB ya conoce todos los saltos del programa; uno real no conoce un salto hasta que lo ejecuta por primera vez, y mientras tanto predice «no tomado». Los buenos predictores aciertan <b>más del 90 %</b> en programas típicos.'],
+    ['gh','--i5','Historia global · más allá del libro','Además del PC, usa el resultado de los 4 últimos saltos ejecutados (de cualquier salto) para elegir un contador de 2 bits. Aprende patrones como T, N, T, N, pero tarda más en calentarse. El libro solo apunta que un predictor puede guardar más historia del programa; el diagrama del Cortex-A9 (figura 7.71) incluye un Global History Buffer.']
+  ];
+  $('#howg').innerHTML=C.map(([s,c,t,x])=>`<div class="hc${s==='b2'?' wide':''}"${s?` data-s="${s}" role="button" tabindex="0"`:''} style="--c:var(${c})"><h3>${t}</h3><div>${x}</div>${s==='b2'?`<div class="fsmw">${fsmSVG()}</div><div class="box" id="fsmTxt"></div>`:''}${s?'<span class="pick">Ver en el diagrama</span>':''}</div>`).join('');
+  document.querySelectorAll('#howg .hc[data-s]').forEach(el=>{const go=()=>setDStrat(el.dataset.s);el.onclick=go;el.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();go();}};});
+}
+/* ---------- navegación del diagrama ---------- */
+function dStop(){if(dstate.timer){clearInterval(dstate.timer);dstate.timer=null;}$('#dPlay').innerHTML=ICON.play+'Reproducir';}
+function dSet(j){const v=dstate.v;j=Math.max(0,Math.min(v.ph.length-1,j));v.j=j;dRedraw();}
+function dRedraw(){
+  const v=dstate.v;const p=v.ph[v.j];const sim=v.sim;
+  paintDP(sim,p);
+  const [t,k]=describe(sim,p);dnote.innerHTML=t;dnote.className='note '+k;
+  $('#dClk').innerHTML='Salto '+(p.i+1)+'<small> / '+sim.br.length+' · '+(p.ph==='pred'?'predicción en BI':'decisión en E')+' · ciclo '+p.c+'</small>';
+  $('#dPrev').disabled=v.j<=0;$('#dNext').disabled=v.j>=v.ph.length-1;
+  paintFSM(sim,p);
+}
+function dpSync(keep){
+  dStop();
+  const sim=simSnap(state.prog,dstate.strat);
+  const ph=[];sim.br.forEach((b,i)=>{ph.push({i,ph:'pred',c:b.cF});ph.push({i,ph:'res',c:b.cE});});
+  ph.sort((a,b)=>a.c-b.c||(a.ph==='res'?-1:1));
+  const j=keep&&dstate.v?Math.min(dstate.v.j,ph.length-1):0;
+  dstate.v={sim,ph,j};
+  $('#dstrat').innerHTML=STRATS.map(s=>`<button data-v="${s.id}" aria-pressed="${s.id===dstate.strat}">${s.short}</button>`).join('');
+  document.querySelectorAll('#dstrat button').forEach(b=>b.onclick=()=>setDStrat(b.dataset.v));
+  document.querySelectorAll('#howg .hc[data-s]').forEach(el=>el.classList.toggle('sel',el.dataset.s===dstate.strat));
+  $('#howSub').innerHTML=`El cauce de 5 etapas con el predictor en BI y la decisión del salto en E, ejecutando <b>${PROGS[state.prog].name}</b> (el programa de la carrera). Elige un predictor y avanza salto a salto.`;
+  dpLayout();dRedraw();
+}
+function setDStrat(s){dstate.strat=s;dpSync(true);}
+$('#dPrev').innerHTML=ICON.prev+'Anterior';$('#dNext').innerHTML='Siguiente'+ICON.next;$('#dReset').innerHTML=ICON.reset;
+$('#dPrev').onclick=()=>{dStop();dSet(dstate.v.j-1);};
+$('#dNext').onclick=()=>{dStop();dSet(dstate.v.j+1);};
+$('#dReset').onclick=()=>{dStop();dSet(0);};
+$('#dPlay').onclick=()=>{if(dstate.timer){dStop();return;}const v=dstate.v;if(v.j>=v.ph.length-1)dSet(0);$('#dPlay').innerHTML=ICON.pause+'Pausa';dstate.timer=setInterval(()=>{if(dstate.v!==v){dStop();return;}dSet(v.j+1);if(v.j>=v.ph.length-1)dStop();},900);dSet(v.j+1);};
+
+/* ================= Arranque ================= */
+renderProgs();renderHow();
+selectProg(fromHash(),{noHash:true});
+})();
+</script>
+<script data-goatcounter="https://juanjoual.goatcounter.com/count"
+        async src="//gc.zgo.at/count.js"></script>
+</body></html>
