@@ -196,31 +196,6 @@
       text-wrap: balance;
     }
     .card p { color: var(--muted); font-size: 15px; flex: 1; }
-    .tags { display: flex; flex-wrap: wrap; gap: 6px; }
-    .tag {
-      font: 600 11px var(--f-mono);
-      padding: 3px 8px;
-      border-radius: 3px;
-      background: var(--sunk);
-      border: 1px solid var(--line);
-      color: var(--muted);
-    }
-    .go {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      align-self: flex-start;
-      margin-top: 4px;
-      padding: 8px 14px;
-      border-radius: 5px;
-      background: var(--accent);
-      color: var(--accent-ink);
-      font: 600 14px var(--f-body);
-      transition: filter .15s;
-    }
-    .card:hover .go { filter: brightness(1.1); }
-    .go svg { width: 15px; height: 15px; transition: transform .18s; }
-    .card:hover .go svg { transform: translateX(3px); }
 
     /* Pie */
     footer { border-top: 1px solid var(--line); background: var(--panel); }
@@ -329,56 +304,48 @@
         carpeta: "camino-critico-monociclo",
         titulo: "Camino crítico del monociclo",
         descripcion: "Sigue la señal por la ruta de datos del ARM monociclo hasta que se estabiliza y descubre qué instrucción fija el tiempo de ciclo. Cronograma con los retardos de la Tabla 7.5, experimentos cambiando retardos y ejercicios aleatorios para calcular Tc.",
-        etiquetas: ["Monociclo", "Tiempo de ciclo", "Camino crítico"],
         color: "i2"
       },
       {
         carpeta: "control-multiciclo",
         titulo: "Control del multiciclo",
         descripcion: "Avanza ciclo a ciclo por el ARM multiciclo y mira cómo la máquina de estados de la unidad de control configura multiplexores y habilitaciones en cada estado. Programa editable, señales de control del ciclo, recorrido por los estados, CPI y modo «adivina el siguiente estado».",
-        etiquetas: ["Multiciclo", "FSM", "Unidad de control"],
         color: "i4"
       },
       {
         carpeta: "camino-critico-multiciclo",
         titulo: "Camino crítico del multiciclo",
         descripcion: "Sigue la señal estado a estado por la ruta de datos del ARM multiciclo y descubre qué paso fija el periodo de reloj. Cronograma de cada instrucción frente al monociclo, los diez estados de la FSM frente al reloj y experimentos cambiando los retardos de la Tabla 7.5.",
-        etiquetas: ["Multiciclo", "Tiempo de ciclo", "Camino crítico"],
         color: "i5"
       },
       {
         carpeta: "del-monociclo-al-segmentado",
         titulo: "Del monociclo al segmentado",
         descripcion: "Construye el procesador segmentado en 8 pasos a partir del camino de datos monociclo, como en la sección 7.5: cortes en etapas, registros de segmentación y unidad de control. Ves cómo baja el ciclo de 840 ps a 300 ps y ejecutas ejemplos en cada paso.",
-        etiquetas: ["Segmentación", "Camino de datos", "Paso a paso"],
         color: "i3"
       },
       {
         carpeta: "riesgos-segmentado",
         titulo: "Riesgos del segmentado",
         descripcion: "Continuación de la demo anterior: detecta los riesgos de datos y de control en el mismo camino de datos y añade, pieza a pieza, la unidad de riesgos que los resuelve con anticipación, bloqueos y vaciados. Del CPI ideal de 1 al 1,23 de SPECINT2000, siguiendo la sección 7.5.3.",
-        etiquetas: ["Segmentación", "Riesgos", "Hazard Unit"],
         color: "i6"
       },
       {
-        carpeta: "diagrama-multiciclo",
+        carpeta: "diagrama-multiples-ciclos",
         titulo: "Diagrama de múltiples ciclos",
         descripcion: "Practica la plantilla de la transparencia 98: escribe en cada fila la instrucción o el stall que mete la unidad de riesgos, dibuja las flechas de anticipación entre etapas y comprueba el resultado. Cada fallo se explica, y los ciclos y el CPI se calculan solos, con y sin unidad de riesgos.",
-        etiquetas: ["Segmentación", "Riesgos", "Ejercicio"],
         color: "i7"
       },
       {
         carpeta: "prediccion-saltos",
         titulo: "Predicción de saltos",
         descripcion: "La carrera de los predictores: seis estrategias de predicción ejecutan el mismo programa en el cauce de 5 etapas y cada fallo cuesta 2 ciclos de vaciado. Intenta ganarles, mira por dentro cómo decide cada uno con el BTB y comprueba qué pasa al alargar y ensanchar el cauce.",
-        etiquetas: ["Saltos", "Predictores", "BTB"],
         color: "i0"
       },
       {
         carpeta: "superescalar",
         titulo: "Superescalar de doble emisión",
         descripcion: "Ejecuta un código en el segmentado y en tres superescalares con el mismo hardware: en orden, fuera de orden y con renombramiento. Avanza ciclo a ciclo, pulsa una instrucción para saber por qué espera y sigue el renombramiento paso a paso, como en la transparencia 119.",
-        etiquetas: ["Emisión múltiple", "Fuera de orden", "Renombramiento"],
         color: "i1"
       }
         ]
@@ -399,14 +366,12 @@
         carpeta: "monociclo-multiciclo-segmentado",
         titulo: "Monociclo, multiciclo y segmentado",
         descripcion: "Las tres microarquitecturas ejecutan el mismo programa en paralelo, cada una con su propio reloj sobre un eje de tiempo común. Incluye la ecuación de rendimiento, el origen de cada Tc y la comparativa con SPECINT2000.",
-        etiquetas: ["Rendimiento", "Microarquitectura", "CPI"],
         color: "i0"
       },
       {
         carpeta: "segmentacion-arm",
         titulo: "Simulador de segmentación ARM",
         descripcion: "Ejecuta un programa ARM ciclo a ciclo en el procesador segmentado de 5 etapas: camino de datos animado, unidad de riesgos con anticipación, bloqueos y vaciados, diagrama multiciclo y estado de registros y memoria.",
-        etiquetas: ["Segmentación", "Riesgos", "ARM"],
         color: "i1"
       }
         ]
@@ -432,11 +397,8 @@
     }
     document.getElementById("stair").innerHTML = stair;
 
-    const arrow = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 5l7 7-7 7"/></svg>';
-
     const card = (d, num) => {
       const dir = d.carpeta.replace(/^\/+/, "").replace(/\/?$/, "/");
-      const tags = (d.etiquetas || []).map(t => `<span class="tag">${esc(t)}</span>`).join("");
       return `
         <a class="card" href="${encodeURI(dir)}" style="--ic:var(--${esc(d.color || "i0")})">
           <div class="hd">
@@ -445,8 +407,6 @@
           </div>
           <h3>${esc(d.titulo || d.carpeta)}</h3>
           <p>${esc(d.descripcion || "")}</p>
-          ${tags ? `<div class="tags">${tags}</div>` : ""}
-          <span class="go">Abrir demo ${arrow}</span>
         </a>`;
     };
 
