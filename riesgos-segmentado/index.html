@@ -40,6 +40,7 @@
   color-scheme:dark;
 }
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 body{background:var(--paper);color:var(--ink);font:15px/1.5 var(--f-body);-webkit-font-smoothing:antialiased}
 .wrap{max-width:1380px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0}
@@ -510,13 +511,34 @@ const DPOPS=['ADD','SUB','RSB','AND','ORR','EOR','BIC','LSL','LSR','ASR','MOV','
 const CMPOPS=['CMP','CMN','TST','TEQ'];
 function regOf(s){s=(s||'').trim().toUpperCase();if(s==='SP')return 13;if(s==='LR')return 14;if(s==='PC')return 15;const m=/^R(\d{1,2})$/.exec(s);return m&&+m[1]<16?+m[1]:null;}
 function immOf(s){s=(s||'').trim();if(s[0]!=='#')return null;const v=s.slice(1).trim();const n=/^-?0x/i.test(v)?parseInt(v,16):parseInt(v,10);return isNaN(n)?null:n;}
-function splitOps(s){const o=[];let d=0,cur='';for(const ch of s){if(ch==='[')d++;if(ch===']')d--;if(ch===','&&d===0){o.push(cur.trim());cur='';}else cur+=ch;}if(cur.trim())o.push(cur.trim());return o;}
+function splitOps(s){const o=[];let d=0,cur='';for(const ch of s){if(ch==='['||ch==='{')d++;if(ch===']'||ch==='}')d--;if(ch===','&&d===0){o.push(cur.trim());cur='';}else cur+=ch;}if(cur.trim())o.push(cur.trim());return o;}
+function numOf(v){v=(v||'').trim();if(/^-?0x[0-9a-f]+$/i.test(v))return parseInt(v,16);if(/^-?\d+$/.test(v))return parseInt(v,10);return null;}
 function parseProg(text){
   const prog=[],labels={},errs=[];
+  const mem=new Map(),dlabels={};let sec='text',dloc=0;
   text.split(/\r?\n/).forEach((raw,ln)=>{
     let s=raw.replace(/(;|@|\/\/).*$/,'').trim();
-    let m;
-    while(s&&(m=/^([A-Za-z_]\w*)\s*:\s*/.exec(s))){labels[m[1].toLowerCase()]=prog.length;pendLbl.push(m[1]);s=s.slice(m[0].length);}
+    let m;const names=[];
+    while(s&&(m=/^([A-Za-z_]\w*)\s*:\s*/.exec(s))){names.push(m[1]);s=s.slice(m[0].length);}
+    // directivas y datos: la memoria de datos empieza en la dirección 0; lo no definido vale 0
+    if(s[0]==='.'||(sec==='data'&&names.length&&!s)){
+      const err=msg=>errs.push('Línea '+(ln+1)+': '+msg);
+      const sp=s.search(/\s/);const d=(sp<0?s:s.slice(0,sp)).toLowerCase();const arg=sp<0?'':s.slice(sp+1).trim();
+      if(d==='.org'){const v=numOf(arg);if(v===null||v<0){err('dirección no válida en .org');return;}dloc=v;}
+      names.forEach(nm=>{dlabels[nm.toLowerCase()]=dloc;});
+      if(!d)return;
+      if(d==='.data'||(d==='.section'&&/^\.?data/i.test(arg)))sec='data';
+      else if(d==='.text'||(d==='.section'&&/^\.?text/i.test(arg)))sec='text';
+      else if(d==='.word'){const vs=arg.split(',').map(x=>x.trim()).filter(Boolean);if(!vs.length){err('.word sin valores');return;}
+        for(const x of vs){const v=numOf(x.replace(/^#/,''));if(v===null){err('valor no válido en .word «'+x+'»');return;}mem.set(dloc,v>>>0);dloc+=4;}}
+      else if(d==='.space'||d==='.skip'){const v=numOf(arg);if(v===null||v<0){err('tamaño no válido en '+d);return;}dloc+=v;}
+      else if(d==='.org'){}
+      else if(['.align','.balign','.global','.globl','.end','.arm','.syntax','.type','.size'].includes(d)){}
+      else err('directiva no admitida «'+d+'»');
+      return;
+    }
+    if(sec==='data'){if(s)errs.push('Línea '+(ln+1)+': hay una instrucción dentro de la sección .data (falta .text)');return;}
+    names.forEach(nm=>{labels[nm.toLowerCase()]=prog.length;pendLbl.push(nm);});
     if(!s)return;
     const sp=s.search(/\s/);const mn=(sp<0?s:s.slice(0,sp)).toUpperCase();const rest=sp<0?'':s.slice(sp+1).trim();
     const ops=splitOps(rest);
@@ -534,7 +556,7 @@ function parseProg(text){
       I.t=mn.slice(0,3)==='LDR'?'ldr':'str';const rd=regOf(ops[0]);if(rd===null||ops.length<2){err('formato: '+mn+' Rd, [Rn, #imm]');return;}
       const a=ops.slice(1).join(',').trim();
       if(I.t==='ldr'&&a[0]==='='){I.lit=a.slice(1).trim();I.dst=rd;}
-      else{const mm=/^\[\s*(\w+)\s*(?:,\s*(#[^\]]+))?\]$/.exec(a);if(!mm){err('dirección no válida «'+a+'»');return;}I.srcA=regOf(mm[1]);if(I.srcA===null){err('registro base no válido');return;}I.imm=mm[2]?immOf(mm[2]):0;if(I.imm===null){err('desplazamiento no válido');return;}
+      else{const mm=/^[\[{]\s*(\w+)\s*(?:,\s*(#[^\]}]+))?[\]}]$/.exec(a);if(!mm){err('dirección no válida «'+a+'»');return;}I.srcA=regOf(mm[1]);if(I.srcA===null){err('registro base no válido');return;}I.imm=mm[2]?immOf(mm[2]):0;if(I.imm===null){err('desplazamiento no válido');return;}
         if(I.t==='ldr')I.dst=rd;else I.srcB=rd;}
     }
     else{
@@ -550,13 +572,14 @@ function parseProg(text){
   });
   if(pendLbl.length)pendLbl.length=0;
   prog.forEach((I,i)=>{I.pc=i;if(I.t==='b'){const t=labels[I.label.toLowerCase()];I.target=t===undefined?prog.length:t;I.ext=t===undefined;}});
+  prog.mem=mem;prog.dlabels=dlabels;
   return {prog,labels,errs};
 }
 const pendLbl=[];
 function condOk(c,f){switch(c){case'EQ':return f.Z;case'NE':return!f.Z;case'CS':case'HS':return f.C;case'CC':case'LO':return!f.C;case'MI':return f.N;case'PL':return!f.N;case'VS':return f.V;case'VC':return!f.V;case'HI':return f.C&&!f.Z;case'LS':return!f.C||f.Z;case'GE':return f.N===f.V;case'LT':return f.N!==f.V;case'GT':return!f.Z&&f.N===f.V;case'LE':return f.Z||f.N!==f.V;default:return true;}}
 function runRef(prog,limit){
   limit=limit||400;
-  const R=new Array(16).fill(0),f={N:false,Z:false,C:false,V:false},mem=new Map(),lit={};let nl=0x1000;
+  const R=new Array(16).fill(0),f={N:false,Z:false,C:false,V:false},mem=new Map(prog.mem||[]),dl=prog.dlabels||{},lit={};let nl=0x1000;
   const trace=[];let pc=0,trunc=false;
   const setNZ=r=>{f.N=(r>>>31)===1;f.Z=(r>>>0)===0;};
   const add=(a,b,s)=>{a>>>=0;b>>>=0;const r=(a+b)>>>0;if(s){setNZ(r);f.C=a+b>0xFFFFFFFF;f.V=(((a^r)&(b^r))>>>31)===1;}return r;};
@@ -572,7 +595,7 @@ function runRef(prog,limit){
       case'MOV':r=B>>>0;break;case'MVN':r=(~B)>>>0;break;}
       if(I.S&&!['ADD','SUB','RSB'].includes(I.op))setNZ(r);R[I.dst]=r;t.val=r;}
     else if(I.t==='cmp'){if(I.op==='CMP')sub(A,B,true);else if(I.op==='CMN')add(A,B,true);else if(I.op==='TST')setNZ((A&B)>>>0);else setNZ((A^B)>>>0);}
-    else if(I.t==='ldr'){let v;if(I.lit!==undefined){const n=/^-?(0x)?[0-9a-f]+$/i.test(I.lit)?parseInt(I.lit):NaN;if(!isNaN(n))v=n>>>0;else{if(!(I.lit in lit)){lit[I.lit]=nl;nl+=0x100;}v=lit[I.lit];}}
+    else if(I.t==='ldr'){let v;if(I.lit!==undefined&&I.lit.toLowerCase() in dl)v=dl[I.lit.toLowerCase()];else if(I.lit!==undefined){const n=/^-?(0x)?[0-9a-f]+$/i.test(I.lit)?parseInt(I.lit):NaN;if(!isNaN(n))v=n>>>0;else{if(!(I.lit in lit)){lit[I.lit]=nl;nl+=0x100;}v=lit[I.lit];}}
       else v=mem.get((A+I.imm)>>>0)||0;R[I.dst]=v>>>0;t.val=v>>>0;}
     else if(I.t==='str'){mem.set((A+I.imm)>>>0,R[I.srcB]);}
     if(I.t==='b'&&condOk(I.cond,f)){t.taken=true;t.target=I.target;pc=I.target;}else pc++;
@@ -592,6 +615,7 @@ function insertNops(prog){
   });
   out.forEach((I,i)=>{I.pc=i;});
   out.forEach(I=>{if(I.t==='b'){I.target=I.ext?out.length:idx[I.target];}});
+  out.mem=prog.mem;out.dlabels=prog.dlabels;
   // la etiqueta queda en la instrucción; los NOP previos se ejecutan solo al entrar por arriba
   return out;
 }
@@ -601,11 +625,16 @@ function simulate(prog,trace,o){
   const rows=[],cyc=[];let pcF=0,k=0,wrong=false,done=0,last=0;
   const isL=x=>x&&x.kind==='ins';
   const wr=x=>isL(x)&&x.I.dst!==null;
+  // predicción: 'nt' no tomado (libro); 't' tomado; 'bt' atrás tomado / adelante no tomado. Con 't' y 'bt' se supone que el destino se conoce ya en F.
+  const pmode=o.br==='E'&&o.pred?o.pred:'nt';
+  const predictTaken=(I,pc)=>pmode==='t'?true:(pmode==='bt'?I.target<=pc:false);
   const fetch=()=>{
     if(wrong){const I=pcF<prog.length?prog[pcF]:{t:'unk',mn:'?',asm:'(lo que siga en memoria)',srcA:null,srcB:null,dst:null,lbl:null};const r={kind:'ins',id:rows.length,pc:pcF,I,k:-1,wrong:true,cells:{}};rows.push(r);pcF++;return r;}
     if(k>=trace.length)return null;
     const t=trace[k];const r={kind:'ins',id:rows.length,pc:t.pc,I:prog[t.pc],k,wrong:false,taken:t.taken,target:t.target,cells:{}};rows.push(r);k++;
-    pcF=t.pc+1;if(t.taken)wrong=true;return r;
+    pcF=t.pc+1;
+    if(r.I.t==='b'){const p=predictTaken(r.I,t.pc);r.pred=p;r.mis=p!==!!t.taken;if(r.mis){wrong=true;pcF=p?r.I.target:t.pc+1;}}
+    return r;
   };
   if(!trace.length)return {rows,cyc,cycles:0,stats:{}};
   let S={F:fetch(),D:null,E:null,M:null,W:null};
@@ -636,10 +665,10 @@ function simulate(prog,trace,o){
     sig.MemtoRegE=isL(E)&&E.I.t==='ldr'?1:0;
     sig.M12DE=+(sig.WA3E!==null&&(sig.RA1D===sig.WA3E||sig.RA2D===sig.WA3E));
     sig.LDRstall=o.stall?(sig.M12DE&&sig.MemtoRegE?1:0):0;
-    sig.BranchTakenE=+((o.br==='E'||o.br==='none')&&isL(E)&&!E.wrong&&!!E.taken);
+    sig.BranchTakenE=+((o.br==='E'||o.br==='none')&&isL(E)&&!E.wrong&&!!E.mis);
     sig.PCSrcW=+((o.br==='W'||o.br==='stallW')&&isL(W)&&!W.wrong&&!!W.taken);
     sig.FlushD=0;sig.FlushE=0;let redirect=null,sq=[];
-    if(sig.BranchTakenE){redirect=E.target;if(o.br==='E'){sig.FlushD=1;sig.FlushE=1;sq=[F,D];}}
+    if(sig.BranchTakenE){redirect=E.taken?E.target:E.pc+1;if(o.br==='E'){sig.FlushD=1;sig.FlushE=1;sq=[F,D];}}
     if(sig.PCSrcW){redirect=W.target;if(o.br==='W')sq=[F,D,E,M];}
     sig.StallF=sig.LDRstall;sig.StallD=sig.LDRstall;sig.FlushE=sig.FlushE||sig.LDRstall;
     sig.PCWrPendingF=0;
@@ -662,6 +691,7 @@ function simulate(prog,trace,o){
   for(let c=1;c<=last;c++){const e=cyc[c].ev,s=cyc[c].sig;if(s.LDRstall)st.stalls++;st.flushed+=e.squash.length;if(e.fwd)st.fwd+=e.fwd.length;if(e.stale)st.stale+=e.stale.length;if(e.trouble)st.trouble++;}
   rows.forEach(r=>{if(r.kind==='ins'&&r.wrong&&!r.squashed){r.wexec=true;if(r.I.t!=='nop')st.wrongExec++;}});
   st.taken=trace.filter(t=>t.taken).length;
+  st.mis=rows.filter(r=>r.kind==='ins'&&!r.wrong&&r.mis).length;
   return {rows,cyc,cycles:last,stats:st};
 }
 
@@ -760,7 +790,7 @@ function paint(sim,c,o){
   if(sig.LDRstall){L(['s_stallf','s_stalld','s_flushe','l_stallf','l_stalld','l_flushe','pMTR','pMatch'],'on');byId('bFD').classList.add('hold');byId('bDE').classList.add('clr');byId('PC').classList.add('hl');lit.add('PC');
     co=['⏸ Parada: '+mn(D)+' espera en LR; entra una burbuja en E','ctl'];}
   if(sig.BranchTakenE){L(['w_br','BRMUX','w_br_pc'],'good');L(['s_bte','l_bte','pBTE'],'on');
-    if(sig.FlushD){L(['s_flushd','s_flushe','l_flushd','l_flushe'],'on');byId('bFD').classList.add('clr');byId('bDE').classList.add('clr');co=['↺ '+mn(E)+' tomado en E: FlushD y FlushE vacían 2 instrucciones','bad'];}
+    if(sig.FlushD){L(['s_flushd','s_flushe','l_flushd','l_flushe'],'on');byId('bFD').classList.add('clr');byId('bDE').classList.add('clr');co=[E.taken?'↺ '+mn(E)+' tomado en E: FlushD y FlushE vacían 2 instrucciones':'↺ '+mn(E)+' no se toma, pero se predijo tomado: se vacían 2 instrucciones','bad'];}
     else if([S.F,S.D].some(x=>live(x)&&x.I.t!=='nop'))co=['✗ Salto tomado, pero nadie vacía las 2 instrucciones siguientes','bad'];
     else co=['✓ Salto tomado en E: detrás solo hay NOP, no se ejecuta nada por error','good'];}
   if(sig.PCSrcW){L(['w_res_pc','PCMUX','w_res'],'good');L(['s_pcsrcw','l_pcsrcw'],'on');
@@ -785,7 +815,8 @@ function describe(sim,c,o){
   (ev.fwd||[]).forEach(f=>{if(ev.trouble&&f.from==='M'&&f.src.I.t==='ldr')return;out.push('Anticipación: '+R(f.reg)+' llega a Src'+f.op+'E de '+nm(S.E)+' desde <b>'+(f.from==='M'?'M</b> (ALUOutM, Forward'+f.op+'E = 10)':'W</b> (ResultW, Forward'+f.op+'E = 01)')+'.');if(!k)k='good';});
   if(sig.LDRstall){out.push('LDR está en E (MemtoRegE = 1) y su destino '+R(sig.WA3E)+' coincide con una fuente de '+nm(S.D)+': <b>StallF = StallD = FlushE = 1</b>. PC y F/D conservan su valor y D/E se vacía (burbuja).');k='ctl';}
   if(sig.BranchTakenE){const harmless=o.br!=='E'&&![S.F,S.D].some(x=>live(x)&&x.I.t!=='nop');
-    out.push(o.br==='E'?nm(S.E)+' se decide en E: <b>tomado</b>. BranchTakenE elige ALUResultE como siguiente PC y FlushD/FlushE vacían las dos instrucciones buscadas por error.':(harmless?nm(S.E)+' se toma en E. Sin unidad de riesgos nadie vacía las dos instrucciones ya buscadas, pero son <b>NOP</b>: no hacen nada.':nm(S.E)+' se toma en E, pero sin unidad de riesgos nadie vacía las dos instrucciones ya buscadas: se ejecutan.'));k=harmless?'good':'bad';}
+    out.push(o.br==='E'?(S.E.taken?nm(S.E)+' se decide en E: <b>tomado</b>. BranchTakenE elige ALUResultE como siguiente PC y FlushD/FlushE vacían las dos instrucciones buscadas por error.':nm(S.E)+' se decide en E: <b>no tomado</b>, pero se predijo tomado. El PC vuelve a la instrucción siguiente al salto y FlushD/FlushE vacían las dos instrucciones buscadas por error en el destino.'):(harmless?nm(S.E)+' se toma en E. Sin unidad de riesgos nadie vacía las dos instrucciones ya buscadas, pero son <b>NOP</b>: no hacen nada.':nm(S.E)+' se toma en E, pero sin unidad de riesgos nadie vacía las dos instrucciones ya buscadas: se ejecutan.'));k=harmless?'good':'bad';}
+  if(o.pred&&o.pred!=='nt'&&live(S.E)&&S.E.I.t==='b'&&!S.E.wrong&&!S.E.mis){out.push(nm(S.E)+' se decide en E: '+(S.E.taken?'tomado':'no tomado')+', como se predijo. No se pierde ningún ciclo.');if(!k)k='good';}
   if(sig.PCSrcW){out.push(o.br==='W'?nm(S.W)+' llega a ER y se toma (PCSrcW = 1): se vacían las 4 instrucciones buscadas detrás. Penalización: 4 ciclos.':nm(S.W)+' escribe el PC en ER (PCSrcW = 1). El ciclo siguiente se busca el destino.');k=o.br==='W'?'bad':'ctl';}
   if(o.br==='stallW'&&!S.F&&[S.D,S.E,S.M,S.W].some(x=>live(x)&&x.I.t==='b')&&!sig.PCSrcW){out.push('El cauce no busca instrucciones: espera a saber si el salto se toma.');k='ctl';}
   if(!out.length){const n=ST.filter(s=>live(S[s])).length;const w=S.W;out.push(n+' instrucci'+(n===1?'ón':'ones')+' en el cauce'+(live(w)&&!w.wrong?'; termina <code>'+w.I.asm+'</code>':'')+'. Sin riesgos en este ciclo.');}
@@ -899,14 +930,15 @@ function stallPanel(sn,o){
 function eqPanel(sn,o){
   const s=sn?sn.sig:{};const V=k=>sn?`<span class="${s[k]?'v1':'v0'}">${s[k]}</span>`:'<span class="v0">—</span>';
   if(o&&o.noHU)return '<pre class="eqs"><span class="v0">Sin unidad de riesgos: todas las señales valen 0.\nLos saltos se deciden en E, pero nada vacía el cauce.</span></pre>';
-  return `<pre class="eqs">Match_12D_E  = (RA1D == WA3E) + (RA2D == WA3E)   ${V('M12DE')}
+  const fp=o&&o.pred&&o.pred!=='nt';
+  return (x=>fp?x.replace(/BranchTakenE/g,'FalloPredE  '):x)(`<pre class="eqs">Match_12D_E  = (RA1D == WA3E) + (RA2D == WA3E)   ${V('M12DE')}
 LDRstall     = Match_12D_E · MemtoRegE            ${V('LDRstall')}
 PCWrPendingF = PCSrcD + PCSrcE + PCSrcM           ${V('PCWrPendingF')}
 StallD       = LDRstall                           ${V('StallD')}
 StallF       = LDRstall + PCWrPendingF            ${V('StallF')}
 FlushE       = LDRstall + BranchTakenE            ${V('FlushE')}
 FlushD       = PCWrPendingF + PCSrcW + BranchTakenE ${V('FlushD')}
-ForwardAE    = ${sn?'<span class="'+(s.ForwardAE!=='00'?'v1':'v0')+'">'+s.ForwardAE+'</span>':'<span class="v0">—</span>'}    ForwardBE = ${sn?'<span class="'+(s.ForwardBE!=='00'?'v1':'v0')+'">'+s.ForwardBE+'</span>':'<span class="v0">—</span>'}</pre>`;
+ForwardAE    = ${sn?'<span class="'+(s.ForwardAE!=='00'?'v1':'v0')+'">'+s.ForwardAE+'</span>':'<span class="v0">—</span>'}    ForwardBE = ${sn?'<span class="'+(s.ForwardBE!=='00'?'v1':'v0')+'">'+s.ForwardBE+'</span>':'<span class="v0">—</span>'}</pre>`);
 }
 function tilesHTML(list){return '<div class="tiles">'+list.map(([v,l,c])=>`<div class="tile"${c?` style="--tc:var(${c})"`:''}><div class="tv2">${v}</div><div class="tl">${l}</div></div>`).join('')+'</div>';}
 const nf=(x,d=2)=>x.toLocaleString('es-ES',{maximumFractionDigits:d,minimumFractionDigits:0});
@@ -1019,6 +1051,25 @@ loop:   ADD R5, R5, #-2
         STR R6, [R7]
         CMP R5, #0
         BNE loop`;
+const PBGT=`        MOV R5, #0
+        MOV R6, #0
+        MOV R7, #100
+        MOV R2, #8
+loop:   LDR R9, [R6]
+        CMP R9, #0
+        BGT etiqueta
+        ADD R9, R9, #5
+        ADD R6, R6, #4
+        STR R9, [R7]
+etiqueta: ADD R7, R7, #4
+        ADD R5, R5, #2
+        CMP R5, #12
+        BNE loop
+        ADD R7, R7, #4
+        STR R6, [R7]
+
+        .data               ; memoria de datos, desde la dirección 0
+datos:  .word 3, 8, 5, 2, 7, 1   ; todas las palabras son > 0`;
 const PRESETS=[
   ['Programa de la demo (pasos 1 a 3)',PDEMO],
   ['Programa con LDR (paso 4)',PLDR],
@@ -1055,6 +1106,7 @@ SUB R0, R7, R7`],
   ['Relación T3 · Ejercicio 11',PREL11],
   ['Relación T3 · Ejercicio 12',PREL12],
   ['Relación T3 · Ejercicio 13',PREL13],
+  ['Ejercicio con BGT y BNE (memoria > 0)',PBGT],
   ['Bucle de las diapositivas 92–96',`        MOV R5, #2
         LDR R6, =ARRAY
 loop:   LDR R8, [R6]
@@ -1101,16 +1153,21 @@ const NOPEX={
   e10:{t:'Relación T3 · Ejercicio 10',src:PREL10,after:true},
   e11:{t:'Relación T3 · Ejercicio 11',src:PREL11,after:false},
   e12:{t:'Relación T3 · Ejercicio 12',src:PREL12,after:true},
-  e13:{t:'Relación T3 · Ejercicio 13',src:PREL13,after:true}
+  e13:{t:'Relación T3 · Ejercicio 13',src:PREL13,after:true},
+  bgt:{t:'Ejercicio con BGT y BNE (memoria > 0)',src:PBGT,after:false}
 };
+const codeOf=l=>l.replace(/(;|@|\/\/).*$/,'').trim().replace(/^([A-Za-z_]\w*\s*:\s*)+/,'');
 function lab2(){
   const ex=state.p2ex||'demo';const X=NOPEX[ex];
-  const base=X.src.split('\n');const G=X.after?base.length:base.length-1;
+  const lines0=X.src.split('\n');
+  const base=lines0.filter(l=>{const s=codeOf(l);return s&&s[0]!=='.';});
+  const data=lines0.filter(l=>{const s=l.replace(/(;|@|\/\/).*$/,'').trim();return s&&!base.includes(l);});
+  const G=X.after?base.length:base.length-1;
   state.nopsBy=state.nopsBy||{};if(!state.nopsBy[ex]||state.nopsBy[ex].length!==G)state.nopsBy[ex]=new Array(G).fill(0);
   const nops=state.nopsBy[ex];
-  const np=insertNops(P(X.src));const best=new Array(G).fill(0);{let j=-1,run=0;np.forEach(I=>{if(I.ins){run++;return;}if(j>=0)best[j]=run;run=0;j++;});if(j>=0&&j<G)best[j]=run;}
+  const np=insertNops(P(base.concat(data).join('\n')));const best=new Array(G).fill(0);{let j=-1,run=0;np.forEach(I=>{if(I.ins){run++;return;}if(j>=0)best[j]=run;run=0;j++;});if(j>=0&&j<G)best[j]=run;}
   const MIN=best.reduce((a,b)=>a+b,0);const sol=X.sol||best;
-  const build=()=>{const lines=[];base.forEach((l,i)=>{lines.push(l);if(i<G)for(let k=0;k<nops[i];k++)lines.push('NOP');});return P(lines.join('\n'));};
+  const build=()=>{const lines=[];base.forEach((l,i)=>{lines.push(l);if(i<G)for(let k=0;k<nops[i];k++)lines.push('NOP');});return P(lines.concat(data).join('\n'));};
   const render=()=>{
     const prog=build();const c0=state.v?state.v.c:0;
     const v=makeView(prog,{fwd:false,stall:false,br:'none',noHU:true},()=>{});state.v=v;v.c=Math.min(c0,v.sim.cycles);
@@ -1119,6 +1176,7 @@ function lab2(){
       if(i<G){for(let k=0;k<nops[i];k++){h+=`<li data-pc="${pc}" class="nop ins" style="--c:var(--line-strong)"><span class="a">${hex(pc*4)}</span>NOP</li>`;pc++;}
         h+=`<li class="slot">${nops[i]<2?`<button data-g="${i}" data-d="1">+ NOP</button>`:''}${nops[i]>0?`<button data-g="${i}" data-d="-1">− NOP</button>`:''}</li>`;}});
     h+='</ol>';
+    if(data.length)h+='<div class="lh" style="margin-top:8px">Memoria de datos</div><pre class="code">'+data.map(l=>l.replace(/&/g,'&amp;').replace(/</g,'&lt;')).join('\n')+'</pre>';
     const st=v.sim.stats;const ok=st.stale===0&&st.wrongExec===0;const tot=nops.reduce((a,b)=>a+b,0);
     const n=st.instr,c=v.sim.cycles;const wn=v.sim.rows.filter(x=>x.kind==='ins'&&x.wexec&&x.I.t==='nop').length,ne=st.nops+wn,bad=c-n-ne-4;
     $('#p2prog').innerHTML=h;
@@ -1194,12 +1252,14 @@ function brLab(step){
 }
 /* ---------- PASO 7: laboratorio ---------- */
 function lab7(){
-  state.p7=state.p7||{src:PRESETS[15][1],mode:'hu',preset:15};
+  const P7DEF=PRESETS.findIndex(p=>p[0].startsWith('Bucle de las diapositivas'));
+  state.p7=state.p7||{src:PRESETS[P7DEF][1],mode:'hu',preset:P7DEF,pred:'nt'};
   const L=state.p7;
   lab.innerHTML=`<div class="row"><label class="segl" for="preset">Ejemplo</label><select id="preset">${PRESETS.map((p,i)=>`<option value="${i}"${i===L.preset?' selected':''}>${p[0]}</option>`).join('')}<option value="-1"${L.preset===-1?' selected':''}>Mi programa</option></select></div>
   <div class="edit"><div style="display:flex;flex-direction:column;gap:6px;min-width:0"><label class="lh" for="src">Código ARM (editable)</label><textarea id="src" spellcheck="false" autocapitalize="off" autocorrect="off"></textarea><div class="err" id="perr" hidden></div></div>
   <div style="display:flex;flex-direction:column;gap:6px;min-width:0"><div class="lh" id="plh">Lo que se ejecuta</div><div id="p7prog"></div></div></div>
   <div class="row"><span class="segl">Procesador</span>${segHTML('mseg',[['none','Sin gestión de riesgos'],['nop','NOP del compilador'],['hu','Unidad de riesgos']],L.mode)}</div>
+  <div class="row" id="predrow"><span class="segl">Predicción de saltos</span>${segHTML('pseg',[['nt','No tomado (libro)'],['t','Siempre tomado'],['bt','Atrás tomado, adelante no']],L.pred||'nt')}</div>
   <div id="p7tiles"></div><div id="p7res"></div>
   ${runnerHTML()}
   <div class="lh">Diagrama de múltiples ciclos</div><div class="mcw" id="mc"></div>${MKEYS}`;
@@ -1208,6 +1268,7 @@ function lab7(){
   ta.addEventListener('input',()=>{L.src=ta.value;L.preset=-1;$('#preset').value='-1';clearTimeout(tmr);tmr=setTimeout(build,350);});
   $('#preset').onchange=e=>{const i=+e.target.value;if(i<0)return;L.preset=i;L.src=PRESETS[i][1];ta.value=L.src;build();};
   bindSeg('mseg',x=>{L.mode=x;build(true);});
+  bindSeg('pseg',x=>{L.pred=x;build(true);});
   build();
   function build(keepC){
     const c0=keepC&&state.v?state.v.c:0;
@@ -1217,10 +1278,11 @@ function lab7(){
     const tr=runRef(p.prog);
     const np=insertNops(p.prog);
     const simN=simulate(np,runRef(np).trace,{fwd:false,stall:false,br:'none'});
-    const simH=simulate(p.prog,tr.trace,{fwd:true,stall:true,br:'E'});
+    const pred=L.pred||'nt';$('#predrow').hidden=L.mode!=='hu';
+    const simH=simulate(p.prog,tr.trace,{fwd:true,stall:true,br:'E',pred});
     const simX=simulate(p.prog,tr.trace,{fwd:false,stall:false,br:'none'});
     const prog=L.mode==='nop'?np:p.prog;
-    const o=L.mode==='hu'?{fwd:true,stall:true,br:'E'}:{fwd:false,stall:false,br:'none',noHU:true};
+    const o=L.mode==='hu'?{fwd:true,stall:true,br:'E',pred}:{fwd:false,stall:false,br:'none',noHU:true};
     const sim=L.mode==='nop'?simN:(L.mode==='hu'?simH:simX);
     const v={prog,o,sim,c:Math.min(c0,sim.cycles),after:(sn)=>{const e=$('#eqs');if(e)e.innerHTML=eqPanel(sn,o);}};
     state.v=v;
@@ -1231,8 +1293,10 @@ function lab7(){
     const s=simH.stats,x=simX.stats;
     let r;
     if(L.mode==='none')r=(x.stale||x.wrongExec)?`<div class="box bad"><b>Este código falla sin gestión de riesgos:</b> ${x.stale} lectura${x.stale===1?'':'s'} de un valor antiguo${x.wrongExec?' y '+x.wrongExec+' instrucci'+(x.wrongExec===1?'ón':'ones')+' ejecutada'+(x.wrongExec===1?'':'s')+' por error tras un salto':''}. Los ${simX.cycles} ciclos no sirven de nada.</div>`:`<div class="box good">Este código no tiene riesgos: funciona incluso sin gestión de riesgos, en ${simX.cycles} ciclos.</div>`;
-    else if(L.mode==='nop')r=`<div class="box warn">El compilador separa cada par dependiente con NOP (la lectora debe ir 3 posiciones después) y pone 2 NOP detrás de cada salto. ${np.filter(i=>i.ins).length} NOP en el código, ${simN.stats.nops} ejecutados.</div>`;
-    else r=`<div class="box">${s.fwd} anticipaci${s.fwd===1?'ón':'ones'} · ${s.stalls} parada${s.stalls===1?'':'s'} por LDR · ${s.taken} salto${s.taken===1?'':'s'} tomado${s.taken===1?'':'s'} (${s.taken*2} ciclos de vaciado). Ciclos = ${n} + 4 + ${s.stalls} + ${s.taken*2} = <b>${simH.cycles}</b>.</div>`;
+    else if(L.mode==='nop')r=`<div class="box warn">El compilador separa cada par dependiente con NOP (la lectora debe ir 3 posiciones después) y pone 2 NOP detrás de cada salto. ${np.filter(i=>i.ins).length} NOP en el código, ${simN.stats.nops+simN.rows.filter(x=>x.kind==='ins'&&x.wexec&&x.I.t==='nop').length} ejecutados (también cuentan los que hay detrás de un salto tomado).</div>`;
+    else{const fp=s.mis===1?'1 fallo de predicción':s.mis+' fallos de predicción';
+      r=`<div class="box">${s.fwd} anticipaci${s.fwd===1?'ón':'ones'} · ${s.stalls} parada${s.stalls===1?'':'s'} por LDR · ${s.taken} salto${s.taken===1?'':'s'} tomado${s.taken===1?'':'s'}, ${fp} (${s.mis*2} ciclos de vaciado). Ciclos = ${n} + 4 + ${s.stalls} + ${s.mis*2} = <b>${simH.cycles}</b>.</div>`;
+      if(pred!=='nt')r+=`<div class="box warn">Con esta predicción se supone que la dirección de destino del salto ya se conoce en BI (en la sección 7.7.3 la guarda el <i>branch target buffer</i>): un acierto no cuesta nada y un fallo, 2 ciclos. La figura 7.58 no tiene este hardware.</div>`;}
     if(tr.trunc)r+='<div class="box warn">El programa ejecuta más de 400 instrucciones: se muestra solo el principio.</div>';
     $('#p7res').innerHTML=r;
     bindRunner();redraw();
@@ -1323,7 +1387,7 @@ const STEPS=[
    x:`<p>Este es el procesador completo. Escribe un programa o elige un ejercicio y compara tres procesadores: sin gestión de riesgos, con NOP insertados por el compilador y con la unidad de riesgos.</p>
    <p>Resumen del libro: los riesgos <b>RAW</b> se resuelven anticipando si el resultado se calcula a tiempo, y parando si no (LDR). Los riesgos de <b>control</b> se resuelven prediciendo y vaciando el cauce si la predicción falla, o parando hasta conocer la decisión. Decidir cuanto antes reduce lo que se vacía.</p>
    <div class="lh">Ecuaciones de la unidad de riesgos en el ciclo actual</div><div id="eqs"></div>
-   <div class="aside">El simulador admite ADD, SUB, RSB, AND, ORR, EOR, BIC, LSL, LSR, ASR, MOV, MVN (con sufijo S), CMP, CMN, TST, LDR, STR, B con condición y NOP. Los registros empiezan a 0 y <code>LDR Rd, =etiqueta</code> carga una dirección. No admite escrituras en R15, así que PCWrPendingF vale siempre 0.</div>`,
+   <div class="aside">El simulador admite ADD, SUB, RSB, AND, ORR, EOR, BIC, LSL, LSR, ASR, MOV, MVN (con sufijo S), CMP, CMN, TST, LDR, STR, B con condición y NOP. Los registros empiezan a 0. La memoria de datos empieza en la dirección 0 y se puede inicializar como en ARM, con <code>.data</code>, <code>etiqueta: .word 3, 8, 5</code>, <code>.space n</code> y <code>.org dir</code>; lo que no se define vale 0. <code>LDR Rd, =etiqueta</code> carga la dirección de la etiqueta. Las direcciones se pueden escribir con corchetes o con llaves: <code>[R6]</code> o <code>{R6}</code>. No admite escrituras en R15, así que PCWrPendingF vale siempre 0.</div>`,
    leg:[['var(--ok)','anticipación'],['var(--ctl)','paradas'],['var(--bad)','vaciado o error']],init:lab7},
   {t:'¿Cuánto cuestan los riesgos?',s:'Rendimiento',f:'Ejemplos 7.7 y 7.8 · CPI del procesador segmentado',
    x:`<p>Idealmente el segmentado termina una instrucción por ciclo (CPI = 1). Cada parada o vaciado pierde un ciclo, así que el CPI real depende del programa.</p>
