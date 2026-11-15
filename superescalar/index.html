@@ -643,6 +643,8 @@ if (typeof module !== 'undefined') module.exports = { parseProgram, depsOf, rena
 
 /* ===== Interfaz ===== */
 const PRESETS = [
+  { id: 't115', name: 'Transparencia 115 · seis instrucciones independientes', desc: 'Ninguna instrucción lee el resultado de otra ni reutiliza un destino: no hay dependencias. El único límite es el hardware (anchura y puertos de memoria), así que el superescalar ejecuta la carga y la suma a la vez, luego la resta y el AND, y por último la ORR y la STR.',
+    src: 'LDR R8,[R0,#40]\nADD R9,R1,R2\nSUB R10,R1,R3\nAND R11,R3,R4\nORR R12,R1,R5\nSTR R5,[R0,#80]' },
   { id: 't116', name: 'Transparencia 116 · ejemplo de Harris y Harris', desc: 'Figuras 7.65, 7.66 y 7.67 de Harris y Harris (allí los ciclos se cuentan desde la emisión: su ciclo 1 es nuestro ciclo 3). R8 se usa para dos valores distintos: el de la carga, que lee la suma, y el de la resta, que lee el AND. En orden tarda 9 ciclos: fíjate en cómo baja al pasar a fuera de orden y al renombrar.',
     src: 'LDR R8,[R0,#40]\nADD R9,R8,R1\nSUB R8,R2,R3\nAND R10,R4,R8\nORR R11,R5,R6\nSTR R7,[R11,#80]' },
   { id: 'e313', name: 'Ejercicio 3.13 · código original', desc: 'No hay dependencias falsas: basta con separar la carga de la instrucción que usa su dato. Compáralo con la versión reordenada.',
@@ -673,7 +675,7 @@ const nf = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 2 });
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const col = i => `var(--i${i % 6})`;
 
-const st = { pid: 't116', src: PRESETS[0].src, mode: 'io', w: 2, ports: 2, win: 'full', arrows: true, cur: null, sel: null, dsel: null };
+const st = { pid: 't115', src: PRESETS[0].src, mode: 'io', w: 2, ports: 2, win: 'full', arrows: true, cur: null, sel: null, dsel: null };
 let M = null; // modelo calculado
 
 function compute() {
@@ -1283,7 +1285,7 @@ function init() {
     else if (e.key === 'ArrowLeft') { e.preventDefault(); step(-1); }
     else if (e.key === 'Escape') { st.sel = null; st.dsel = null; renderAll(); }
   });
-  loadPreset('t116');
+  loadPreset('t115');
 }
 init();
 </script>
