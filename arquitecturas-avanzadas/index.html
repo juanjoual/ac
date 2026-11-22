@@ -1,0 +1,1637 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arquitecturas avanzadas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* Sala de control para proyector: fondo noche, acento ámbar y un color fijo por núcleo.
+   Cada pestaña es un paso; dentro, primero la explicación y después los experimentos, marcados como «medido» o «modelo». Tema único (oscuro) a propósito. */
+:root{
+  --bg:#0a0f1d; --panel:#111a2d; --panel2:#0d1527; --line:#24324e; --ink:#e9eef8; --ink2:#9eabc4; --muted:#6f7d98;
+  --hud:#ffb03a; --hud-ink:#1a1204; --ok:#3ad69a; --bad:#ff5a6a; --info:#5aa8ff;
+  --c0:#4ea2ff; --c1:#ff8a3d; --c2:#b88cff; --c3:#41cf86; --c4:#ff6fb3; --c5:#ffd447; --c6:#45d3df; --c7:#c3dd52;
+  --f-display:"Barlow Condensed","Arial Narrow",sans-serif;
+  --f-body:"Source Sans 3","Segoe UI",system-ui,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{background:var(--bg)}
+body{margin:0;color:var(--ink);font:17px/1.5 var(--f-body);-webkit-font-smoothing:antialiased}
+.wrap{max-width:1400px;margin:0 auto;padding:0 20px}
+h1,h2,h3,h4{font-family:var(--f-display);margin:0;text-wrap:balance;letter-spacing:.01em}
+h2{font-size:clamp(30px,3.4vw,44px);line-height:1.02;font-weight:700}
+h3{font-size:24px;line-height:1.15;font-weight:700}
+h4{font-size:20px;line-height:1.15;font-weight:700;color:var(--hud)}
+p{margin:0}
+code,.mono{font-family:var(--f-mono);font-size:.9em;font-variant-ligatures:none}
+pre,.kbtn,.log,.core{font-variant-ligatures:none}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--hud);outline-offset:2px}
+.num{font-variant-numeric:tabular-nums}
+.eyebrow{font:600 13px var(--f-display);letter-spacing:.16em;text-transform:uppercase;color:var(--hud)}
+.muted{color:var(--ink2)}
+.small{font-size:15px}
+
+.top{background:linear-gradient(180deg,#111b35,#0a0f1d);border-bottom:1px solid var(--line)}
+.top-in{display:flex;flex-wrap:wrap;gap:16px 40px;align-items:flex-end;justify-content:space-between;padding-block:22px 18px}
+h1{font-size:clamp(38px,5vw,62px);line-height:.95;margin-top:6px}
+.lede{margin-top:10px;max-width:72ch;color:var(--ink2)}
+.lede b{color:var(--ink)}
+.machine{display:grid;gap:2px;padding:12px 18px;border:1px solid var(--line);border-radius:10px;background:var(--panel2);min-width:260px;max-width:420px}
+.machine .lab{font:600 12px var(--f-display);letter-spacing:.14em;text-transform:uppercase;color:var(--ink2)}
+.machine .big{font:700 46px/1 var(--f-display);color:var(--hud);font-variant-numeric:tabular-nums}
+.machine .big small{font-size:20px;color:var(--ink2);margin-left:6px}
+.machine .gpu{font:500 13px var(--f-mono);color:var(--ink2)}
+
+.levels{position:sticky;top:0;z-index:30;background:rgba(10,15,29,.95);backdrop-filter:blur(6px);border-bottom:1px solid var(--line)}
+.levels-in{display:flex;gap:6px;flex-wrap:wrap;padding-block:10px;align-items:center}
+.lv{display:flex;align-items:center;gap:10px;border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:7px 14px 7px 7px;cursor:pointer;font:600 19px var(--f-display);letter-spacing:.02em;color:var(--ink2)}
+.lv .n{display:grid;place-items:center;width:28px;height:28px;border-radius:6px;background:var(--panel2);border:1px solid var(--line);font:700 15px var(--f-mono);color:var(--ink2)}
+.lv:hover{color:var(--ink);border-color:#3a4a6c}
+.lv[aria-selected="true"]{color:var(--hud-ink);background:var(--hud);border-color:var(--hud)}
+.lv[aria-selected="true"] .n{background:var(--hud-ink);color:var(--hud);border-color:var(--hud-ink)}
+.keys{margin-left:auto;font:500 13px var(--f-mono);color:var(--muted)}
+
+.level{padding-block:26px 70px}
+.lvhead{display:grid;gap:6px;margin-bottom:20px}
+.goal{color:var(--ink2);max-width:80ch;font-size:19px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px;display:grid;gap:16px;min-width:0}
+.stack{display:grid;gap:20px}
+.ph{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:6px 20px}
+.ph p{color:var(--ink2);max-width:80ch}
+.ph .ttl{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center}
+.cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px}
+@media (max-width:1000px){.cols{grid-template-columns:1fr}}
+.lead{color:var(--ink2);max-width:95ch}
+.lead b{color:var(--ink)}
+
+/* explicaciones */
+.explain{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:22px;align-items:start}
+@media (max-width:1000px){.explain{grid-template-columns:1fr}}
+.ideas{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px 22px}
+.ideas div{display:grid;gap:4px;align-content:start}
+.ideas p{color:var(--ink2)}
+.ideas p b{color:var(--ink)}
+.diagram svg{width:100%;height:auto;background:var(--panel2);border:1px solid var(--line);border-radius:10px}
+
+/* etiqueta medido / modelo */
+.tagm{display:inline-flex;align-items:center;gap:7px;border-radius:999px;padding:3px 12px;font:700 13px var(--f-display);letter-spacing:.1em;text-transform:uppercase;white-space:nowrap}
+.tagm::before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor}
+.tagm.real{color:var(--ok);background:rgba(58,214,154,.1);border:1px solid rgba(58,214,154,.45)}
+.tagm.model{color:var(--ink2);background:rgba(158,171,196,.08);border:1px solid rgba(158,171,196,.4)}
+
+.btn{border:1px solid var(--hud);background:var(--hud);color:var(--hud-ink);border-radius:8px;padding:9px 18px;font:700 18px var(--f-display);letter-spacing:.03em;cursor:pointer}
+.btn:hover{filter:brightness(1.08)}
+.btn.ghost{background:transparent;color:var(--hud)}
+.btn.sm{padding:6px 13px;font-size:16px}
+.btn:disabled{opacity:.45;cursor:not-allowed;filter:none}
+.row{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center}
+.ctl-l{font:600 13px var(--f-display);letter-spacing:.12em;text-transform:uppercase;color:var(--ink2)}
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--panel2)}
+.seg button{border:0;border-right:1px solid var(--line);background:none;padding:7px 13px;cursor:pointer;font-weight:600;font-size:16px;color:var(--ink2);font-variant-numeric:tabular-nums}
+.seg button:last-child{border-right:0}
+.seg button:hover{color:var(--ink)}
+.seg button[aria-pressed="true"]{background:#24345a;color:var(--ink);box-shadow:inset 0 -3px 0 var(--hud)}
+.seg button:disabled{opacity:.4;cursor:not-allowed}
+
+.ex{border:1px dashed #4f6088;border-radius:12px;padding:14px 18px;background:rgba(255,176,58,.05);display:grid;gap:10px}
+.ex-h{font:700 13px var(--f-display);letter-spacing:.16em;text-transform:uppercase;color:var(--hud)}
+.ex p.q{font-size:20px;line-height:1.35;max-width:90ch}
+.ex .btn{justify-self:start}
+.ans{border-left:3px solid var(--ok);padding:4px 0 4px 14px;max-width:95ch;display:grid;gap:8px}
+
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+.tile{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:12px 14px;display:grid;gap:2px;align-content:start}
+.tile .k{font:600 12px var(--f-display);letter-spacing:.14em;text-transform:uppercase;color:var(--ink2)}
+.tile .v{font:700 42px/1.05 var(--f-display);font-variant-numeric:tabular-nums}
+.tile .s{font-size:14px;color:var(--ink2)}
+.badge{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:2px 11px;font:700 15px var(--f-display);letter-spacing:.06em;text-transform:uppercase;border:1px solid currentColor;white-space:nowrap}
+.ok{color:var(--ok)} .bad{color:var(--bad)} .warn{color:var(--hud)}
+pre.code{margin:0;font:500 16px/1.5 var(--f-mono);font-variant-ligatures:none;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:10px 13px;white-space:pre;overflow-x:auto;color:#cfe0ff}
+details.how{color:var(--ink2);font-size:15px;max-width:95ch}
+details.how summary{cursor:pointer;font-weight:600}
+details.how > div{margin-top:8px;display:grid;gap:6px}
+canvas{display:block;max-width:100%}
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:15px;color:var(--ink2)}
+.legend i{display:inline-block;width:14px;height:14px;border-radius:3px;vertical-align:-2px;margin-right:6px}
+
+/* paso 1 */
+.flynn{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:20px;align-items:start}
+@media (max-width:1000px){.flynn{grid-template-columns:1fr}}
+.fmap{display:grid;grid-template-columns:36px 1fr 1fr;grid-template-rows:auto 1fr 1fr;gap:10px}
+.fax{font:600 13px var(--f-display);letter-spacing:.12em;text-transform:uppercase;color:var(--ink2);display:grid;place-items:center;text-align:center}
+.fax.v{writing-mode:vertical-rl;transform:rotate(180deg)}
+.fax b{color:var(--info)}
+.fax.v b{color:var(--hud)}
+.fq{border:1px solid var(--line);background:var(--panel2);border-radius:12px;padding:16px;text-align:left;cursor:pointer;display:grid;gap:4px;min-height:150px;align-content:start}
+.fq:hover{border-color:#43557c}
+.fq[aria-pressed="true"]{border-color:var(--hud);background:#1d2742;box-shadow:inset 0 0 0 1px var(--hud)}
+.fq .a{font:700 46px/1 var(--f-display);letter-spacing:.02em}
+.fq small{font:500 13px var(--f-mono);color:var(--ink2)}
+.fq em{font-style:normal;color:var(--ink);font-size:17px;margin-top:6px}
+.fdetail{display:grid;gap:14px}
+.fdetail .full{font:500 15px var(--f-mono);color:var(--ink2)}
+.fdetail svg{width:100%;height:auto;background:var(--panel2);border:1px solid var(--line);border-radius:10px}
+.flow{fill:none;stroke-width:2.5;stroke-dasharray:7 6;animation:flow .9s linear infinite}
+.flow.ins{stroke:var(--hud)} .flow.dat{stroke:var(--info)}
+@keyframes flow{to{stroke-dashoffset:-13}}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border:1px solid var(--line);background:var(--panel2);border-radius:999px;padding:5px 13px;cursor:pointer;font-size:16px;color:var(--ink)}
+.chip:hover{border-color:#4b5f8a}
+.chip[aria-pressed="true"]{border-color:var(--hud);color:var(--hud)}
+.exinfo{min-height:3em;color:var(--ink);border-left:3px solid var(--line);padding-left:12px}
+
+/* paso 2 */
+.fr{width:100%;max-width:820px;aspect-ratio:16/9;border-radius:10px;border:1px solid var(--line);background:#070b16}
+.tl{display:grid;gap:4px;font-size:14px}
+.tl .r{display:grid;grid-template-columns:110px 1fr 80px;gap:10px;align-items:center}
+.tl .r .lab{color:var(--ink2);font-family:var(--f-mono);font-size:13px}
+.tl .tk{position:relative;height:16px;background:#151e33;border-radius:4px;overflow:hidden}
+.tl .tk span{position:absolute;top:0;bottom:0;border-radius:4px}
+.tl .r .v{font-family:var(--f-mono);font-size:13px;text-align:right;color:var(--ink2)}
+.chart svg{width:100%;height:auto;max-width:760px;background:var(--panel2);border:1px solid var(--line);border-radius:10px}
+table.res{border-collapse:collapse;font-size:15px;font-variant-numeric:tabular-nums;width:100%;max-width:760px}
+table.res th,table.res td{padding:6px 10px;border-bottom:1px solid var(--line);text-align:right}
+table.res th:first-child,table.res td:first-child{text-align:left}
+table.res th{font:600 13px var(--f-display);letter-spacing:.1em;text-transform:uppercase;color:var(--ink2)}
+.tablewrap{overflow-x:auto}
+.cnt-grid{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,1.2fr);gap:14px;align-items:start}
+@media (max-width:1000px){.cnt-grid{grid-template-columns:1fr}}
+.cores{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+@media (max-width:640px){.cores{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.core{background:var(--panel2);border:1px solid var(--line);border-top:4px solid var(--cc);border-radius:10px;padding:12px;display:grid;gap:6px;align-content:start}
+.core .h{font:700 20px var(--f-display);color:var(--cc)}
+.core .reg{font:700 26px var(--f-mono)}
+.core .it{font:500 13px var(--f-mono);color:var(--ink2)}
+.core .ln{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink2)}
+.st{display:inline-grid;place-items:center;width:34px;height:34px;border-radius:7px;font:700 20px var(--f-mono);border:2px solid}
+.st.M{color:var(--hud);border-color:var(--hud);background:rgba(255,176,58,.12)}
+.st.S{color:var(--info);border-color:var(--info);background:rgba(90,168,255,.12)}
+.st.I{color:var(--muted);border-color:#3a4664}
+.st.zap{animation:zap .6s ease}
+@keyframes zap{0%{background:var(--bad);color:#fff;border-color:var(--bad);transform:scale(1.25)}100%{transform:scale(1)}}
+.core .op{font:500 13px var(--f-mono);color:var(--ink);min-height:2.6em}
+.core.act{box-shadow:0 0 0 2px var(--cc)}
+.mem{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:12px;display:grid;gap:10px;align-content:start}
+.mem .h{font:700 20px var(--f-display)}
+.mem .val{font:700 54px/1 var(--f-display);font-variant-numeric:tabular-nums}
+.cline{border:2px dashed #4b5b80;border-radius:8px;padding:8px;display:flex;gap:6px;flex-wrap:wrap}
+.cline .lbl{width:100%;font:500 12px var(--f-mono);color:var(--muted)}
+.cell{flex:1 1 40px;background:#18223a;border-radius:6px;padding:6px;text-align:center;font:600 15px var(--f-mono);border-top:3px solid var(--cc)}
+.log{list-style:none;margin:0;padding:10px 12px;background:#070b16;border:1px solid var(--line);border-radius:10px;font:500 14px/1.6 var(--f-mono);font-variant-ligatures:none;color:var(--ink2);min-height:9.5em;overflow-x:auto;white-space:nowrap}
+.log li:first-child{color:var(--ink)}
+.amdahl{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;align-items:center}
+.amdahl label{display:grid;gap:4px;font-size:15px;color:var(--ink2)}
+input[type=range]{width:100%;accent-color:var(--hud)}
+
+/* paso 3 */
+.simd{display:grid;grid-template-columns:minmax(0,0.9fr) minmax(0,1.1fr);gap:20px;align-items:start}
+@media (max-width:1000px){.simd{grid-template-columns:1fr}}
+.loops{display:grid;gap:10px}
+.loop{border:1px solid var(--line);background:var(--panel2);border-radius:10px;padding:12px;display:grid;gap:8px;cursor:pointer;text-align:left}
+.loop:hover{border-color:#4b5f8a}
+.loop[aria-current="true"]{border-color:var(--hud);box-shadow:inset 0 0 0 1px var(--hud)}
+.loop .tt{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.loop .tt b{font:700 20px var(--f-display)}
+.loop .ty{font:500 13px var(--f-mono);color:var(--ink2)}
+.loop .got{font:600 14px var(--f-mono);color:var(--ink2);min-height:1.2em}
+.arena{position:sticky;top:76px;display:grid;gap:14px}
+.track{display:grid;gap:6px}
+.track .tl2{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:15px;color:var(--ink2)}
+.track .tl2 b{color:var(--ink);font:700 18px var(--f-display);letter-spacing:.02em}
+.track canvas{width:100%;border-radius:8px;border:1px solid var(--line);background:#070b16}
+.bigres{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+.bigres .x{font:700 72px/0.9 var(--f-display);color:var(--hud);font-variant-numeric:tabular-nums}
+.why{color:var(--ink2);max-width:80ch}
+.why b{color:var(--ink)}
+
+/* paso 4 */
+.kern{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:8px}
+.kbtn{border:1px solid var(--line);background:var(--panel2);border-radius:8px;padding:9px 12px;text-align:left;cursor:pointer;font:500 15px var(--f-mono);color:#cfe0ff;font-variant-ligatures:none;white-space:pre;overflow-x:auto;align-self:start}
+.kbtn .k317{display:inline-block;margin-left:8px;font:700 12px var(--f-display);letter-spacing:.1em;color:var(--hud);border:1px solid var(--hud);border-radius:999px;padding:0 8px;vertical-align:2px}
+.kbtn:hover{border-color:#4b5f8a}
+.kbtn[aria-pressed="true"]{border-color:var(--hud);box-shadow:inset 0 0 0 1px var(--hud)}
+.cvwrap{overflow-x:auto}
+.hbars{display:grid;gap:8px}
+.hbars .r{display:grid;grid-template-columns:200px 1fr 190px;gap:12px;align-items:center;font-size:15px}
+.hbars .r .lab{font:600 15px var(--f-mono);color:var(--ink)}
+.hbars .r .v{font:600 14px var(--f-mono);text-align:right;font-variant-numeric:tabular-nums;color:var(--ink2)}
+.hbars .tr{position:relative;height:18px;background:#151e33;border-radius:5px}
+.hbars .tr span{position:absolute;inset:0 auto 0 0;border-radius:5px}
+.hbars .tr i{position:absolute;top:-5px;bottom:-5px;width:2px;background:var(--hud)}
+@media (max-width:700px){.hbars .r{grid-template-columns:1fr}}
+
+/* paso 5 */
+.racebar{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center;justify-content:space-between}
+.clock{font:600 16px var(--f-mono);color:var(--ink2)}
+.race{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:16px}
+.lane{background:var(--panel2);border:1px solid var(--line);border-top:4px solid var(--lc);border-radius:12px;padding:14px;display:grid;gap:10px;align-content:start}
+.lane h3{font-size:24px}
+.lane .tag{font:700 14px var(--f-mono);color:var(--lc)}
+.lane .d{font-size:15px;color:var(--ink2);min-height:2.6em}
+.lane canvas{width:100%;aspect-ratio:16/9;image-rendering:pixelated;border-radius:6px;border:1px solid var(--line);background:#070b16}
+.lane .t{display:flex;align-items:baseline;justify-content:space-between;gap:8px;min-height:34px}
+.lane .ms{font:700 36px/1 var(--f-display);font-variant-numeric:tabular-nums}
+.lane .ms small{font-size:18px;color:var(--ink2);margin-left:4px}
+.lane.run{box-shadow:0 0 0 2px var(--lc)}
+.lane .sp{font:600 16px var(--f-mono);color:var(--ink2)}
+.lane .sp b{color:var(--hud)}
+.take{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}
+.take div{border-left:3px solid var(--hud);padding:4px 0 4px 12px}
+.take b{font:700 20px var(--f-display);display:block}
+
+@media (prefers-reduced-motion: reduce){.flow,.st.zap{animation:none}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap top-in">
+    <div>
+      <div class="eyebrow">Arquitectura de Computadores · Tema 3.6</div>
+      <h1>Arquitecturas avanzadas</h1>
+      <p class="lede">Cuando un solo núcleo no da más de sí, el trabajo se reparte: entre núcleos, entre los datos de una misma instrucción o entre miles de hilos de una GPU. Los experimentos marcados como <b>medido</b> se ejecutan de verdad en este ordenador.</p>
+    </div>
+    <div class="machine">
+      <span class="lab">Este ordenador</span>
+      <span class="big" id="m-cores">–<small>núcleos lógicos</small></span>
+      <span class="gpu" id="m-gpu">GPU: –</span>
+    </div>
+  </div>
+</header>
+<nav class="levels" aria-label="Pasos">
+  <div class="wrap levels-in" role="tablist">
+    <button class="lv" role="tab" data-go="flynn"><span class="n">1</span>Mapa de Flynn</button>
+    <button class="lv" role="tab" data-go="multinucleo"><span class="n">2</span>Multinúcleo</button>
+    <button class="lv" role="tab" data-go="simd"><span class="n">3</span>Unidades vectoriales</button>
+    <button class="lv" role="tab" data-go="gpu"><span class="n">4</span>GPU</button>
+    <button class="lv" role="tab" data-go="carrera"><span class="n">5</span>La carrera</button>
+    <span class="keys">teclas 1–5 · ← →</span>
+  </div>
+</nav>
+
+<main class="wrap">
+
+<!-- ================= PASO 1 ================= -->
+<section class="level" id="lv-flynn">
+  <div class="lvhead">
+    <div class="eyebrow">Paso 1 · 3.6.1</div>
+    <h2>El mapa de Flynn</h2>
+    <p class="goal">Antes de programar una máquina paralela hay que saber de qué tipo es. Pulsa cada casilla para ver su esquema y ejemplos reales.</p>
+  </div>
+  <div class="stack">
+    <div class="panel">
+      <div class="ideas">
+        <div><h4>Dos preguntas</h4><p>Michael Flynn (1966) clasifica cualquier máquina con dos preguntas: ¿cuántos <b>flujos de instrucciones</b> ejecuta a la vez (cuántos contadores de programa)? ¿Sobre cuántos <b>flujos de datos</b>? Cada respuesta es «uno» o «varios», y salen cuatro casillas.</p></div>
+        <div><h4>Lo que no mide</h4><p>No cuenta unidades funcionales ni velocidad. El superescalar fuera de orden del 3.5 ejecuta varias instrucciones por ciclo, pero todas salen de un único contador de programa: sigue siendo <b>SISD</b>. Un núcleo con hyperthreading, con dos contadores, ya es MIMD.</p></div>
+        <div><h4>Un chip real mezcla casillas</h4><p>Un procesador actual tiene varios núcleos (<b>MIMD</b>), cada núcleo lleva una unidad vectorial (<b>SIMD</b>) y al lado hay una GPU (SIMD en su variante <b>SIMT</b>). Los pasos 2, 3 y 4 recorren esas casillas; el paso 5 las pone a competir.</p></div>
+      </div>
+    </div>
+    <div class="flynn">
+      <div class="panel">
+        <div class="fmap">
+          <div></div>
+          <div class="fax">Un flujo de <b>&nbsp;datos</b></div>
+          <div class="fax">Múltiples flujos de <b>&nbsp;datos</b></div>
+          <div class="fax v">Un flujo de <b>&nbsp;instrucciones</b></div>
+          <button class="fq" data-q="SISD" aria-pressed="true"><span class="a">SISD</span><small>Single Instruction, Single Data</small><em>Un núcleo clásico</em></button>
+          <button class="fq" data-q="SIMD" aria-pressed="false"><span class="a">SIMD</span><small>Single Instruction, Multiple Data</small><em>Unidades vectoriales · GPU</em></button>
+          <div class="fax v">Múltiples flujos de <b>&nbsp;instrucciones</b></div>
+          <button class="fq" data-q="MISD" aria-pressed="false"><span class="a">MISD</span><small>Multiple Instruction, Single Data</small><em>La casilla casi vacía</em></button>
+          <button class="fq" data-q="MIMD" aria-pressed="false"><span class="a">MIMD</span><small>Multiple Instruction, Multiple Data</small><em>Multinúcleo · clústeres</em></button>
+        </div>
+      </div>
+      <div class="panel fdetail" id="fdetail"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= PASO 2 ================= -->
+<section class="level" id="lv-multinucleo" hidden>
+  <div class="lvhead">
+    <div class="eyebrow">Paso 2 · 3.6.2 · MIMD</div>
+    <h2>Procesadores multinúcleo</h2>
+    <p class="goal">Varios procesadores completos en un chip. Aquí se lanzan hilos de verdad y se ve qué ganan, y por qué ganan menos de lo que parece.</p>
+  </div>
+  <div class="stack">
+    <div class="panel explain">
+      <div class="ideas">
+        <div><h4>Qué es</h4><p>Dos o más <b>núcleos completos</b> (cada uno con su contador de programa, sus registros y su cauce) en un único chip, junto con sus cachés. Se impuso hacia 2005, cuando subir la frecuencia dejó de ser viable por el consumo y el calor: en lugar de un núcleo más rápido, más núcleos. Mejora la <b>productividad</b> y el rendimiento por vatio; un programa secuencial no va más rápido.</p></div>
+        <div><h4>Iguales o distintos</h4><p><b>Homogéneos</b>: todos los núcleos idénticos (Intel Core, AMD Ryzen), y repartir la carga es sencillo. <b>Heterogéneos</b> (big.LITTLE): núcleos grandes y rápidos junto a núcleos pequeños y eficientes, como en los móviles; así se ahorra mucha energía.</p></div>
+        <div><h4>La memoria y la coherencia</h4><p>L1 privada de cada núcleo, L2 privada o compartida y L3 compartida por todos. Si dos núcleos guardan copia de la misma línea y uno escribe, la otra copia queda obsoleta: el <b>protocolo de coherencia</b> (MSI, MESI) la invalida. Con varios chips, la memoria es <b>UMA</b> (mismo tiempo de acceso para todos) o <b>NUMA</b> (la memoria del otro chip tarda más).</p></div>
+        <div><h4>El software manda</h4><p>Los núcleos no aceleran nada si el programa no se divide en hilos. Hay que <b>repartir</b> el trabajo (balanceo de carga), <b>sincronizar</b> el acceso a datos compartidos (mutex, semáforos, barreras) y <b>comunicar</b> resultados, con herramientas como OpenMP, MPI o TBB. Y la <b>ley de Amdahl</b> pone el techo: la parte secuencial no se acelera.</p></div>
+      </div>
+      <div class="diagram" id="dg-multi"></div>
+    </div>
+
+    <div class="panel">
+      <div class="ph"><div class="ttl"><h3>Repartir un fractal entre hilos</h3><span class="tagm real">Medido en este ordenador</span></div></div>
+      <p class="lead">El navegador lanza <b>Web Workers</b>: hilos de verdad que el sistema operativo reparte entre los núcleos. Cada hilo calcula unas filas de un fractal, con mucho cálculo por píxel, y el color dice qué hilo pintó cada fila. Fijaos en tres cosas: con <b>bandas seguidas</b>, a unos hilos les toca la parte difícil (la zona negra) y los demás terminan antes y esperan; con <b>filas intercaladas</b> el reparto se equilibra; y por encima del número de núcleos ya no se gana.</p>
+      <div class="row">
+        <span class="ctl-l">Reparto</span>
+        <div class="seg" id="mc-split"><button data-v="bandas" aria-pressed="true">Bandas seguidas</button><button data-v="inter" aria-pressed="false">Filas intercaladas</button></div>
+        <span class="ctl-l">Parte secuencial</span>
+        <div class="seg" id="mc-serial"><button data-v="0" aria-pressed="true">No</button><button data-v="1" aria-pressed="false">Sí (20 % del trabajo)</button></div>
+      </div>
+      <div class="row">
+        <span class="ctl-l">Lanzar</span>
+        <div class="seg" id="mc-threads"></div>
+        <button class="btn sm" id="mc-sweep">Barrido completo</button>
+        <button class="btn ghost sm" id="mc-clear">Borrar resultados</button>
+      </div>
+      <p class="muted small" id="mc-status">Pulsa un número de hilos o haz el barrido completo. La primera vez se calibra la carga para que 1 hilo tarde unos 2 segundos.</p>
+      <div class="cols">
+        <div class="stack" style="gap:12px">
+          <canvas class="fr" id="mc-canvas" width="640" height="360"></canvas>
+          <div class="tl" id="mc-tl"></div>
+        </div>
+        <div class="stack" style="gap:12px">
+          <div class="chart"><svg id="mc-chart" viewBox="0 0 600 330" role="img" aria-label="Aceleración frente al número de hilos"></svg></div>
+          <div class="legend" id="mc-legend"></div>
+          <div class="tablewrap"><table class="res" id="mc-table"><thead><tr><th>Reparto · secuencial</th><th>Hilos</th><th>Tiempo</th><th>Aceleración</th><th>Eficiencia</th></tr></thead><tbody></tbody></table></div>
+        </div>
+      </div>
+      <p class="lead">La <b>ley de Amdahl</b>: si una fracción <i>p</i> del programa se puede repartir entre <i>N</i> núcleos y el resto no, la aceleración es 1 / ((1 − <i>p</i>) + <i>p</i>/<i>N</i>). Por muchos núcleos que haya, nunca pasa de 1 / (1 − <i>p</i>).</p>
+      <div class="amdahl">
+        <label for="am-p">Fracción paralelizable: <b id="am-pv">90 %</b><input type="range" id="am-p" min="50" max="99" value="90"></label>
+        <label for="am-n">Núcleos: <b id="am-nv">16</b><input type="range" id="am-n" min="1" max="128" value="16"></label>
+        <div class="tile"><span class="k">Ley de Amdahl</span><span class="v" id="am-s">×6,4</span><span class="s" id="am-max">Techo con infinitos núcleos: ×10</span></div>
+      </div>
+    </div>
+
+    <div class="panel" id="cnt">
+      <div class="ph"><div class="ttl"><h3>El contador compartido</h3><span class="tagm model">Modelo simulado</span></div><p>4 núcleos · cada uno suma 1 a un contador 1000 veces · cachés L1 privadas con protocolo MSI</p></div>
+      <p class="lead">El navegador no deja que varios hilos escriban en la misma variable, así que este experimento <b>simula</b> ciclo a ciclo 4 núcleos con sus cachés. Las cuatro versiones muestran los dos problemas de compartir datos: la <b>condición de carrera</b> (dos núcleos leen el mismo valor, suman 1 y una suma se pierde) y el coste de la <b>coherencia</b> (la línea de caché viaja de núcleo en núcleo).</p>
+      <div class="row">
+        <span class="ctl-l">Versión</span>
+        <div class="seg" id="cnt-mode">
+          <button data-v="shared" aria-pressed="true">Contador compartido</button>
+          <button data-v="mutex" aria-pressed="false">Con cerrojo (mutex)</button>
+          <button data-v="privSame" aria-pressed="false">Privados · misma línea</button>
+          <button data-v="privSep" aria-pressed="false">Privados · líneas distintas</button>
+        </div>
+      </div>
+      <p id="cnt-explain"></p>
+      <div class="row">
+        <button class="btn sm" id="cnt-step">Un paso</button>
+        <button class="btn sm" id="cnt-play">Reproducir</button>
+        <button class="btn sm" id="cnt-end">Hasta el final</button>
+        <button class="btn ghost sm" id="cnt-reset">Reiniciar</button>
+        <span class="legend"><span><span class="st M" style="width:22px;height:22px;font-size:13px">M</span> Modificado</span><span><span class="st S" style="width:22px;height:22px;font-size:13px">S</span> Compartido</span><span><span class="st I" style="width:22px;height:22px;font-size:13px">I</span> Inválido</span></span>
+      </div>
+      <div class="cnt-grid">
+        <div class="cores" id="cnt-cores"></div>
+        <div class="mem" id="cnt-mem"></div>
+      </div>
+      <div class="tiles" id="cnt-stats"></div>
+      <ol class="log" id="cnt-log"></ol>
+      <div class="tablewrap"><table class="res" id="cnt-table"><thead><tr><th>Versión</th><th>Resultado</th><th>Tiempo (ciclos)</th><th>Invalidaciones</th></tr></thead><tbody></tbody></table></div>
+      <details class="how"><summary>Reglas del modelo</summary><div>
+        <p>Acierto en caché: 1 ciclo. Fallo: 40 ciclos. Escribir sobre una copia compartida (pasar de S a M): 20 ciclos, e invalida las demás copias. Comprobar un cerrojo ocupado: 10 ciclos más la lectura.</p>
+        <p>En cada paso avanza el núcleo cuyo reloj va más retrasado, como si los cuatro corrieran a la vez. El tiempo total es el del núcleo que termina el último.</p>
+      </div></details>
+    </div>
+  </div>
+</section>
+
+<!-- ================= PASO 3 ================= -->
+<section class="level" id="lv-simd" hidden>
+  <div class="lvhead">
+    <div class="eyebrow">Paso 3 · 3.6.3 · SIMD</div>
+    <h2>Unidades vectoriales</h2>
+    <p class="goal">Una instrucción que opera sobre varios datos a la vez. Seis bucles, cada uno ejecutado de verdad dos veces: escalar y vectorial.</p>
+  </div>
+  <div class="stack">
+    <div class="panel explain">
+      <div class="ideas">
+        <div><h4>Una instrucción, muchos datos</h4><p>Un <b>registro vectorial</b> guarda varios datos en carriles. Una sola instrucción opera todos los carriles a la vez: <code>ADDV V1, V2, V3</code> sustituye a un bucle entero de sumas. Se cargan los datos en los registros vectoriales, se opera con ellos y se guardan los resultados en memoria.</p></div>
+        <div><h4>¿Cuántos carriles?</h4><p>Carriles = anchura del registro ÷ tamaño del dato: 128 bits son <b>4 float</b> o <b>16 bytes</b>; 256 bits (AVX), 8 float; 512 bits (AVX-512), 16 float. WebAssembly, que es lo que se mide aquí, tiene registros de 128 bits.</p></div>
+        <div><h4>Por qué es eficiente</h4><p>Las operaciones de los carriles son independientes, así que no hay riesgos entre ellas; el patrón de acceso a memoria es conocido; y hay muchas menos instrucciones, incluidos los saltos de control del bucle.</p></div>
+        <div><h4>De MMX a AVX-512</h4><p>Hasta el Pentium, los Intel eran puramente SISD. Llegaron MMX (1997), 3DNow! de AMD (1998), SSE con el Pentium III (1999), después SSE2–4, AVX y AVX-512. En ARM: NEON y SVE.</p></div>
+        <div><h4>Qué necesita el bucle</h4><p>Iteraciones <b>independientes</b>, datos <b>seguidos</b> en memoria y pocos <b>saltos</b>. Y si los datos vienen de memoria principal, el ancho de banda puede limitar más que el número de carriles.</p></div>
+      </div>
+      <div class="diagram" id="dg-simd"></div>
+    </div>
+
+    <div class="simd">
+      <div class="loops" id="loops"></div>
+      <div class="panel arena">
+        <div class="ph"><div class="ttl"><h3 id="ar-title">Bucle</h3><span class="tagm real">Medido en este ordenador</span></div></div>
+        <pre class="code" id="ar-code"></pre>
+        <div class="row">
+          <span class="ctl-l">Datos</span>
+          <div class="seg" id="ar-mem"><button data-v="0" aria-pressed="true">En caché (8 KB por vector)</button><button data-v="1" aria-pressed="false">En memoria principal (16 MB por vector)</button></div>
+          <button class="btn" id="ar-run">Medir</button>
+        </div>
+        <div class="track"><div class="tl2"><b>Escalar · 1 dato por instrucción</b><span id="ar-st" class="num"></span></div><canvas id="ar-cs" width="500" height="160"></canvas></div>
+        <div class="track"><div class="tl2"><b id="ar-vlabel">Vectorial</b><span id="ar-vt" class="num"></span></div><canvas id="ar-cv" width="500" height="160"></canvas></div>
+        <div class="bigres"><span class="x" id="ar-x">×?</span><span class="muted" id="ar-xs">Pulsa Medir</span></div>
+        <p class="why" id="ar-why"></p>
+        <p class="muted small">Las barras de cuadros avanzan a la velocidad medida, escalada para que la versión escalar dure 3 segundos. Cada cuadro es un elemento.</p>
+      </div>
+    </div>
+
+    <details class="how"><summary>¿Qué se ejecuta exactamente?</summary><div>
+      <p>Cada bucle está escrito a mano en WebAssembly dos veces: con instrucciones escalares y con instrucciones SIMD de 128 bits (<code>f32x4.add</code>, <code>i8x16.add_sat_u</code>, <code>v128.bitselect</code>…). Se ejecutan en un hilo aparte. Antes de medir, cada versión se ejecuta un rato para que el navegador la optimice; después se alternan escalar y vectorial cinco veces y se toma el mejor tiempo de cada una.</p>
+      <p><b>En caché</b>: cada vector ocupa 8 KB (2048 números de 4 bytes, u 8192 píxeles de 1 byte en el brillo) y el bucle se repite 32.768 veces seguidas; los tres vectores de la suma ocupan 24 KB, que caben en la caché L1, así que tras la primera pasada todos los accesos son aciertos. <b>En memoria principal</b>: cada vector ocupa 16 MB (4 millones de números); entre los tres vectores de la suma son 48 MB, más de lo que cabe en la L3 de casi cualquier procesador, así que cada pasada vuelve a leerlos de la DRAM. Se repite 16 veces, para que el número total de elementos procesados (unos 67 millones) sea el mismo en los dos casos. En la lista enlazada los nodos están desordenados en memoria, así que en memoria principal cada nodo es un fallo de caché.</p>
+      <p>No se puede ordenar al procesador dónde guardar los datos: lo que se controla es cuántos datos toca el bucle, y la jerarquía de memoria hace el resto. El navegador no deja usar AVX: con 256 o 512 bits cabrían 2 o 4 veces más carriles.</p>
+      <p>En la resta condicional, el resultado se escribe en otro vector para que cada repetición haga exactamente el mismo trabajo.</p>
+    </div></details>
+
+    <div class="ex">
+      <div class="ex-h">Ejercicio 3.16</div>
+      <p class="q">Con una unidad vectorial de 4 floats, ¿cuál es la aceleración máxima de <code>for(i=0;i&lt;400;i++) A[i]=B[i]+C[i];</code>? ¿Qué la impide? ¿Mejoran todos los programas?</p>
+      <button class="btn ghost sm reveal">Ver solución</button>
+      <div class="ans" hidden>
+        <p><b>a)</b> Como máximo ×4: 100 instrucciones vectoriales en lugar de 400 escalares (y también 4 veces menos instrucciones de control del bucle). El primer bucle de este paso lo mide: en caché debe salir cerca de ×4, algo por encima o por debajo según el procesador, porque una instrucción escalar y una vectorial no cuestan exactamente lo mismo.</p>
+        <p><b>b)</b> Preparar los registros vectoriales, que N no sea múltiplo de la anchura, datos no alineados o no contiguos, el ancho de banda de memoria (compárese el primer bucle en caché y en memoria principal) y los saltos o dependencias dentro del bucle.</p>
+        <p><b>c)</b> No. Solo los que tienen paralelismo de datos: bucles regulares, con iteraciones independientes y datos seguidos en memoria. La suma acumulada o la lista enlazada no ganan nada.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= PASO 4 ================= -->
+<section class="level" id="lv-gpu" hidden>
+  <div class="lvhead">
+    <div class="eyebrow">Paso 4 · 3.6.4 · SIMT</div>
+    <h2>GPU</h2>
+    <p class="goal">Miles de hilos ejecutando el mismo programa en grupos de 32. Por qué son tan rápidas y cuándo dejan de serlo.</p>
+  </div>
+  <div class="stack">
+    <div class="panel explain">
+      <div class="ideas">
+        <div><h4>De gráficos a cálculo general</h4><p>Las GPU nacieron para pintar píxeles, empujadas por los videojuegos y la televisión digital. Con <b>GPGPU</b> y CUDA se usan para cálculo general en un modelo <b>heterogéneo</b>: la CPU dirige y lanza a la GPU las partes masivamente paralelas (los <b>kernels</b>).</p></div>
+        <div><h4>Hilos, bloques y malla</h4><p>Se crea un <b>hilo por dato</b>. Los hilos se agrupan en <b>bloques</b> (el programador elige cuántos por bloque) y el conjunto de bloques de un cálculo es la <b>malla</b> (grid). Cada bloque se ejecuta en un multiprocesador SIMD (SM), y varios bloques corren a la vez en distintos SM.</p></div>
+        <div><h4>Warps: SIMT</h4><p>El SM ejecuta los hilos en grupos de 32, los <b>warps</b>, que comparten instrucción: parecen hilos independientes, pero por dentro es SIMD (<b>Single Instruction, Multiple Threads</b>). Si los hilos de un warp toman caminos distintos en un <code>if</code>, cada camino se ejecuta por separado.</p></div>
+        <div><h4>Productividad, no latencia</h4><p>Casi todo el chip son unidades de cálculo; apenas hay cachés grandes ni ejecución fuera de orden. La espera a memoria se esconde cambiando de warp. Y su memoria tiene un ancho de banda muy superior al de la CPU.</p></div>
+        <div><h4>Cuándo acelera</h4><p>Cuando la tarea es <b>masivamente paralela</b> (miles de hilos independientes), <b>intensa en cálculo</b> (mucho cálculo por cada dato leído) y el <b>kernel es pequeño</b>, de unos pocos kilobytes.</p></div>
+      </div>
+      <div class="diagram" id="dg-gpu"></div>
+    </div>
+
+    <div class="panel">
+      <div class="ph"><div class="ttl"><h3>Divergencia dentro de un warp</h3><span class="tagm model">Modelo simulado</span></div><p>Un bloque de 256 hilos = 8 warps de 32. Cada fila es un warp; a la derecha, su línea de tiempo.</p></div>
+      <p class="lead">Cada camino de un <code>if</code> cuesta 10 ciclos (cada vuelta del bucle, 4). Si todos los hilos de un warp van por el mismo camino, el warp tarda 10 ciclos; si se reparten, el warp ejecuta cada camino usado, uno detrás de otro, con los hilos del otro camino parados. Lo que importa no es el <code>if</code>, sino si <b>parte</b> los warps.</p>
+      <div class="kern" id="kern"></div>
+      <div class="row"><button class="btn" id="dv-run">Ejecutar el kernel</button><span class="legend"><span><i style="background:var(--hud)"></i>camino A</span><span><i style="background:var(--c6)"></i>camino B</span><span><i style="background:var(--c4)"></i>camino C</span><span><i style="background:var(--c2)"></i>camino D</span><span><i style="background:#2a3350"></i>hilo esperando</span><span><i style="background:#1f4d3b"></i>warp terminado</span></span></div>
+      <div class="cvwrap"><canvas id="dv-c" width="1000" height="264"></canvas></div>
+      <div class="tiles" id="dv-stats"></div>
+      <p class="why" id="dv-why">Elige un código y pulsa «Ejecutar el kernel».</p>
+    </div>
+
+    <div class="panel">
+      <div class="ph"><div class="ttl"><h3>La divergencia en la GPU de este ordenador</h3><span class="tagm real">Medido en este ordenador</span></div></div>
+      <p class="lead">El mismo programa (un <i>fragment shader</i>) se ejecuta en la GPU sobre 512 × 512 píxeles, uno por hilo. Las dos ramas del <code>if</code> hacen el mismo trabajo. Con <b>mitades</b>, todos los hilos de cada warp van por la misma rama. Con <b>columnas alternas</b>, cada warp tiene hilos de las dos ramas y debe ejecutar ambas: lo esperable es casi el doble de tiempo. Con <b>4 caminos según los datos</b>, hasta el cuádruple.</p>
+      <div class="row"><button class="btn" id="gd-run">Medir en la GPU</button><span class="muted small" id="gd-status"></span></div>
+      <div class="hbars" id="gd-bars"></div>
+    </div>
+
+    <div class="panel">
+      <div class="ph"><div class="ttl"><h3>Esconder la espera a memoria</h3><span class="tagm model">Modelo simulado</span></div><p>Cada warp hace 4 operaciones y después lee de memoria, lo que tarda 100 ciclos. El planificador sigue con el mismo warp hasta que se para a esperar y entonces salta al siguiente que esté listo.</p></div>
+      <div class="row">
+        <label for="lt-n" class="ctl-l">Warps en el multiprocesador: <b id="lt-nv" style="color:var(--ink);font-size:18px">1</b></label>
+        <input type="range" id="lt-n" min="1" max="32" value="1" style="max-width:340px">
+        <div class="seg" id="lt-q"><button data-v="1" aria-pressed="true">1</button><button data-v="4" aria-pressed="false">4</button><button data-v="12" aria-pressed="false">12</button><button data-v="24" aria-pressed="false">24</button></div>
+      </div>
+      <div class="cvwrap"><canvas id="lt-c" width="1000" height="300"></canvas></div>
+      <div class="legend"><span><i style="background:var(--c0)"></i>calcula</span><span><i style="background:var(--hud)"></i>pide un dato a memoria</span><span><i style="background:#0f1528;outline:1px solid #2c3858"></i>esperando la memoria</span><span><i style="background:#34486f"></i>listo, pero la ALU está ocupada</span></div>
+      <div class="tiles">
+        <div class="tile"><span class="k">Unidad de cálculo ocupada</span><span class="v" id="lt-u">5 %</span><span class="s" id="lt-us">de los 200 ciclos</span></div>
+        <div class="tile"><span class="k">La idea</span><span class="s" style="font-size:16px;color:var(--ink)">Una CPU esconde la espera con cachés enormes y ejecución fuera de orden (3.5). La GPU dedica ese silicio a más unidades de cálculo y esconde la espera con muchos warps.</span></div>
+      </div>
+    </div>
+
+    <div class="ex">
+      <div class="ex-h">Ejercicio 3.17</div>
+      <p class="q">¿Un código dominado por los saltos podría explotar la GPU? ¿Qué impide alcanzar la aceleración máxima? ¿Mejoran todos los programas?</p>
+      <button class="btn ghost sm reveal">Ver solución</button>
+      <div class="ans" hidden>
+        <p><b>a)</b> Mal. Si los hilos de un warp toman caminos distintos, cada camino se ejecuta por separado con el resto del warp parado (divergencia). Cuantos más saltos que dependan de los datos, menos eficiencia.</p>
+        <p><b>b)</b> La divergencia, pocos hilos para llenar los warps y esconder la latencia, accesos a memoria dispersos, copiar los datos entre CPU y GPU y la sincronización entre hilos.</p>
+        <p><b>c)</b> No. Hace falta que la tarea sea masivamente paralela, que tenga mucho cálculo por cada dato leído y que el kernel sea pequeño.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= PASO 5 ================= -->
+<section class="level" id="lv-carrera" hidden>
+  <div class="lvhead">
+    <div class="eyebrow">Paso 5 · todo junto</div>
+    <h2>La carrera</h2>
+    <p class="goal">El mismo fractal de Julia, calculado de verdad de cinco formas en este ordenador. Se ve pintar cada máquina en tiempo real.</p>
+  </div>
+  <div class="stack">
+    <div class="panel">
+      <div class="ideas">
+        <div><h4>El trabajo</h4><p>Un <b>conjunto de Julia</b> (c = −0,7269 + 0,1889i) de 240 × 135 píxeles. Cada píxel promedia varias <b>muestras</b> (antialiasing). Cada muestra repite z → z² + c exactamente 500 veces y cuenta cuántas sigue dentro del círculo de radio 2: ese número da el color. Todas las muestras cuestan lo mismo, así que las cinco máquinas hacen exactamente el mismo trabajo.</p></div>
+        <div><h4>Qué mirar</h4><p><b>1 núcleo</b> pinta píxel a píxel. <b>SIMD</b> calcula 4 píxeles por instrucción y debería ir unas 4 veces más rápido. Con <b>N hilos</b>, cada uno pinta un bloque en una zona distinta de la imagen; si el procesador tiene hyperthreading, los hilos van de dos en dos por núcleo físico y la ganancia queda por debajo de ×N. La <b>GPU</b> suele acabar antes de que dé tiempo a verla.</p></div>
+        <div><h4>Cómo se mide</h4><p>Cada máquina corre sola, para que no se estorben, y se cronometra. La calidad (muestras por píxel) se ajusta sola para que 1 núcleo tarde unos 8 segundos. Después, la <b>repetición</b> las pone a la vez con sus tiempos reales; a cámara lenta se ve cómo pinta cada una.</p></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="ph"><div class="ttl"><h3>Cinco máquinas, el mismo fractal</h3><span class="tagm real">Medido en este ordenador</span></div></div>
+      <div class="racebar">
+        <div class="row">
+          <button class="btn" id="rc-go">Lanzar la carrera</button>
+          <button class="btn ghost sm" id="rc-stop">Parar</button>
+        </div>
+        <div class="clock" id="rc-status">Primero se calibra la calidad para que 1 núcleo tarde unos 8 segundos.</div>
+      </div>
+      <div class="row">
+        <button class="btn sm" id="rp-go" disabled>Repetición: las cinco a la vez</button>
+        <div class="seg" id="rp-speed"><button data-v="1" aria-pressed="true">Tiempo real</button><button data-v="10" aria-pressed="false">10 veces más lento</button><button data-v="100" aria-pressed="false">100 veces más lento</button><button data-v="1000" aria-pressed="false">1000 veces más lento</button></div>
+      </div>
+      <div class="race" id="race"></div>
+      <div class="hbars" id="rc-sum"></div>
+      <details class="how"><summary>¿Qué se ejecuta exactamente?</summary><div>
+        <p><b>1 núcleo</b> y <b>N hilos</b>: WebAssembly escalar en Web Workers. Con N hilos, la imagen se parte en bloques de 24 × 15 píxeles; al principio cada hilo empieza en una zona distinta y, cuando termina un bloque, coge el siguiente libre (reparto dinámico), así ninguno se queda esperando. <b>SIMD</b>: el mismo cálculo con instrucciones de 128 bits, un píxel por carril. Las versiones escalar y SIMD dan exactamente la misma imagen, bit a bit.</p>
+        <p><b>GPU</b>: el mismo cálculo en WebGL2, en dos pasadas: primero un hilo por cada muestra (cientos de miles o millones de hilos); después, otra pasada suma las muestras de cada píxel y le pone color. Se lanza en 12 bloques en orden aleatorio, esperando a que termine cada uno para cronometrarlo; debajo de la GPU se indica también lo que tarda la imagen entera de una sola vez.</p>
+        <p>¿Por qué 500 iteraciones fijas y no parar cuando la muestra escapa? Porque entonces unas muestras costarían 3 iteraciones y otras 500: los carriles del SIMD y los hilos de un warp esperarían al más lento (la divergencia de los pasos 3 y 4) y la comparación dejaría de ser justa. Los tiempos incluyen enviar los resultados a la página; con otros programas abiertos, cambian.</p>
+      </div></details>
+    </div>
+    <div class="panel">
+      <h3>Lo que os lleváis</h3>
+      <div class="take">
+        <div><b>Flynn</b>Clasifica por flujos de instrucciones y de datos. Un chip real mezcla casillas: núcleos MIMD con unidades SIMD y una GPU al lado.</div>
+        <div><b>Multinúcleo</b>Más flujos de instrucciones, pero repartir, sincronizar y mantener la coherencia cuesta. Amdahl pone el techo.</div>
+        <div><b>Unidades vectoriales</b>Una instrucción, muchos datos. Necesitan bucles regulares, sin dependencias entre iteraciones, y memoria que dé abasto.</div>
+        <div><b>GPU</b>Miles de hilos en warps. Brilla con paralelismo masivo y regular, y sufre con los saltos que parten los warps.</div>
+      </div>
+    </div>
+  </div>
+</section>
+</main>
+
+<script>
+'use strict';
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const cssv=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const hexToRgb=h=>{h=h.replace('#','');return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)];};
+const COL=[0,1,2,3,4,5,6,7].map(i=>cssv('--c'+i)||'#4ea2ff');
+const COLRGB=COL.map(hexToRgb);
+const HUD=cssv('--hud')||'#ffb03a';
+const fmt=(x,d=1)=>Number(x).toLocaleString('es-ES',{minimumFractionDigits:d,maximumFractionDigits:d});
+const fmtI=x=>Math.round(x).toLocaleString('es-ES');
+const rnd=s=>{const x=Math.sin(s*12.9898+78.233)*43758.5453;return x-Math.floor(x);};
+const REDUCE=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const HC=Math.max(1,Math.min(64,navigator.hardwareConcurrency||4));
+const nextRAF=()=>new Promise(r=>requestAnimationFrame(()=>r()));
+const b64=t=>Uint8Array.from(atob(t),c=>c.charCodeAt(0));
+function segInit(el,cb){el.addEventListener('click',e=>{const b=e.target.closest('button');if(!b||!el.contains(b)||b.disabled)return;$$('button',el).forEach(x=>x.setAttribute('aria-pressed',x===b?'true':'false'));cb&&cb(b.dataset.v,b);});}
+const segVal=el=>{const b=$('button[aria-pressed="true"]',el);return b?b.dataset.v:null;};
+const fmtT=ms=>ms>=1000?fmt(ms/1000,2)+' s':(ms>=10?fmt(ms,0):ms>=1?fmt(ms,1):fmt(ms,2))+' ms';
+
+/* ---------- este ordenador ---------- */
+const GPUINFO=(()=>{
+  try{
+    const c=document.createElement('canvas'),gl=c.getContext('webgl2');
+    if(!gl)return {name:'sin WebGL2',soft:false,ok:false};
+    const e=gl.getExtension('WEBGL_debug_renderer_info');
+    let n=e?String(gl.getParameter(e.UNMASKED_RENDERER_WEBGL)):String(gl.getParameter(gl.RENDERER));
+    const soft=/swiftshader|llvmpipe|software|basic render/i.test(n);
+    const m=n.match(/^ANGLE \((.*)\)$/);
+    if(m){const p=m[1].split(',');n=(p[1]||p[0]).trim();}
+    n=n.replace(/\s*\(0x[0-9a-f]+\)/ig,'').replace(/\s*Direct3D.*$/,'').replace(/\s*vs_\d.*$/,'').trim();
+    const lose=gl.getExtension('WEBGL_lose_context');if(lose)lose.loseContext();
+    return {name:n.slice(0,70)||'GPU',soft,ok:true};
+  }catch(err){return {name:'no disponible',soft:false,ok:false};}
+})();
+$('#m-cores').innerHTML=`${navigator.hardwareConcurrency?HC:'¿?'}<small>núcleos lógicos</small>`;
+$('#m-gpu').textContent='GPU: '+GPUINFO.name+(GPUINFO.soft?' · emulada por software':'');
+
+/* ---------- navegación ---------- */
+const LEVELS=['flynn','multinucleo','simd','gpu','carrera'];
+let current='flynn';
+function go(id){
+  if(!LEVELS.includes(id))id='flynn';
+  current=id;
+  $$('.level').forEach(s=>{s.hidden=s.id!=='lv-'+id;});
+  $$('[data-go]').forEach(b=>b.setAttribute('aria-selected',b.dataset.go===id?'true':'false'));
+  if(location.hash!=='#'+id){try{history.replaceState(null,'','#'+id);}catch(e){}}
+  window.scrollTo(0,0);
+  if(id==='gpu'){drawDiv(0);drawLat();}
+}
+$$('[data-go]').forEach(b=>b.addEventListener('click',()=>go(b.dataset.go)));
+window.addEventListener('hashchange',()=>go(location.hash.slice(1)));
+document.addEventListener('keydown',e=>{
+  const t=e.target; if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.tagName==='SELECT'))return;
+  if(e.altKey||e.ctrlKey||e.metaKey)return;
+  const i=LEVELS.indexOf(current);
+  if(/^[1-5]$/.test(e.key))go(LEVELS[+e.key-1]);
+  else if(e.key==='ArrowRight'&&i<LEVELS.length-1)go(LEVELS[i+1]);
+  else if(e.key==='ArrowLeft'&&i>0)go(LEVELS[i-1]);
+});
+document.addEventListener('click',e=>{
+  const b=e.target.closest('.reveal');if(!b)return;
+  const a=b.parentElement.querySelector('.ans');if(!a)return;
+  a.hidden=!a.hidden;b.textContent=a.hidden?'Ver solución':'Ocultar solución';
+});
+
+/* ---------- diagramas de las explicaciones ---------- */
+const T=(x,y,t,o={})=>`<text x="${x}" y="${y}" font-family="${o.mono?'JetBrains Mono, monospace':'Barlow Condensed, sans-serif'}" font-size="${o.fs||15}" font-weight="${o.fw||600}" fill="${o.c||cssv('--ink')}" text-anchor="${o.a||'middle'}" ${o.ls?`letter-spacing="${o.ls}"`:''}>${t}</text>`;
+const R=(x,y,w,h,st,fi,rx=6)=>`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${rx}" fill="${fi}" stroke="${st}" stroke-width="2"/>`;
+function diagMulti(){
+  const W=520,H=400,ink2=cssv('--ink2');
+  let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Esquema de un procesador multinúcleo">`;
+  s+=R(14,14,W-28,280,'#4b5b80','#0f182c',12)+T(30,38,'UN CHIP',{a:'start',c:ink2,ls:2,fs:14});
+  for(let i=0;i<4;i++){
+    const x=30+i*118,c=COL[i];
+    s+=R(x,52,106,92,c,'#14203a')+T(x+53,76,'Núcleo '+i,{c,fs:18,fw:700})+T(x+53,98,'PC · registros',{c:ink2,fs:13})+T(x+53,116,'cauce',{c:ink2,fs:13});
+    s+=R(x,152,106,34,c,'#1a2642')+T(x+53,174,'L1 privada',{fs:14});
+    s+=R(x,194,106,30,'#6f7d98','#162037')+T(x+53,214,'L2',{fs:14});
+    s+=`<line x1="${x+53}" y1="224" x2="${x+53}" y2="238" stroke="#6f7d98" stroke-width="2"/>`;
+  }
+  s+=R(30,238,W-60,40,HUD,'#2a2210')+T(W/2,264,'L3 compartida por todos los núcleos',{c:HUD,fs:16,fw:700});
+  s+=`<line x1="${W/2}" y1="294" x2="${W/2}" y2="330" stroke="${cssv('--info')}" stroke-width="3"/>`;
+  s+=R(130,330,W-260,44,cssv('--info'),'#0f2440')+T(W/2,358,'Memoria principal (DRAM)',{fs:16,fw:700});
+  s+=T(W-20,392,'La coherencia mantiene iguales las copias de las L1',{a:'end',c:ink2,fs:13});
+  return s+'</svg>';
+}
+function diagSIMD(){
+  const W=520,H=330,ink2=cssv('--ink2'),y1=60,y2=150,y3=255,cw=96,x0=58;
+  let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Operación vectorial carril a carril">`;
+  s+=T(x0-10,y1+24,'V2',{a:'end',c:ink2,fs:18,fw:700})+T(x0-10,y2+24,'V3',{a:'end',c:ink2,fs:18,fw:700})+T(x0-10,y3+24,'V1',{a:'end',c:HUD,fs:18,fw:700});
+  for(let j=0;j<4;j++){
+    const x=x0+(3-j)*(cw+12);
+    s+=R(x,y1,cw,38,COL[0],'#14203a')+T(x+cw/2,y1+25,'X'+j,{mono:1,fs:16});
+    s+=R(x,y2,cw,38,COL[1],'#2a1a10')+T(x+cw/2,y2+25,'Y'+j,{mono:1,fs:16});
+    s+=`<line x1="${x+cw/2}" y1="${y1+38}" x2="${x+cw/2}" y2="${y2}" stroke="#6f7d98" stroke-width="2"/>`;
+    s+=`<circle cx="${x+cw/2}" cy="${(y2+38+y3)/2}" r="16" fill="#1a2642" stroke="${HUD}" stroke-width="2"/>`+T(x+cw/2,(y2+38+y3)/2+6,'op',{mono:1,fs:13,c:HUD});
+    s+=`<line x1="${x+cw/2}" y1="${y2+38}" x2="${x+cw/2}" y2="${(y2+38+y3)/2-16}" stroke="#6f7d98" stroke-width="2"/><line x1="${x+cw/2}" y1="${(y2+38+y3)/2+16}" x2="${x+cw/2}" y2="${y3}" stroke="#6f7d98" stroke-width="2"/>`;
+    s+=R(x,y3,cw,38,HUD,'#2a2210')+T(x+cw/2,y3+25,`X${j} op Y${j}`,{mono:1,fs:14});
+  }
+  s+=T(W/2,30,'Una instrucción · 4 carriles de 32 bits = registro de 128 bits',{c:ink2,fs:15});
+  s+=T(W/2,H-12,'Sin dependencias entre carriles: las 4 operaciones a la vez',{c:ink2,fs:14});
+  return s+'</svg>';
+}
+function diagGPU(){
+  const W=520,H=516,ink2=cssv('--ink2'),blue=COL[0],amb='rgba(255,176,58,.09)';
+  let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Malla, bloque y warp de una GPU">`;
+  /* 1 · malla */
+  s+=T(18,22,'1 · MALLA (GRID): todos los bloques de un kernel',{a:'start',c:ink2,fs:15,ls:.5});
+  s+=R(16,32,W-32,114,'#4b5b80','#0f182c',10);
+  const bx=c=>30+c*79,by=r=>44+r*50,HB={c:1,r:1};
+  for(let r=0;r<2;r++)for(let c=0;c<6;c++){
+    const hi=r===HB.r&&c===HB.c;
+    s+=R(bx(c),by(r),70,40,hi?HUD:'#5a6b90',hi?'#2a2210':'#162037')+T(bx(c)+35,by(r)+25,'bloque',{fs:15,c:hi?HUD:ink2});
+  }
+  /* embudo hacia el bloque */
+  s+=`<polygon points="${bx(HB.c)},${by(HB.r)+40} ${bx(HB.c)+70},${by(HB.r)+40} ${W-16},186 16,186" fill="${amb}" stroke="${HUD}" stroke-width="1" stroke-dasharray="4 4"/>`;
+  /* 2 · bloque */
+  s+=R(16,186,W-32,156,HUD,'#15161c',10);
+  s+=T(30,208,'2 · UN BLOQUE (aquí, 4 warps = 128 hilos) · lo ejecuta un SM',{a:'start',c:HUD,fs:15,fw:700});
+  for(let w=0;w<4;w++){
+    const y=220+w*29,hi=w===3;
+    s+=T(30,y+15,'warp '+w,{a:'start',mono:1,fs:13,c:hi?blue:ink2});
+    for(let j=0;j<32;j++)s+=`<rect x="${96+j*12.2}" y="${y}" width="10" height="20" rx="2" fill="${hi?blue:'#2c3a5c'}"/>`;
+  }
+  /* embudo hacia el warp */
+  s+=`<polygon points="96,327 484,327 ${W-16},368 16,368" fill="rgba(78,162,255,.08)" stroke="${blue}" stroke-width="1" stroke-dasharray="4 4"/>`;
+  /* 3 · warp */
+  s+=R(16,368,W-32,140,blue,'#0f1a30',10);
+  s+=T(30,390,'3 · UN WARP = 32 hilos con una sola instrucción (SIMT)',{a:'start',c:blue,fs:15,fw:700});
+  s+=R(40,402,W-80,26,HUD,'#2a2210',5)+T(W/2,420,'ADD r1, r2, r3   (la misma para los 32)',{mono:1,fs:13,c:HUD});
+  for(let j=0;j<32;j++){
+    const x=46+j*13.4;
+    s+=`<line x1="${x+5.5}" y1="428" x2="${x+5.5}" y2="444" stroke="#6f7d98" stroke-width="1"/><rect x="${x}" y="444" width="11" height="26" rx="2" fill="${blue}"/>`;
+  }
+  s+=T(46,490,'hilo 0',{a:'start',mono:1,fs:12,c:ink2})+T(46+31*13.4+11,490,'hilo 31',{a:'end',mono:1,fs:12,c:ink2})+T(W/2,490,'cada hilo, con su dato (su píxel)',{fs:14,c:ink2});
+  return s+'</svg>';
+}
+$('#dg-multi').innerHTML=diagMulti();$('#dg-simd').innerHTML=diagSIMD();$('#dg-gpu').innerHTML=diagGPU();
+
+/* =========================================================
+   PASO 1 · Flynn
+   ========================================================= */
+const FLYNN={
+  SISD:{full:'Single Instruction, Single Data',cfg:{i:1,p:1,d:1},
+    text:'Un único contador de programa y un dato por instrucción. Es todo lo que hemos construido en el tema 3: monociclo, multiciclo, segmentado… e incluso el superescalar fuera de orden, porque todas sus instrucciones salen de un único flujo.',
+    ex:[['Intel Pentium (1993)','Superescalar de dos vías, pero puramente SISD. Hasta él, incluido, todos los procesadores de Intel lo eran.'],
+        ['El ARM del tema','El procesador de Harris & Harris que hemos construido y segmentado: un contador de programa, un dato por instrucción.'],
+        ['Arduino (ATmega328)','Un microcontrolador de 8 bits: una instrucción, un dato, sin trucos.']]},
+  SIMD:{full:'Single Instruction, Multiple Data',cfg:{i:1,p:4,d:4},
+    text:'Una sola instrucción opera sobre un vector de datos: ADDV V1, V2, V3 sustituye a un bucle entero de sumas. Es el paralelismo de datos: sin riesgos entre los elementos y con un patrón de acceso a memoria conocido.',
+    ex:[['Pentium MMX (1997)','La primera extensión vectorial de Intel: registros de 64 bits para operar con varios enteros a la vez.'],
+        ['AMD K6-2 · 3DNow! (1998)','La respuesta de AMD a MMX, ya con números en coma flotante.'],
+        ['SSE (1999) → AVX → AVX-512','Registros de 128, 256 y 512 bits: 4, 8 y 16 floats por instrucción. Llegó con el Pentium III.'],
+        ['ARM NEON y SVE','Las unidades vectoriales de los procesadores ARM, las de los móviles.'],
+        ['GPU (SIMT)','Single Instruction, Multiple Threads: cada hilo parece independiente, pero en grupos de 32 (warps) ejecutan la misma instrucción.']]},
+  MISD:{full:'Multiple Instruction, Single Data',cfg:{i:3,p:3,d:1},
+    text:'Varias instrucciones distintas sobre el mismo dato. Es la casilla rara: casi no hay máquinas comerciales así, y los libros discuten qué meter aquí.',
+    ex:[['Ordenadores de vuelo redundantes','Varios ordenadores con software escrito por equipos distintos procesan los mismos datos de los sensores y votan el resultado. Es el ejemplo que suelen citar los libros.'],
+        ['Arrays sistólicos','A veces se citan: los datos pasan por una cadena de unidades que hacen operaciones distintas. Otros autores los consideran SIMD o MIMD.']]},
+  MIMD:{full:'Multiple Instruction, Multiple Data',cfg:{i:3,p:3,d:3},
+    text:'Varios contadores de programa, cada uno con sus datos: cada núcleo es un procesador completo. Es el paralelismo de tareas: multinúcleo, multiprocesadores con memoria compartida (UMA y NUMA) y clústeres con memoria distribuida.',
+    ex:[['AMD Ryzen · Intel Core','Multinúcleo homogéneo: todos los núcleos son idénticos, así que repartir la carga es sencillo.'],
+        ['Un móvil (big.LITTLE)','Multinúcleo heterogéneo: núcleos grandes y rápidos junto a núcleos pequeños y eficientes. Y cada núcleo lleva su unidad SIMD (NEON).'],
+        ['Un núcleo con hyperthreading','Dos contadores de programa comparten las unidades de un mismo núcleo: el multihilo simultáneo del 3.5.'],
+        ['Multiprocesador NUMA','Varios chips en una placa: leer la memoria conectada al otro chip tarda más (sección 7.7.8 de Harris & Harris).'],
+        ['Supercomputador (MareNostrum 5)','Miles de nodos que se comunican enviándose mensajes (MPI): memoria distribuida.']]}
+};
+function flynnSVG(q){
+  const c=FLYNN[q].cfg,W=520,H=260,L=120;
+  const xs=n=>[...Array(n)].map((_,k)=>L+(W-L-20)*(k+0.5)/n);
+  const xi=xs(c.i),xp=xs(c.p),xd=xs(c.d),yI=42,yP=130,yD=218;
+  let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Esquema ${q}">`;
+  s+=`<g font-family="Barlow Condensed, sans-serif" font-size="15" font-weight="600" fill="${cssv('--ink2')}" letter-spacing="1.5"><text x="14" y="${yI+5}">INSTRUCCIONES</text><text x="14" y="${yP+5}">PROCESO</text><text x="14" y="${yD+5}">DATOS</text></g>`;
+  xp.forEach((x,k)=>{const src=c.i===1?xi[0]:xi[k];s+=`<path class="flow ins" d="M${src} ${yI+16} C ${src} ${yI+50}, ${x} ${yP-52}, ${x} ${yP-18}"/>`;});
+  xp.forEach((x,k)=>{const dst=c.d===1?xd[0]:xd[k];s+=`<path class="flow dat" d="M${dst} ${yD-16} C ${dst} ${yD-50}, ${x} ${yP+52}, ${x} ${yP+18}"/>`;});
+  const box=(x,y,w,txt,st,fi)=>`<rect x="${x-w/2}" y="${y-16}" width="${w}" height="32" rx="6" fill="${fi}" stroke="${st}" stroke-width="2"/><text x="${x}" y="${y+6}" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="14" font-weight="700" fill="${cssv('--ink')}">${txt}</text>`;
+  xi.forEach((x,k)=>s+=box(x,yI,64,c.i>1?'PC'+(k+1):'PC',HUD,'#2a2210'));
+  xp.forEach((x,k)=>s+=box(x,yP,c.p>3?64:84,c.p>1?'UP'+(k+1):'UP','#8fa0c4','#1a2440'));
+  xd.forEach((x,k)=>s+=box(x,yD,64,c.d>1?'D'+(k+1):'D',cssv('--info'),'#0f2440'));
+  return s+'</svg>';
+}
+let fq='SISD';
+function selectQ(q){
+  fq=q;
+  $$('.fq').forEach(b=>b.setAttribute('aria-pressed',b.dataset.q===q?'true':'false'));
+  const f=FLYNN[q];
+  $('#fdetail').innerHTML=`<div><h3>${q}</h3><div class="full">${f.full}</div></div>
+    ${flynnSVG(q)}
+    <p>${f.text}</p>
+    <div class="ctl-l">Ejemplos reales · pulsa uno</div>
+    <div class="chips">${f.ex.map((e,i)=>`<button class="chip" data-ex="${i}" aria-pressed="${i===0}">${e[0]}</button>`).join('')}</div>
+    <p class="exinfo" id="exinfo">${f.ex[0][1]}</p>`;
+}
+$$('.fq').forEach(b=>b.addEventListener('click',()=>selectQ(b.dataset.q)));
+$('#fdetail').addEventListener('click',e=>{
+  const b=e.target.closest('.chip');if(!b)return;
+  $$('.chip',$('#fdetail')).forEach(x=>x.setAttribute('aria-pressed',x===b?'true':'false'));
+  $('#exinfo').textContent=FLYNN[fq].ex[+b.dataset.ex][1];
+});
+
+/* =========================================================
+   PASO 2 · multinúcleo con Web Workers reales
+   ========================================================= */
+const TL=(()=>{const s=new Set([1,2,4,8,16,32].filter(n=>n<=HC));s.add(HC);if(HC<64)s.add(Math.min(64,HC*2));return [...s].sort((a,b)=>a-b);})();
+const VIEW={W:640,H:360,x0:-2.25,y0:1.5,s:3.2/640,M:1000};
+const WORKER_SRC=`onmessage=function(e){var d=e.data,W=d.W,M=d.M,x0=d.x0,y0=d.y0,s=d.s,rows=d.rows,t0=performance.now();
+for(var k=0;k<rows.length;k++){var y=rows[k],out=new Uint16Array(W),ci=y0-y*s;
+for(var x=0;x<W;x++){var cr=x0+x*s,zr=0,zi=0,i=0;while(i<M){var a=zr*zr,b=zi*zi;if(a+b>4)break;zi=2*zr*zi+ci;zr=a-b+cr;i++;}out[x]=i;}
+if(!d.quiet)postMessage({t:'row',y:y,a:out},[out.buffer]);}
+postMessage({t:'done',ms:performance.now()-t0});};`;
+let workerURL=null,pool=[],mcBusy=false,workersOK=true,calibrated=false;
+try{workerURL=URL.createObjectURL(new Blob([WORKER_SRC],{type:'text/javascript'}));}catch(e){workersOK=false;}
+async function ensurePool(n){const fresh=[];while(pool.length<n){const w=new Worker(workerURL);pool.push(w);fresh.push(w);}
+  await Promise.all(fresh.map(w=>job(w,[40,120,200,280],300,true)));}
+function job(w,rows,M,quiet,onRow){
+  return new Promise(res=>{
+    w.onmessage=e=>{const m=e.data;if(m.t==='row'){onRow&&onRow(m);}else res(m.ms);};
+    w.postMessage({W:VIEW.W,M,x0:VIEW.x0,y0:VIEW.y0,s:VIEW.s,rows,quiet});
+  });
+}
+function serialWork(){
+  let acc=0;const {W,x0,y0,s,M}=VIEW;
+  for(let y=0;y<VIEW.H;y+=4){const ci=y0-y*s;for(let x=0;x<W;x++){const cr=x0+x*s;let zr=0,zi=0,i=0;while(i<M){const a=zr*zr,b=zi*zi;if(a+b>4)break;zi=2*zr*zi+ci;zr=a-b+cr;i++;}acc+=i;}}
+  return acc;
+}
+const mcCtx=$('#mc-canvas').getContext('2d');
+let mcImg=mcCtx.createImageData(VIEW.W,VIEW.H),mcDirty=false;
+function mcBlank(msg){
+  mcCtx.fillStyle='#070b16';mcCtx.fillRect(0,0,VIEW.W,VIEW.H);
+  mcImg=mcCtx.createImageData(VIEW.W,VIEW.H);
+  for(let i=3;i<mcImg.data.length;i+=4){mcImg.data[i-3]=7;mcImg.data[i-2]=11;mcImg.data[i-1]=22;mcImg.data[i]=255;}
+  if(msg){mcCtx.fillStyle='#6f7d98';mcCtx.font='600 24px "Barlow Condensed", sans-serif';mcCtx.textAlign='center';mcCtx.fillText(msg,VIEW.W/2,VIEW.H/2);}
+}
+function drawRow(y,a,w){
+  const c=COLRGB[w%8],d=mcImg.data,M=VIEW.M,lm=Math.log(Math.min(M,300)+1);
+  for(let x=0;x<VIEW.W;x++){
+    const i=a[x],k=(y*VIEW.W+x)*4;
+    if(i>=M){d[k]=10;d[k+1]=8;d[k+2]=16;}
+    else{const v=Math.min(1,Math.log(i+1)/lm),g=0.15+0.85*v;d[k]=12+c[0]*g;d[k+1]=16+c[1]*g;d[k+2]=30+c[2]*g;}
+    d[k+3]=255;
+  }
+  mcDirty=true;
+}
+function mcLoop(){if(mcDirty){mcCtx.putImageData(mcImg,0,0);mcDirty=false;}if(mcBusy)requestAnimationFrame(mcLoop);}
+async function calibrate(){
+  $('#mc-status').textContent='Calibrando la carga para este ordenador…';
+  await ensurePool(1);
+  const rows=[];for(let y=0;y<VIEW.H;y+=10)rows.push(y);
+  await job(pool[0],rows,600,true);
+  const t=await job(pool[0],rows,1000,true);
+  VIEW.M=Math.max(200,Math.min(20000,Math.round(1000*1800/Math.max(1,t*10))));
+  calibrated=true;
+}
+const series={};
+const SER_COL={'bandas|0':COL[1],'inter|0':COL[3],'bandas|1':COL[4],'inter|1':COL[2]};
+const SER_LAB={'bandas|0':'Bandas','inter|0':'Intercaladas','bandas|1':'Bandas + secuencial','inter|1':'Intercaladas + secuencial'};
+async function runThreads(n){
+  const split=segVal($('#mc-split')),serial=segVal($('#mc-serial'))==='1',key=split+'|'+(serial?1:0);
+  await ensurePool(n);
+  const rowsFor=[...Array(n)].map(()=>[]);
+  for(let y=0;y<VIEW.H;y++){const w=split==='bandas'?Math.min(n-1,Math.floor(y*n/VIEW.H)):y%n;rowsFor[w].push(y);}
+  mcBlank('');mcCtx.putImageData(mcImg,0,0);
+  if(serial){mcCtx.fillStyle='#9eabc4';mcCtx.font='600 26px "Barlow Condensed", sans-serif';mcCtx.textAlign='center';mcCtx.fillText('Parte secuencial: un solo hilo trabaja…',VIEW.W/2,VIEW.H/2);}
+  $('#mc-status').textContent=`Lanzando ${n} ${n===1?'hilo':'hilos'}…`;
+  await new Promise(r=>requestAnimationFrame(()=>setTimeout(r,30)));
+  const t0=performance.now();
+  if(serial)serialWork();
+  const ts=performance.now()-t0;
+  mcCtx.putImageData(mcImg,0,0);
+  const fin=new Array(n);
+  await Promise.all(rowsFor.map((rows,w)=>job(pool[w],rows,VIEW.M,false,m=>drawRow(m.y,m.a,w)).then(()=>{fin[w]=performance.now()-t0;})));
+  const ms=performance.now()-t0;
+  mcDirty=true;
+  (series[key]=series[key]||{})[n]=ms;
+  drawTL(fin,ts,ms,n);
+  return {key,n,ms};
+}
+function drawTL(fin,ts,ms,n){
+  let h='';
+  if(ts>1)h+=`<div class="r"><span class="lab">secuencial</span><div class="tk"><span style="left:0;width:${ts/ms*100}%;background:#9eabc4"></span></div><span class="v">${fmtI(ts)} ms</span></div>`;
+  const show=Math.min(n,16);
+  for(let w=0;w<show;w++)h+=`<div class="r"><span class="lab">hilo ${w+1}</span><div class="tk"><span style="left:${ts/ms*100}%;width:${Math.max(0.5,(fin[w]-ts)/ms*100)}%;background:${COL[w%8]}"></span></div><span class="v">${fmtI(fin[w])} ms</span></div>`;
+  if(n>show)h+=`<div class="muted small">… y ${n-show} hilos más</div>`;
+  $('#mc-tl').innerHTML=h;
+}
+function addRow(r){
+  const base=series[r.key][1],sp=base?base/r.ms:null;
+  const tr=document.createElement('tr');
+  tr.innerHTML=`<td><i style="display:inline-block;width:11px;height:11px;border-radius:2px;background:${SER_COL[r.key]};margin-right:8px"></i>${SER_LAB[r.key]}</td><td>${r.n}</td><td>${fmtI(r.ms)} ms</td><td>${sp?'×'+fmt(sp,2):'–'}</td><td>${sp?fmtI(sp/r.n*100)+' %':'–'}</td>`;
+  $('#mc-table tbody').prepend(tr);
+}
+function drawChart(){
+  const svg=$('#mc-chart'),W=600,H=330,L=50,R2=20,T2=18,B=46;
+  let ymax=Math.max(2,HC);
+  for(const k in series){const s=series[k];if(s[1])for(const n in s)ymax=Math.max(ymax,s[1]/s[n]);}
+  ymax=Math.ceil(ymax*1.1);
+  const X=i=>L+(W-L-R2)*(TL.length===1?0.5:i/(TL.length-1)),Y=v=>T2+(H-T2-B)*(1-Math.min(v,ymax)/ymax);
+  const ink2=cssv('--ink2'),line=cssv('--line');
+  let s='';
+  const step=ymax<=8?1:ymax<=16?2:ymax<=40?5:10;
+  for(let v=0;v<=ymax;v+=step)s+=`<line x1="${L}" x2="${W-R2}" y1="${Y(v)}" y2="${Y(v)}" stroke="${line}"/><text x="${L-8}" y="${Y(v)+5}" text-anchor="end" font-size="13" fill="${ink2}" font-family="JetBrains Mono">×${v}</text>`;
+  TL.forEach((n,i)=>{s+=`<text x="${X(i)}" y="${H-B+20}" text-anchor="middle" font-size="13" fill="${ink2}" font-family="JetBrains Mono">${n}</text>`;});
+  s+=`<text x="${(L+W-R2)/2}" y="${H-6}" text-anchor="middle" font-size="14" fill="${ink2}" font-family="Barlow Condensed" letter-spacing="1.5">HILOS</text>`;
+  const ih=TL.indexOf(HC);
+  if(ih>=0&&ih<TL.length-1)s+=`<line x1="${X(ih)}" x2="${X(ih)}" y1="${T2}" y2="${H-B}" stroke="${HUD}" stroke-dasharray="3 4" opacity=".7"/><text x="${X(ih)+6}" y="${T2+14}" font-size="13" fill="${HUD}" font-family="Barlow Condensed" letter-spacing="1">NÚCLEOS LÓGICOS</text>`;
+  s+=`<polyline fill="none" stroke="#8fa0c4" stroke-width="2" stroke-dasharray="6 5" points="${TL.map((n,i)=>X(i)+','+Y(n)).join(' ')}"/>`;
+  s+=`<text x="${X(Math.min(TL.length-1,Math.max(1,TL.indexOf(HC))))-6}" y="${Y(Math.min(HC,ymax))-8}" text-anchor="end" font-size="13" fill="#8fa0c4" font-family="Barlow Condensed" letter-spacing="1">IDEAL</text>`;
+  if(Object.keys(series).some(k=>k.endsWith('|1'))){
+    s+=`<polyline fill="none" stroke="${COL[5]}" stroke-width="2" stroke-dasharray="2 4" points="${TL.map((n,i)=>X(i)+','+Y(1/(0.2+0.8/n))).join(' ')}"/>`;
+    s+=`<text x="${W-R2}" y="${Y(1/(0.2+0.8/TL[TL.length-1]))-8}" text-anchor="end" font-size="13" fill="${COL[5]}" font-family="Barlow Condensed" letter-spacing="1">AMDAHL 80 % PARALELO</text>`;
+  }
+  for(const k in series){
+    const sr=series[k];if(!sr[1])continue;
+    const pts=TL.filter(n=>sr[n]).map(n=>[X(TL.indexOf(n)),Y(sr[1]/sr[n])]);
+    s+=`<polyline fill="none" stroke="${SER_COL[k]}" stroke-width="3" points="${pts.map(p=>p.join(',')).join(' ')}"/>`;
+    pts.forEach(p=>s+=`<circle cx="${p[0]}" cy="${p[1]}" r="5" fill="${SER_COL[k]}" stroke="#0d1527" stroke-width="2"/>`);
+  }
+  svg.innerHTML=s;
+  $('#mc-legend').innerHTML=`<span><i style="background:#8fa0c4"></i>Ideal (×n)</span>`+Object.keys(series).filter(k=>series[k][1]).map(k=>`<span><i style="background:${SER_COL[k]}"></i>${SER_LAB[k]}</span>`).join('');
+}
+function mcButtons(dis){$$('#mc-threads button, #mc-sweep, #mc-clear').forEach(b=>b.disabled=dis);$$('#mc-split button, #mc-serial button').forEach(b=>b.disabled=dis);}
+async function mcRun(list){
+  if(mcBusy||!workersOK)return;
+  mcBusy=true;mcButtons(true);requestAnimationFrame(mcLoop);
+  try{
+    if(!calibrated)await calibrate();
+    const split=segVal($('#mc-split')),serial=segVal($('#mc-serial'))==='1',key=split+'|'+(serial?1:0);
+    if(!(series[key]&&series[key][1])&&list[0]!==1)list=[1,...list];
+    for(const n of list){const r=await runThreads(n);addRow(r);drawChart();}
+    const sr=series[key],last=list[list.length-1];
+    $('#mc-status').textContent=`Hecho: ${last} ${last===1?'hilo':'hilos'} en ${fmtI(sr[last])} ms, ×${fmt(sr[1]/sr[last],2)} respecto a 1 hilo.`;
+  }catch(err){workersOK=false;$('#mc-status').textContent='Este navegador no deja lanzar hilos en esta página. Prueba con otro navegador.';}
+  mcBusy=false;mcButtons(false);mcDirty=true;mcLoop();
+}
+$('#mc-threads').innerHTML=TL.map(n=>`<button data-v="${n}" aria-pressed="false">${n}${n>HC?' (más que núcleos)':''}</button>`).join('');
+$('#mc-threads').addEventListener('click',e=>{const b=e.target.closest('button');if(!b||b.disabled)return;mcRun([+b.dataset.v]);});
+$('#mc-sweep').addEventListener('click',()=>mcRun(TL.slice()));
+$('#mc-clear').addEventListener('click',()=>{for(const k in series)delete series[k];$('#mc-table tbody').innerHTML='';$('#mc-tl').innerHTML='';drawChart();mcBlank('Pulsa un número de hilos');});
+segInit($('#mc-split'));segInit($('#mc-serial'));
+if(!workersOK)$('#mc-status').textContent='Este navegador no deja lanzar hilos en esta página.';
+mcBlank('Pulsa un número de hilos');
+drawChart();
+function amdahl(){
+  const p=+$('#am-p').value/100,n=+$('#am-n').value,s=1/((1-p)+p/n);
+  $('#am-pv').textContent=fmtI(p*100)+' %';$('#am-nv').textContent=n;
+  $('#am-s').textContent='×'+fmt(s,1);$('#am-max').textContent=`Techo con infinitos núcleos: ×${fmt(1/(1-p),1)}`;
+}
+$('#am-p').addEventListener('input',amdahl);$('#am-n').addEventListener('input',amdahl);amdahl();
+
+/* ---------- el contador compartido (modelo) ---------- */
+const CN={N:1000,MISS:40,UPG:20};
+const PROG={shared:['LD','ADD','ST'],mutex:['LOCK','LD','ADD','ST','UNLOCK'],privSame:['LD','ADD','ST'],privSep:['LD','ADD','ST']};
+const CNT_EXPL={
+  shared:'Cada núcleo lee el contador, le suma 1 y lo escribe. Si dos leen el mismo valor antes de que el otro escriba, una de las sumas se pierde: condición de carrera.',
+  mutex:'Un cerrojo (mutex) deja entrar a la sección crítica de uno en uno. El resultado es correcto, pero los núcleos hacen cola: el trabajo se vuelve secuencial y la línea del contador viaja de caché en caché.',
+  privSame:'Cada núcleo suma en su propio contador y al final se suman los cuatro. Es correcto… pero los cuatro contadores están en la misma línea de caché de 64 bytes, así que cada escritura invalida la copia de los demás (falso compartir).',
+  privSep:'Cada contador en su propia línea de caché. Nadie invalida a nadie: correcto y rápido.'
+};
+const MODE_LAB={shared:'Contador compartido',mutex:'Con cerrojo',privSame:'Privados · misma línea',privSep:'Privados · líneas distintas'};
+let cs,cntTimer=null;
+function cntReset(){
+  stopPlay();
+  const mode=segVal($('#cnt-mode'));
+  cs={mode,cores:[0,1,2,3].map(c=>({c,clock:0,pc:0,it:0,r:0,done:false,last:'—'})),counter:0,priv:[0,0,0,0],st:{},lock:null,inval:0,miss:0,steps:0,log:[],fin:false,zap:new Set(),act:-1};
+  $('#cnt-explain').textContent=CNT_EXPL[mode];
+  cntRender();
+}
+const lineOf=c=>cs.mode==='privSep'?'P'+c:(cs.mode==='privSame'?'P':'X');
+const stArr=l=>cs.st[l]||(cs.st[l]=['I','I','I','I']);
+function access(core,line,write){
+  const a=stArr(line);let cost;
+  if(!write){
+    if(a[core]!=='I')cost=1;
+    else{cost=CN.MISS;cs.miss++;for(let o=0;o<4;o++)if(o!==core&&a[o]==='M')a[o]='S';a[core]='S';}
+  }else{
+    if(a[core]==='M')cost=1;
+    else{cost=a[core]==='S'?CN.UPG:CN.MISS;if(a[core]==='I')cs.miss++;for(let o=0;o<4;o++)if(o!==core&&a[o]!=='I'){a[o]='I';cs.inval++;cs.zap.add(o);}a[core]='M';}
+  }
+  return cost;
+}
+function cntStep(){
+  if(cs.fin)return false;
+  let best=null;
+  for(const k of cs.cores){if(k.done)continue;if(!best||k.clock<best.clock||(k.clock===best.clock&&Math.random()<0.5))best=k;}
+  if(!best){cntFinish();return false;}
+  const k=best,i=k.c,op=PROG[cs.mode][k.pc],priv=cs.mode.startsWith('priv');
+  const name=priv?`c${i}`:'contador';
+  let cost=1,txt='',note='';
+  if(op==='LD'){cost=access(i,lineOf(i),false);k.r=priv?cs.priv[i]:cs.counter;txt=`LDR r, [${name}]  → r = ${k.r}`;}
+  else if(op==='ADD'){k.r++;txt=`ADD r, r, #1     → r = ${k.r}`;}
+  else if(op==='ST'){cost=access(i,lineOf(i),true);if(priv)cs.priv[i]=k.r;else cs.counter=k.r;txt=`STR r, [${name}]  ← ${k.r}`;}
+  else if(op==='LOCK'){
+    if(cs.lock===null){cost=access(i,'K',true);cs.lock=i;txt='coge el cerrojo';}
+    else{cost=access(i,'K',false)+10;txt=`espera: el cerrojo lo tiene N${cs.lock}`;k.clock+=cost;k.last=txt;pushLog(i,txt,cost);cs.act=i;cs.steps++;return true;}
+  }
+  else if(op==='UNLOCK'){cost=access(i,'K',true);cs.lock=null;txt='suelta el cerrojo';}
+  if(cost>=CN.MISS)note=' · fallo';else if(cost>=CN.UPG&&op!=='ADD')note=' · invalida a los demás';
+  k.clock+=cost;k.last=txt;k.pc++;
+  if(k.pc===PROG[cs.mode].length){k.pc=0;k.it++;if(k.it>=CN.N)k.done=true;}
+  pushLog(i,txt+note,cost);cs.act=i;cs.steps++;
+  if(cs.cores.every(c=>c.done))cntFinish();
+  return true;
+}
+function pushLog(i,txt,cost){cs.log.unshift(`N${i} · ${txt} · ${cost} ${cost===1?'ciclo':'ciclos'}`);if(cs.log.length>7)cs.log.pop();}
+function cntFinish(){
+  if(cs.fin)return;cs.fin=true;stopPlay();
+  if(cs.mode.startsWith('priv')){
+    const k=cs.cores[0];let extra=0;
+    for(let c=0;c<4;c++)extra+=access(0,lineOf(c),false);
+    k.clock+=extra+4;cs.counter=cs.priv.reduce((a,b)=>a+b,0);
+    cs.log.unshift(`N0 · suma los cuatro contadores → ${fmtI(cs.counter)}`);
+  }
+  const time=Math.max(...cs.cores.map(c=>c.clock));
+  $$('#cnt-table tbody tr').filter(r=>r.dataset.m===cs.mode).forEach(r=>r.remove());
+  const tr=document.createElement('tr');tr.dataset.m=cs.mode;
+  const ok=cs.counter===4*CN.N;
+  tr.innerHTML=`<td>${MODE_LAB[cs.mode]}</td><td class="${ok?'ok':'bad'}">${fmtI(cs.counter)} ${ok?'✓':'✗'}</td><td>${fmtI(time)}</td><td>${fmtI(cs.inval)}</td>`;
+  $('#cnt-table tbody').appendChild(tr);
+}
+function cntRender(){
+  const mode=cs.mode,priv=mode.startsWith('priv');
+  $('#cnt-cores').innerHTML=cs.cores.map(k=>{
+    const st=stArr(lineOf(k.c))[k.c];
+    return `<div class="core${cs.act===k.c&&!cs.fin?' act':''}" style="--cc:${COL[k.c]}">
+      <div class="h">Núcleo ${k.c}</div>
+      <div class="reg num">r = ${fmtI(k.r)}</div>
+      <div class="it num">vuelta ${fmtI(Math.min(k.it+(k.done?0:1),CN.N))} / ${fmtI(CN.N)} · reloj ${fmtI(k.clock)}</div>
+      <div class="ln"><span class="st ${st}${cs.zap.has(k.c)?' zap':''}">${st}</span><span>L1: línea ${priv?(mode==='privSep'?'de c'+k.c:'de c0–c3'):'del contador'}</span></div>
+      <div class="op">${k.done?'terminado':k.last}</div>
+    </div>`;}).join('');
+  cs.zap.clear();
+  let mem='';
+  if(!priv){
+    mem=`<div class="h">Memoria compartida</div><div class="muted small">contador</div><div class="val num ${cs.fin?(cs.counter===4*CN.N?'ok':'bad'):''}">${fmtI(cs.counter)}</div>`;
+    if(mode==='mutex')mem+=`<div class="muted">cerrojo: <b style="color:var(--ink)">${cs.lock===null?'libre':'lo tiene N'+cs.lock}</b></div>`;
+  }else{
+    const cells=c=>`<div class="cell num" style="--cc:${COL[c]}">c${c}<br>${fmtI(cs.priv[c])}</div>`;
+    mem=`<div class="h">Memoria</div>`+(mode==='privSame'
+      ?`<div class="cline"><span class="lbl">una línea de caché (64 bytes)</span>${[0,1,2,3].map(cells).join('')}</div>`
+      :[0,1,2,3].map(c=>`<div class="cline" style="border-color:${COL[c]}66"><span class="lbl">línea ${c}</span>${cells(c)}</div>`).join(''));
+    if(cs.fin)mem+=`<div class="muted small">suma final</div><div class="val num ok">${fmtI(cs.counter)}</div>`;
+  }
+  $('#cnt-mem').innerHTML=mem;
+  const time=Math.max(...cs.cores.map(c=>c.clock)),ok=cs.counter===4*CN.N;
+  const shown=cs.fin?cs.counter:(priv?cs.priv.reduce((a,b)=>a+b,0):cs.counter);
+  $('#cnt-stats').innerHTML=`
+    <div class="tile"><span class="k">Resultado</span><span class="v ${cs.fin?(ok?'ok':'bad'):''}">${fmtI(shown)}</span><span class="s">esperado: 4000${cs.fin&&!ok?` · se han perdido ${fmtI(4*CN.N-cs.counter)} sumas`:''}</span></div>
+    <div class="tile"><span class="k">Tiempo</span><span class="v">${fmtI(time)}</span><span class="s">ciclos (el núcleo más lento)</span></div>
+    <div class="tile"><span class="k">Invalidaciones</span><span class="v">${fmtI(cs.inval)}</span><span class="s">copias borradas en otras cachés</span></div>
+    <div class="tile"><span class="k">Fallos de caché</span><span class="v">${fmtI(cs.miss)}</span><span class="s">40 ciclos cada uno</span></div>`;
+  $('#cnt-log').innerHTML=cs.log.map(l=>`<li>${l}</li>`).join('')||'<li>Pulsa «Un paso» para ver qué hace cada núcleo.</li>';
+}
+function stopPlay(){if(cntTimer){clearInterval(cntTimer);cntTimer=null;}$('#cnt-play').textContent='Reproducir';}
+$('#cnt-step').addEventListener('click',()=>{stopPlay();cntStep();cntRender();});
+$('#cnt-play').addEventListener('click',()=>{
+  if(cntTimer){stopPlay();return;}
+  if(cs.fin)cntReset();
+  $('#cnt-play').textContent='Pausa';
+  let ticks=0;
+  cntTimer=setInterval(()=>{ticks++;const n=ticks<25?1:ticks<60?4:ticks<100?40:400;for(let j=0;j<n;j++)if(!cntStep())break;cntRender();},140);
+});
+$('#cnt-end').addEventListener('click',()=>{stopPlay();let g=0;while(cntStep()&&g<5e6)g++;cntRender();});
+$('#cnt-reset').addEventListener('click',cntReset);
+segInit($('#cnt-mode'),cntReset);
+cntReset();
+
+/* =========================================================
+   PASO 3 · bucles medidos (WebAssembly escalar frente a SIMD)
+   ========================================================= */
+const LOOPS_B64='AGFzbQEAAAABGwRgBX9/f39/AGADf39/AGAEf39/fwBgAn9/AAMLCgAAAQECAAAAAAMFBAEAzAgHVwsDbWVtAgAFYWRkX3MAAAVhZGRfdgABBWJyaV9zAAIFYnJpX3YAAwVwcmVfcwAEBWNuZF9zAAUFY25kX3YABgVnYXRfcwAHBWdhdF92AAgFbHN0X3MACQrPBwpUAQN/AkADQCAFIARODQFBACEGAkADQCAGIANODQEgBkECdCEHIAAgB2ogASAHaioCACACIAdqKgIAkjgCACAGQQFqIQYMAAsLIAVBAWohBQwACwsLWQEDfwJAA0AgBSAETg0BQQAhBgJAA0AgBiADTg0BIAZBAnQhByAAIAdqIAEgB2r9AAQAIAIgB2r9AAQA/eQB/QsEACAGQQRqIQYMAAsLIAVBAWohBQwACwsLVgEEfwJAA0AgAyACTg0BQQAhBAJAA0AgBCABTg0BIAAgBGohBiAGLQAAQShqIQUgBkH/ASAFIAVB/wFLGzoAACAEQQFqIQQMAAsLIANBAWohAwwACwsLUwIDfwF7QSj9DyEGAkADQCADIAJODQFBACEEAkADQCAEIAFODQEgACAEaiEFIAUgBf0ABAAgBv1w/QsEACAEQRBqIQQMAAsLIANBAWohAwwACwsLWQEEfwJAA0AgBCADTg0BQQEhBSAAKAIAIQYCQANAIAUgAk4NASAFQQJ0IQcgBiABIAdqKAIAaiEGIAAgB2ogBjYCACAFQQFqIQUMAAsLIARBAWohBAwACwsLZAEEfwJAA0AgBSAETg0BQQAhBgJAA0AgBiADTg0BIAZBAnQhByAAIAdqKAIAIQggCEEASgRAIAggASAHaigCAGshCAsgAiAHaiAINgIAIAZBAWohBgwACwsgBUEBaiEFDAALCwt9AgN/Anv9DAAAAAAAAAAAAAAAAAAAAAAhCQJAA0AgBSAETg0BQQAhBgJAA0AgBiADTg0BIAZBAnQhByAAIAdq/QAEACEIIAIgB2ogCCABIAdq/QAEAP2xASAIIAggCf07/VL9CwQAIAZBBGohBgwACwsgBUEBaiEFDAALCwtUAQN/AkADQCAFIARODQFBACEGAkADQCAGIANODQEgBkECdCEHIAIgB2ogASAAIAdqKAIAQQJ0aigCADYCACAGQQFqIQYMAAsLIAVBAWohBQwACwsLnQECA38CewJAA0AgBSAETg0BQQAhBgJAA0AgBiADTg0BIAZBAnQhByAAIAdq/QAEAEEC/asBIQggASAI/RsAaigCAP0RIQkgCSABIAj9GwFqKAIA/RwBIQkgCSABIAj9GwJqKAIA/RwCIQkgCSABIAj9GwNqKAIA/RwDIQkgAiAHaiAJ/QsEACAGQQRqIQYMAAsLIAVBAWohBQwACwsLQgECfwJAA0AgAiABTg0BIAAhAwJAA0AgA0UNASADIAMoAgQgAygCCGo2AgQgAygCACEDDAALCyACQQFqIQIMAAsLCw==';
+const LOOPS=[
+  {id:'add',title:'Suma de vectores · ejercicio 3.16',code:'for (i = 0; i < n; i++)\n  A[i] = B[i] + C[i];',ty:'float · 4 bytes',lanes:4,vec:true,
+   why:'<b>Se vectoriza.</b> Iteraciones independientes y datos seguidos: el caso perfecto. En caché ronda ×4. En memoria principal, la CPU pasa el tiempo esperando datos y los carriles sobran: la memoria marca el ritmo.'},
+  {id:'bri',title:'Subir el brillo de una imagen',code:'for (i = 0; i < n; i++)\n  p[i] = min(p[i] + 40, 255);',ty:'uint8 · 1 byte',lanes:16,vec:true,
+   why:'<b>Se vectoriza, y mucho.</b> Cada píxel ocupa 1 byte, así que en 128 bits caben 16. Además hay una suma vectorial con saturación (<code>i8x16.add_sat_u</code>) que hace el min() sin coste extra.'},
+  {id:'pre',title:'Suma acumulada',code:'for (i = 1; i < n; i++)\n  P[i] = P[i-1] + B[i];',ty:'int · 4 bytes',lanes:1,vec:false,
+   why:'<b>No se vectoriza.</b> Cada iteración necesita el resultado de la anterior: una cadena de dependencias verdaderas, como el camino crítico del 3.5. No hay 4 sumas independientes que hacer a la vez.'},
+  {id:'cnd',title:'Resta condicional',code:'for (i = 0; i < n; i++)\n  if (v[i] > 0)\n    v[i] -= d[i];',ty:'int · 4 bytes',lanes:4,vec:true,mask:true,
+   why:'<b>Se vectoriza con máscara.</b> Se resta en los 4 carriles y una máscara elige qué resultado se guarda (<code>v128.bitselect</code>); los carriles en gris trabajan para nada. Como desaparece el salto, también desaparecen los fallos del predictor (3.5): por eso a veces supera ×4.'},
+  {id:'gat',title:'Consulta en una tabla',code:'for (i = 0; i < n; i++)\n  c[i] = tabla[idx[i]];',ty:'int · 4 bytes',lanes:4,vec:true,
+   why:'<b>Apenas mejora.</b> Los datos están dispersos: los índices se cargan de 4 en 4, pero cada dato hay que traerlo por separado. WebAssembly no tiene instrucción <i>gather</i>; AVX2 sí, y tampoco es rápida.'},
+  {id:'lst',title:'Recorrer una lista enlazada',code:'for (p = lista; p != NULL; p = p->sig)\n  p->x += p->vx;',ty:'nodos de 12 bytes',lanes:1,vec:false,
+   why:'<b>No se vectoriza.</b> No se sabe dónde está el siguiente nodo hasta haber leído el actual: no hay ningún vector que cargar. En memoria principal, además, cada salto es un fallo de caché.'}
+];
+const LW_SRC=`var E=null,M=null;
+onmessage=function(e){var d=e.data;
+ if(d.t==='init'){WebAssembly.instantiate(d.mod,{}).then(function(i){E=i.exports;M=E.mem.buffer;postMessage({t:'ready'});});return;}
+ var id=d.id,big=d.big,n=big?4194304:2048,reps=big?16:32768,B0=65536,cnt=n*reps;
+ var f32=new Float32Array(M),i32=new Int32Array(M),u8=new Uint8Array(M);
+ var A=B0,B=A+n*4,C=B+n*4,i,fs=null,fv=null,tries=5;
+ /* cada función recibe el número de repeticiones */
+ if(id==='add'){for(i=0;i<n;i++){f32[B/4+i]=i*0.5;f32[C/4+i]=1.5;}fs=function(r){E.add_s(A,B,C,n,r);};fv=function(r){E.add_v(A,B,C,n,r);};}
+ else if(id==='bri'){var nb=n*4;reps=big?16:32768;for(i=0;i<nb;i++)u8[A+i]=i&255;fs=function(r){E.bri_s(A,nb,r);};fv=function(r){E.bri_v(A,nb,r);};cnt=nb*reps;}
+ else if(id==='pre'){for(i=0;i<n;i++){i32[A/4+i]=0;i32[B/4+i]=1;}fs=function(r){E.pre_s(A,B,n,r);};}
+ else if(id==='cnd'){for(i=0;i<n;i++){i32[A/4+i]=(Math.random()<0.5?-1:1)*(1+(i%100));i32[B/4+i]=3;}fs=function(r){E.cnd_s(A,B,C,n,r);};fv=function(r){E.cnd_v(A,B,C,n,r);};}
+ else if(id==='gat'){var P=C+n*4;for(i=0;i<n;i++)i32[A/4+i]=(Math.random()*256)|0;for(i=0;i<256;i++)i32[P/4+i]=i*7;fs=function(r){E.gat_s(A,P,B,n,r);};fv=function(r){E.gat_v(A,P,B,n,r);};}
+ else if(id==='lst'){var ord=new Int32Array(n);for(i=0;i<n;i++)ord[i]=i;for(i=n-1;i>0;i--){var j=(Math.random()*(i+1))|0,t=ord[i];ord[i]=ord[j];ord[j]=t;}
+   for(i=0;i<n;i++){var a=B0+ord[i]*12;i32[a/4]=i<n-1?B0+ord[i+1]*12:0;i32[a/4+1]=0;i32[a/4+2]=1;}
+   var head=B0+ord[0]*12;reps=big?1:32768;cnt=n*reps;tries=big?2:5;fs=function(r){E.lst_s(head,r);};}
+ /* calentamiento: el navegador compila primero una versión rápida de compilar y, al ver que el código se usa mucho,
+    la sustituye por una optimizada. Se ejecuta cada versión un rato y se espera a que termine esa optimización. */
+ var w=Math.max(1,reps>>4);fs(w);fs(w);if(fv){fv(w);fv(w);}
+ setTimeout(function(){
+  /* se alternan escalar y vectorial y se queda el mejor tiempo de cada uno, para que una interrupción no estropee la medida */
+  var s=1e9,v=fv?1e9:null,t;
+  for(var r=0;r<tries;r++){t=performance.now();fs(reps);s=Math.min(s,performance.now()-t);
+    if(fv){t=performance.now();fv(reps);v=Math.min(v,performance.now()-t);}}
+  postMessage({t:'res',id:id,big:big,s:s,v:v,cnt:cnt});
+ },150);
+};`;
+let lw=null,lwReady=null;
+function loopsWorker(){
+  if(lwReady)return lwReady;
+  lwReady=(async()=>{
+    const url=URL.createObjectURL(new Blob([LW_SRC],{type:'text/javascript'}));
+    const mod=await WebAssembly.compile(b64(LOOPS_B64));
+    lw=new Worker(url);
+    await new Promise(r=>{lw.onmessage=e=>{if(e.data.t==='ready')r();};lw.postMessage({t:'init',mod});});
+    return lw;
+  })();
+  return lwReady;
+}
+let selLoop=0,simdAnim=null,simdBusy=false;
+const loopRes={};
+$('#loops').innerHTML=LOOPS.map((l,i)=>`<div class="loop" role="button" tabindex="0" data-i="${i}" aria-current="${i===0}">
+  <span class="tt"><b>${i+1}. ${l.title}</b><span class="ty">${l.ty}</span></span>
+  <pre class="code">${l.code.replace(/</g,'&lt;')}</pre>
+  <span class="got" id="got-${i}"></span>
+</div>`).join('');
+$('#loops').addEventListener('keydown',e=>{const c=e.target.closest('.loop');if(c&&(e.key==='Enter'||e.key===' ')&&!simdBusy){e.preventDefault();selectLoop(+c.dataset.i);}});
+$('#loops').addEventListener('click',e=>{const c=e.target.closest('.loop');if(c&&!simdBusy)selectLoop(+c.dataset.i);});
+segInit($('#ar-mem'),()=>{if(!simdBusy)simdIdle();});
+function selectLoop(i){selLoop=i;$$('.loop').forEach(c=>c.setAttribute('aria-current',+c.dataset.i===i?'true':'false'));simdIdle();}
+function gridDraw(cv,events,upto,color,mask,showCur){
+  const ctx=cv.getContext('2d'),cols=40,rows=10,cw=cv.width/cols,ch=cv.height/rows;
+  ctx.fillStyle='#070b16';ctx.fillRect(0,0,cv.width,cv.height);
+  const done=new Uint8Array(400);let cur=null;
+  for(const e of events){if(e.t<=upto)e.cells.forEach(i=>done[i]=1);else{cur=e;break;}}
+  for(let i=0;i<400;i++){
+    const x=(i%cols)*cw,y=Math.floor(i/cols)*ch;
+    ctx.fillStyle=done[i]?(mask&&rnd(i+7)<0.5?'#3a4766':color):'#151e33';
+    ctx.fillRect(x+1.5,y+1.5,cw-3,ch-3);
+  }
+  if(cur&&showCur){ctx.strokeStyle='#ffffff';ctx.lineWidth=2;cur.cells.forEach(i=>{const x=(i%cols)*cw,y=Math.floor(i/cols)*ch;ctx.strokeRect(x+1.5,y+1.5,cw-3,ch-3);});}
+}
+function trackEvents(lanes,dur){
+  const ev=[],steps=Math.ceil(400/lanes);
+  for(let k=0;k<steps;k++){const cells=[];for(let j=k*lanes;j<Math.min(400,(k+1)*lanes);j++)cells.push(j);ev.push({t:(k+1)*dur/steps,cells});}
+  return ev;
+}
+const nsTxt=(ms,cnt)=>{const ns=ms*1e6/cnt;return fmt(ns,ns<10?2:1)+' ns por elemento';};
+function simdIdle(){
+  if(simdAnim){cancelAnimationFrame(simdAnim);simdAnim=null;}
+  const l=LOOPS[selLoop];
+  $('#ar-title').textContent=`${selLoop+1}. ${l.title}`;
+  $('#ar-code').textContent=l.code;
+  $('#ar-vlabel').textContent=l.vec?`Vectorial · ${l.lanes} datos por instrucción`:'Vectorial · no hay versión: se queda escalar';
+  gridDraw($('#ar-cs'),[],0,COL[0],false,false);gridDraw($('#ar-cv'),[],0,COL[1],false,false);
+  $('#ar-st').textContent='';$('#ar-vt').textContent='';
+  const r=loopRes[selLoop+'|'+segVal($('#ar-mem'))];
+  if(r)showLoopResult(l,r,false);else{$('#ar-x').textContent='×?';$('#ar-xs').textContent='Pulsa Medir';$('#ar-why').innerHTML='';}
+}
+function showLoopResult(l,r,animate){
+  const sp=r.v===null?1:r.s/r.v;
+  $('#ar-st').textContent=nsTxt(r.s,r.cnt);
+  $('#ar-vt').textContent=r.v===null?'igual que el escalar':nsTxt(r.v,r.cnt);
+  $('#ar-x').textContent=r.v===null?'×1':'×'+fmt(sp,sp<10?1:0);
+  $('#ar-xs').innerHTML=r.v===null?'sin versión vectorial':`con ${l.lanes} carriles · ${r.big?'en memoria principal':'en caché'}`;
+  $('#ar-why').innerHTML=l.why;
+  const Ts=3,Tv=r.v===null?Ts:Math.max(0.12,Ts/sp);
+  const es=trackEvents(1,Ts),evv=trackEvents(r.v===null?1:l.lanes,Tv),end=Math.max(Ts,Tv);
+  if(!animate||REDUCE){gridDraw($('#ar-cs'),es,end,COL[0],false,false);gridDraw($('#ar-cv'),evv,end,COL[1],!!l.mask,false);return;}
+  const t0=performance.now();
+  const fr=now=>{const t=Math.min(end,(now-t0)/1000);
+    gridDraw($('#ar-cs'),es,t,COL[0],false,true);gridDraw($('#ar-cv'),evv,t,COL[1],!!l.mask,true);
+    if(t<end)simdAnim=requestAnimationFrame(fr);else simdAnim=null;};
+  simdAnim=requestAnimationFrame(fr);
+}
+async function simdRun(){
+  if(simdBusy)return;
+  const i=selLoop,l=LOOPS[i],big=segVal($('#ar-mem'))==='1';
+  simdBusy=true;$('#ar-run').disabled=true;$$('#ar-mem button').forEach(b=>b.disabled=true);
+  $('#ar-x').textContent='…';$('#ar-xs').textContent=big?'Midiendo con 4 millones de elementos…':'Midiendo…';$('#ar-why').innerHTML='';
+  try{
+    const w=await loopsWorker();
+    const r=await new Promise(res=>{w.onmessage=e=>{if(e.data.t==='res')res(e.data);};w.postMessage({id:l.id,big});});
+    loopRes[i+'|'+(big?1:0)]=r;
+    const sp=r.v===null?1:r.s/r.v;
+    $('#got-'+i).textContent=`${big?'memoria':'caché'}: ×${fmt(sp,sp<10?1:0)}`;
+    showLoopResult(l,r,true);
+  }catch(err){$('#ar-x').textContent='×?';$('#ar-xs').textContent='Este navegador no permite medirlo: '+err.message;}
+  simdBusy=false;$('#ar-run').disabled=false;$$('#ar-mem button').forEach(b=>b.disabled=false);
+}
+$('#ar-run').addEventListener('click',simdRun);
+simdIdle();
+
+/* =========================================================
+   PASO 4 · GPU
+   ========================================================= */
+const KERNELS=[
+  {code:'calcular(x);',kind:'one',
+   why:'<b>Sin saltos.</b> Los 32 hilos de cada warp ejecutan exactamente lo mismo: eficiencia del 100 %. Es el caso para el que está hecha la GPU.'},
+  {code:'if (x < 128) A(); else B();',f:x=>x<128?0:1,
+   why:'<b>Hay if, pero no parte ningún warp.</b> 128 es múltiplo de 32: los warps 0–3 van enteros por A y los 4–7 enteros por B. Cada warp ejecuta un solo camino y el if sale gratis.'},
+  {code:'if (x % 2 == 0) A(); else B();',f:x=>x%2,
+   why:'<b>Parte todos los warps.</b> Pares e impares conviven en cada warp, así que los 8 warps ejecutan los dos caminos, uno detrás de otro, con medio warp parado en cada uno: el doble de tiempo y la mitad de eficiencia.'},
+  {code:'if (x % 32 < 8) A(); else B();',f:x=>(x%32<8)?0:1,
+   why:'<b>Basta un hilo para pagar un camino entero.</b> Solo 8 de cada 32 hilos van por A, pero el warp tiene que ejecutar A completo igualmente, con 24 hilos parados. Vuelve a salir el doble de tiempo.'},
+  {code:'if (dato[x] > umbral) A(); else B();',f:x=>rnd(x*3.1)<0.3?0:1,
+   why:'<b>Depende de los datos.</b> Aquí la condición se cumple en un 30 % de los hilos, repartidos al azar: prácticamente todos los warps tienen hilos de los dos tipos y ejecutan ambos caminos. El compilador no puede evitarlo porque no conoce los datos.'},
+  {code:'for (k = 0; k < n[x]; k++) A();',kind:'loop',f:x=>1+Math.floor(rnd(x*1.7)*8),
+   why:'<b>Bucles de distinta longitud.</b> Cada hilo da entre 1 y 8 vueltas. El warp no termina hasta que acaba el hilo con más vueltas, y los que ya han terminado esperan: la eficiencia es la media de vueltas entre el máximo.'},
+  {code:'if (a[x] > 0) {\n  if (b[x] > 0) A(); else B();\n} else {\n  if (c[x] > 0) C(); else D();\n}',f:x=>(rnd(x*2.3)<0.5?0:2)+(rnd(x*5.7)<0.5?0:1),e317:true,
+   why:'<b>Código dominado por saltos (ejercicio 3.17).</b> Dos if anidados que dependen de los datos dan 4 caminos, y prácticamente todos los warps tienen hilos en los cuatro. El warp los ejecuta uno detrás de otro: unas 4 veces más tiempo y una eficiencia cerca del 25 %. Por eso este tipo de código aprovecha mal la GPU.'}
+];
+let selK=2,dvSched=null,dvAnim=null;
+$('#kern').innerHTML=KERNELS.map((k,i)=>`<button class="kbtn" data-k="${i}" aria-pressed="${i===selK}">${k.code.replace(/</g,'&lt;')}${k.e317?'<span class="k317">3.17</span>':''}</button>`).join('');
+$('#kern').addEventListener('click',e=>{const b=e.target.closest('.kbtn');if(!b)return;selK=+b.dataset.k;$$('.kbtn').forEach(x=>x.setAttribute('aria-pressed',x===b?'true':'false'));dvSched=null;drawDiv(0);$('#dv-why').textContent='Pulsa «Ejecutar el kernel».';});
+function schedule(k){
+  const warps=[];let total=0,useful=0;
+  for(let w=0;w<8;w++){
+    const segs=[];
+    if(k.kind==='one')segs.push({s:0,e:10,lanes:new Set([...Array(32).keys()]),p:0});
+    else if(k.kind==='loop'){
+      const it=[...Array(32)].map((_,j)=>k.f(w*32+j)),mx=Math.max(...it);
+      for(let q=0;q<mx;q++)segs.push({s:q*4,e:(q+1)*4,lanes:new Set(it.map((v,j)=>v>q?j:-1).filter(j=>j>=0)),p:0});
+    }else{
+      const p=[...Array(32)].map((_,j)=>k.f(w*32+j));let t=0;
+      for(const path of [0,1,2,3]){const ls=new Set(p.map((v,j)=>v===path?j:-1).filter(j=>j>=0));if(ls.size){segs.push({s:t,e:t+10,lanes:ls,p:path});t+=10;}}
+    }
+    const end=segs[segs.length-1].e;total+=end;segs.forEach(s=>useful+=s.lanes.size*(s.e-s.s));
+    warps.push({segs,end});
+  }
+  return {warps,total,useful,ideal:useful/32,max:Math.max(...warps.map(w=>w.end))};
+}
+function drawDiv(t){
+  const cv=$('#dv-c'),ctx=cv.getContext('2d'),k=KERNELS[selK];
+  if(!dvSched)dvSched=schedule(k);
+  const S=dvSched,cell=19,rowH=27,top=26,L0=60,TLX=L0+32*cell+30,TW=cv.width-TLX-14,sc=TW/40;
+  ctx.fillStyle=cssv('--panel');ctx.fillRect(0,0,cv.width,cv.height);
+  ctx.font='600 13px "JetBrains Mono", monospace';ctx.fillStyle=cssv('--ink2');ctx.textAlign='left';
+  ctx.fillText('hilos 0–31 de cada warp',L0,16);ctx.fillText('ciclos',TLX,16);
+  for(let c=0;c<=40;c+=10){ctx.fillStyle='#2b3654';ctx.fillRect(TLX+c*sc,top-4,1,8*rowH+2);ctx.fillStyle=cssv('--muted');ctx.textAlign=c===40?'right':'left';ctx.fillText(String(c),TLX+c*sc+(c===40?-3:3),top+8*rowH+14);}
+  ctx.textAlign='left';
+  const PC=[HUD,COL[6],COL[4],COL[2]];
+  S.warps.forEach((w,wi)=>{
+    const y=top+wi*rowH;
+    ctx.fillStyle=cssv('--ink2');ctx.fillText('warp '+wi,4,y+15);
+    const seg=w.segs.find(s=>t>=s.s&&t<s.e),fin=t>=w.end;
+    for(let j=0;j<32;j++){
+      let col='#1a2238';
+      if(fin)col='#1f4d3b';else if(t>0&&seg)col=seg.lanes.has(j)?PC[seg.p]:'#2a3350';
+      ctx.fillStyle=col;ctx.fillRect(L0+j*cell,y+2,cell-3,rowH-8);
+    }
+    ctx.fillStyle='#151e33';ctx.fillRect(TLX,y+3,40*sc,rowH-10);
+    w.segs.forEach(s=>{
+      const x=TLX+s.s*sc,wd=(s.e-s.s)*sc,h=rowH-10,fr=s.lanes.size/32;
+      ctx.globalAlpha=0.28;ctx.fillStyle=PC[s.p];ctx.fillRect(x,y+3,wd-1,h);
+      ctx.globalAlpha=1;ctx.fillRect(x,y+3+h*(1-fr),wd-1,h*fr);
+    });
+  });
+  if(t>0&&t<S.max+0.001){ctx.fillStyle='#ffffff';ctx.fillRect(TLX+Math.min(t,40)*sc,top-6,2,8*rowH+4);}
+  const eff=S.useful/(32*S.total);
+  $('#dv-stats').innerHTML=`
+    <div class="tile"><span class="k">Ciclos (8 warps)</span><span class="v">${fmtI(S.total)}</span><span class="s">sin divergencia serían ${fmtI(S.ideal)}</span></div>
+    <div class="tile"><span class="k">Eficiencia SIMT</span><span class="v ${eff>0.95?'ok':eff>0.6?'warn':'bad'}">${fmtI(eff*100)} %</span><span class="s">hilos trabajando de verdad por ciclo</span></div>
+    <div class="tile"><span class="k">Warps que se parten</span><span class="v">${S.warps.filter(w=>w.segs.length>1&&k.kind!=='loop').length} / 8</span><span class="s">${k.kind==='loop'?'en el bucle, el warp espera al hilo con más vueltas':'cada camino usado se ejecuta por separado'}</span></div>`;
+}
+$('#dv-run').addEventListener('click',()=>{
+  if(dvAnim)cancelAnimationFrame(dvAnim);
+  dvSched=schedule(KERNELS[selK]);
+  const end=dvSched.max,t0=performance.now(),rate=REDUCE?1e6:9;
+  const fr=now=>{const t=Math.min(end+0.0001,(now-t0)/1000*rate+0.0001);drawDiv(t);if(t<end)dvAnim=requestAnimationFrame(fr);else{dvAnim=null;drawDiv(end+1);$('#dv-why').innerHTML=KERNELS[selK].why;}};
+  dvAnim=requestAnimationFrame(fr);
+});
+/* divergencia medida en la GPU */
+function glProgram(gl,vs,fs){
+  const sh=(t,src)=>{const x=gl.createShader(t);gl.shaderSource(x,src);gl.compileShader(x);if(!gl.getShaderParameter(x,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(x));return x;};
+  const pr=gl.createProgram();gl.attachShader(pr,sh(gl.VERTEX_SHADER,vs));gl.attachShader(pr,sh(gl.FRAGMENT_SHADER,fs));gl.linkProgram(pr);
+  if(!gl.getProgramParameter(pr,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(pr));
+  return pr;
+}
+const FS_VS=`#version 300 es
+void main(){vec2 p=vec2(float((gl_VertexID<<1)&2),float(gl_VertexID&2));gl_Position=vec4(p*2.0-1.0,0.0,1.0);}`;
+let gdG=null;
+async function gdRun(){
+  const btn=$('#gd-run');btn.disabled=true;
+  try{
+    if(!gdG){
+      const cv=document.createElement('canvas');cv.width=512;cv.height=512;
+      const gl=cv.getContext('webgl2',{antialias:false,depth:false});
+      if(!gl)throw new Error('este navegador no tiene WebGL2');
+      const fs=`#version 300 es
+precision highp float;uniform int uMode;uniform int uN;out vec4 o;
+void main(){float x=floor(gl_FragCoord.x),y=floor(gl_FragCoord.y);
+ float h=fract(sin(x*12.9898+y*78.233)*43758.5453);
+ int p=uMode==0?0:(uMode==1?(x<256.0?0:1):(uMode==2?int(mod(x,2.0)):min(3,int(h*4.0))));
+ float a=x*0.001+y*0.002;
+ if(p<2){
+   if(p==0){for(int i=0;i<uN;i++){a=sin(a)*0.999+0.1;}}
+   else{for(int i=0;i<uN+1;i++){a=cos(a)*0.998+0.2;}}
+ }else{
+   if(p==2){for(int i=0;i<uN+2;i++){a=sin(a*1.3)*0.997+0.3;}}
+   else{for(int i=0;i<uN+3;i++){a=cos(a*0.7)*0.996+0.4;}}
+ }
+ o=vec4(fract(a),0.3,0.6,1.0);}`;
+      const pr=glProgram(gl,FS_VS,fs);
+      gl.bindVertexArray(gl.createVertexArray());gl.viewport(0,0,512,512);
+      gdG={gl,pr,uM:gl.getUniformLocation(pr,'uMode'),uN:gl.getUniformLocation(pr,'uN'),px:new Uint8Array(4)};
+    }
+    const {gl,pr,uM,uN,px}=gdG;
+    const time=(mode,n,reps)=>{const ts=[];for(let r=0;r<reps;r++){const t=performance.now();gl.useProgram(pr);gl.uniform1i(uM,mode);gl.uniform1i(uN,n);gl.drawArrays(gl.TRIANGLES,0,3);gl.readPixels(0,0,1,1,gl.RGBA,gl.UNSIGNED_BYTE,px);ts.push(performance.now()-t);}ts.sort((a,b)=>a-b);return ts[ts.length>>1];};
+    $('#gd-status').textContent='Ajustando la carga…';await nextRAF();
+    let n=64;time(0,n,1);
+    while(n<65536){const t=time(0,n,1);if(t>12)break;n*=2;await nextRAF();}
+    $('#gd-status').textContent='Midiendo…';await nextRAF();
+    const res=[];
+    const MODES=[[0,'sin if','Referencia: todos los hilos hacen lo mismo.'],
+      [1,'if por mitades','Cada warp cae entero a un lado del if: cuesta lo mismo que sin if.'],
+      [2,'if por columnas alternas','Cada warp tiene hilos de las dos ramas y ejecuta ambas: cerca de ×2.'],
+      [3,'4 caminos según los datos','Dos if anidados con datos al azar: cada warp ejecuta los cuatro caminos, hasta ×4. Es el código dominado por saltos del ejercicio 3.17.']];
+    for(const [m,lab,txt] of MODES){res.push({lab,txt,ms:time(m,n,5)});await nextRAF();}
+    const mx=Math.max(...res.map(r=>r.ms)),base=res[0].ms;
+    $('#gd-bars').innerHTML=res.map((r,i)=>`<div class="r"><span class="lab">${r.lab}</span><div class="tr"><span style="width:${r.ms/mx*100}%;background:${[COL[3],COL[0],COL[4],COL[1]][i]}"></span></div><span class="v">${fmt(r.ms,1)} ms · ×${fmt(r.ms/base,2)}</span></div><p class="muted small" style="margin:-2px 0 6px">${r.txt}</p>`).join('');
+    $('#gd-status').textContent=`${fmtI(n)} vueltas del bucle por píxel · mediana de 5 ejecuciones`+(GPUINFO.soft?' · ojo: la GPU está emulada por software':'');
+  }catch(err){$('#gd-status').textContent='No se ha podido medir: '+err.message;}
+  btn.disabled=false;
+}
+$('#gd-run').addEventListener('click',gdRun);
+/* latencia (modelo) */
+function drawLat(){
+  const N=+$('#lt-n').value,T=200,LAT=100,cv=$('#lt-c'),ctx=cv.getContext('2d');
+  $('#lt-nv').textContent=N;
+  $$('#lt-q button').forEach(b=>b.setAttribute('aria-pressed',+b.dataset.v===N?'true':'false'));
+  const ws=[...Array(N)].map(()=>({pc:0,ready:0})),grid=[...Array(N)].map(()=>new Array(T).fill('')),alu=new Array(T).fill(0);
+  let cur=0,busy=0;
+  for(let c=0;c<T;c++){
+    let pick=-1;
+    if(ws[cur].ready<=c)pick=cur;else for(let w=0;w<N;w++)if(ws[w].ready<=c){pick=w;break;}
+    for(let w=0;w<N;w++)grid[w][c]=ws[w].ready>c?'W':'R';
+    if(pick>=0){const w=ws[pick];if(w.pc<4){grid[pick][c]='C';w.pc++;}else{grid[pick][c]='L';w.pc=0;w.ready=c+LAT+1;}alu[c]=1;busy++;cur=pick;}
+  }
+  const L0=70,top=34,rowH=Math.max(5,Math.min(22,Math.floor(232/N))),cw=(cv.width-L0-14)/T;
+  cv.height=top+N*rowH+26;
+  ctx.fillStyle=cssv('--panel');ctx.fillRect(0,0,cv.width,cv.height);
+  ctx.font='600 13px "JetBrains Mono", monospace';ctx.fillStyle=cssv('--ink2');ctx.fillText('ALU',4,top-14);
+  for(let c=0;c<T;c++){ctx.fillStyle=alu[c]?cssv('--ok'):'#5a2230';ctx.fillRect(L0+c*cw,top-24,Math.max(1,cw-0.4),14);}
+  const C={C:COL[0],L:HUD,W:'#0f1528',R:'#34486f'};
+  for(let w=0;w<N;w++){
+    if(rowH>=11){ctx.fillStyle=cssv('--ink2');ctx.fillText('warp '+w,4,top+w*rowH+rowH-3);}
+    for(let c=0;c<T;c++){ctx.fillStyle=C[grid[w][c]];ctx.fillRect(L0+c*cw,top+w*rowH+1,Math.max(1,cw-0.4),rowH-2);}
+  }
+  ctx.fillStyle=cssv('--muted');
+  for(let c=0;c<=T;c+=50){ctx.textAlign=c===T?'right':'left';ctx.fillText(String(c),L0+c*cw,top+N*rowH+16);}
+  ctx.textAlign='left';
+  if(rowH<11){ctx.fillStyle=cssv('--ink2');ctx.fillText(N+' warps',4,top+12);}
+  const u=busy/T;
+  $('#lt-u').textContent=fmtI(u*100)+' %';$('#lt-u').className='v '+(u>0.95?'ok':u>0.5?'warn':'bad');
+  $('#lt-us').textContent=u>0.95?'de los 200 ciclos: la espera queda escondida':'de los 200 ciclos · harían falta unos 21 warps para no parar nunca';
+}
+$('#lt-n').addEventListener('input',drawLat);
+segInit($('#lt-q'),v=>{$('#lt-n').value=v;drawLat();});
+
+/* =========================================================
+   PASO 5 · la carrera (cálculo real, pintado en vivo)
+   ========================================================= */
+const RACE_B64={s:'AGFzbQEAAAABDgFgCX19fX19f399fQF/AwIBAAUDAQABBwwCA21lbQIAAnB4AAAK0gEBzwEDAn8HfQN/IAAgASAClJIhDUEAIQoCQANAIAogBU4NASADIAqyQwAAAD+SIASUkyEMQQAhCQJAA0AgCSAFTg0BIA0gCbJDAAAAP5IgBJSSIQsgCyEOIAwhD0EAIRJBACEUAkADQCASIAZODQEgDiAOlCEQIA8gD5QhESAUIBAgEZJDAACAQF9qIRRDAAAAQCAOlCAPlCAIkiEPIBAgEZMgB5IhDiASQQFqIRIMAAsLIBMgFGohEyAJQQFqIQkMAAsLIApBAWohCgwACwsgEws=',v:'AGFzbQEAAAABDAFgCH19fX1/f319AAMCAQAFAwEAAQcNAgNtZW0CAANweDQAAArJAgHGAgIDfw57QwAAgED9EyEUQwAAAED9EyEVIAb9EyEXIAf9EyEYIAD9E/0MAAAAAAAAgD8AAABAAABAQCAD/RP95gH95AEhFv0MAAAAAAAAAAAAAAAAAAAAACETQQAhCQJAA0AgCSAETg0BIAEgCbJDAAAAP5IgApST/RMhC0EAIQgCQANAIAggBE4NASAWIAiyQwAAAD+SIAKU/RP95AEhDCAMIQ0gCyEO/QwAAAAAAAAAAAAAAAAAAAAAIRJBACEKAkADQCAKIAVODQEgDSAN/eYBIQ8gDiAO/eYBIRAgDyAQ/eQBIBT9RSERIBIgEf2xASESIBUgDf3mASAO/eYBIBj95AEhDiAPIBD95QEgF/3kASENIApBAWohCgwACwsgEyAS/a4BIRMgCEEBaiEIDAALCyAJQQFqIQkMAAsLQQAgE/0LBAAL'};
+const RC={W:240,H:135,K:500,S:4,cx:0,cy:0,w:3.2,jr:-0.7269,ji:0.1889,TW:24,TH:15};
+RC.s=RC.w/RC.W;RC.x0=RC.cx-RC.W/2*RC.s;RC.y0=RC.cy+RC.H/2*RC.s;
+/* Cada hilo recibe un bloque (xa..xb, ya..yb) y devuelve, cada 12 ms, los píxeles terminados y el momento en que terminó cada uno */
+const RW_SRC=`var E=null,M=null,simd=false;
+onmessage=function(e){var d=e.data;
+ if(d.t==='init'){simd=d.simd;WebAssembly.instantiate(d.mod,{}).then(function(i){E=i.exports;M=new Int32Array(E.mem.buffer,0,4);
+   for(var k=0;k<400;k++){if(simd)E.px4(-1,0.1,0.001,0.004,2,300,-0.7269,0.1889);else E.px(-1,k&3,0.004,0.1,0.001,2,300,-0.7269,0.1889);}
+   setTimeout(function(){postMessage({t:'ready'});},150);});return;}
+ if(d.t==='run'){
+  var t0=performance.now(),last=t0,W=d.W,s=d.s,ds=s/d.S,idx=[],val=[],tt=[],st=d.step||1,n=0;
+  for(var y=d.ya;y<d.yb;y+=st){var ci0=d.y0-y*s;
+   for(var x=d.xa;x<d.xb;x+=(simd?4:st)){
+    if(simd){E.px4(d.x0+x*s,ci0,ds,s,d.S,d.K,d.jr,d.ji);var now=performance.now()-t0;for(var j=0;j<4;j++){idx.push(y*W+x+j);val.push(M[j]);tt.push(now);}n+=4;}
+    else{var v=E.px(d.x0+(x-(x&3))*s,x&3,s,ci0,ds,d.S,d.K,d.jr,d.ji);idx.push(y*W+x);val.push(v);tt.push(performance.now()-t0);n++;}
+    var nw=performance.now();if(nw-last>12){postMessage({t:'px',idx:idx,val:val,tt:tt});idx=[];val=[];tt=[];last=nw;}
+   }}
+  postMessage({t:'end',idx:idx,val:val,tt:tt,ms:performance.now()-t0,n:n});
+ }
+};`;
+let rcURL=null;try{rcURL=URL.createObjectURL(new Blob([RW_SRC],{type:'text/javascript'}));}catch(e){}
+let rcMods=null,rcSimdOK=false,rcBusy=false,rcAbort=false,rcG=null,rcCal=false;
+const rcPools={s:[],v:[]};
+const NBLK=(RC.W/RC.TW)*(RC.H/RC.TH);
+const LANES=[
+  {id:'k1',name:'1 núcleo',tag:'SISD',d:'WebAssembly escalar en un hilo: un píxel detrás de otro.',kind:'cpu',simd:false,n:1,c:0},
+  {id:'k2',name:'1 núcleo + SIMD',tag:'SIMD',d:'Instrucciones de 128 bits: 4 píxeles a la vez, uno por carril.',kind:'cpu',simd:true,n:1,c:1},
+  {id:'k3',name:HC+' hilos',tag:'MIMD',d:`Un hilo por núcleo lógico. La imagen se parte en ${NBLK} bloques y cada hilo coge el siguiente libre.`,kind:'cpu',simd:false,n:HC,c:2},
+  {id:'k4',name:HC+' hilos + SIMD',tag:'MIMD + SIMD',d:'Las dos cosas a la vez, como trabaja un programa bien optimizado.',kind:'cpu',simd:true,n:HC,c:4},
+  {id:'k5',name:'GPU',tag:'SIMD · SIMT',d:'WebGL2: un hilo de la GPU por cada muestra, lanzado en 12 bloques.',kind:'gpu',c:3}
+];
+const RSTOPS=[[0,[5,8,22]],[0.2,[12,30,70]],[0.4,[25,90,160]],[0.55,[110,200,230]],[0.68,[255,245,210]],[0.82,[255,176,58]],[0.95,[200,60,90]],[1,[60,10,60]]];
+function racePal(avg){
+  if(avg>=RC.K-0.5)return [10,6,20];
+  const v=Math.min(1,Math.max(0,Math.log1p(avg)/Math.log1p(RC.K)));
+  for(let i=0;i<RSTOPS.length-1;i++){const [p0,c0]=RSTOPS[i],[p1,c1]=RSTOPS[i+1];if(v<=p1){const t=(v-p0)/(p1-p0);return c0.map((x,k)=>x+(c1[k]-x)*t);}}
+  return RSTOPS[RSTOPS.length-1][1];
+}
+function buildRace(){
+  $('#race').innerHTML=LANES.map(L=>`<div class="lane" style="--lc:${COL[L.c]}" id="ln-${L.id}">
+    <div class="row" style="justify-content:space-between"><h3>${L.name}</h3><span class="tag">${L.tag}</span></div>
+    <p class="d">${L.d}</p>
+    <canvas width="${RC.W}" height="${RC.H}"></canvas>
+    <div class="t"><span class="ms num">–</span><span class="sp"></span></div>
+    <p class="note muted small"></p>
+  </div>`).join('');
+  LANES.forEach(L=>{
+    L.el=$('#ln-'+L.id);L.cv=$('canvas',L.el);L.res=null;
+    if(L.kind==='cpu'){L.ctx=L.cv.getContext('2d');L.img=L.ctx.createImageData(RC.W,RC.H);laneBlank(L,'Esperando su turno');}
+  });
+  if(GPUINFO.soft)$('.d',LANES[4].el).innerHTML='WebGL2 usa aquí una <b>GPU emulada por software</b>: activad la aceleración por hardware del navegador para ver la GPU de verdad.';
+}
+function laneBlank(L,msg){
+  const c=L.ctx||L.cv.getContext('2d');if(!c)return;
+  c.fillStyle='#070b16';c.fillRect(0,0,RC.W,RC.H);
+  if(msg){c.fillStyle='#6f7d98';c.font='600 16px "Barlow Condensed", sans-serif';c.textAlign='center';c.fillText(msg,RC.W/2,RC.H/2+5);}
+}
+async function rcInit(){
+  if(rcMods)return;
+  const vb=b64(RACE_B64.v);rcSimdOK=WebAssembly.validate(vb);
+  rcMods={s:await WebAssembly.compile(b64(RACE_B64.s)),v:rcSimdOK?await WebAssembly.compile(vb):null};
+}
+async function rcPool(kind,n){
+  const p=rcPools[kind],add=[];
+  while(p.length<n){const w=new Worker(rcURL);p.push(w);add.push(new Promise(r=>{w.onmessage=e=>{if(e.data.t==='ready')r();};w.postMessage({t:'init',mod:rcMods[kind],simd:kind==='v'});}));}
+  await Promise.all(add);return p.slice(0,n);
+}
+function rcKill(){for(const k of ['s','v']){rcPools[k].forEach(w=>w.terminate());rcPools[k]=[];}}
+const rcMsg=(o)=>Object.assign({t:'run',W:RC.W,x0:RC.x0,y0:RC.y0,s:RC.s,S:RC.S,K:RC.K,jr:RC.jr,ji:RC.ji},o);
+async function rcCalibrate(){
+  $('#rc-status').textContent='Calibrando la calidad para este ordenador…';
+  const [w]=await rcPool('s',1);
+  const run=()=>new Promise(res=>{w.onmessage=e=>{if(e.data.t==='end')res(e.data);};w.postMessage(rcMsg({xa:2,xb:RC.W,ya:3,yb:RC.H,S:1,step:6}));});
+  await run();const r=await run();
+  const perSample=r.ms/r.n,target=8000;
+  RC.S=Math.max(1,Math.min(24,Math.round(Math.sqrt(target/(RC.W*RC.H*perSample)))));
+  rcCal=true;
+}
+/* Bloques de 24 × 15 píxeles. Se ordenan intercalando N franjas para que, al empezar, cada hilo trabaje en una zona distinta;
+   después cada hilo coge el siguiente bloque libre (reparto dinámico), así ninguno se queda esperando. */
+function blockOrder(n){
+  const all=[];for(let by=0;by<RC.H/RC.TH;by++)for(let bx=0;bx<RC.W/RC.TW;bx++)all.push([bx*RC.TW,by*RC.TH]);
+  if(n<=1)return all;
+  const chunks=[...Array(n)].map((_,k)=>all.slice(Math.floor(k*all.length/n),Math.floor((k+1)*all.length/n))),out=[];
+  for(let i=0;out.length<all.length;i++)chunks.forEach(c=>{if(i<c.length)out.push(c[i]);});
+  return out;
+}
+function cpuLane(L){
+  return new Promise(async(resolve)=>{
+    const kind=L.simd?'v':'s',ws=await rcPool(kind,L.n),N=RC.W*RC.H,SS=RC.S*RC.S;
+    const d=L.img.data;for(let i=0;i<N;i++){d[i*4]=7;d[i*4+1]=11;d[i*4+2]=22;d[i*4+3]=255;}
+    const times=new Float32Array(N),cur=new Array(L.n).fill(null),start=new Array(L.n).fill(0),blocks=blockOrder(L.n);
+    let dirty=true,next=0,active=0,done=false;
+    const t0=performance.now();
+    const draw=()=>{
+      if(dirty){L.ctx.putImageData(L.img,0,0);dirty=false;
+        cur.forEach((c,w)=>{if(!c)return;L.ctx.fillStyle=L.n>1?COL[w%8]:'#ffffff';c.forEach(i=>L.ctx.fillRect(i%RC.W,(i/RC.W)|0,1,1));});}
+      if(rcAbort&&!done){done=true;resolve(null);return;}
+      if(!done){$('.ms',L.el).innerHTML=fmtT(performance.now()-t0);requestAnimationFrame(draw);}
+    };
+    requestAnimationFrame(draw);
+    const give=wi=>{
+      if(next>=blocks.length)return false;
+      const [xa,ya]=blocks[next++];active++;start[wi]=performance.now()-t0;
+      ws[wi].postMessage(rcMsg({xa,xb:xa+RC.TW,ya,yb:ya+RC.TH}));return true;
+    };
+    ws.forEach((w,wi)=>{
+      w.onmessage=e=>{
+        if(done)return;
+        const m=e.data;
+        for(let j=0;j<m.idx.length;j++){const i=m.idx[j],p=racePal(m.val[j]/SS),k=i*4;d[k]=p[0];d[k+1]=p[1];d[k+2]=p[2];times[i]=start[wi]+m.tt[j];}
+        cur[wi]=m.idx.length?m.idx.slice(L.simd?-4:-1):null;dirty=true;
+        if(m.t==='end'){
+          active--;cur[wi]=null;
+          if(!give(wi)&&active===0){done=true;const ms=performance.now()-t0;L.ctx.putImageData(L.img,0,0);resolve({ms,times,rgba:new Uint8ClampedArray(d)});}
+        }
+      };
+      give(wi);
+    });
+  });
+}
+function rcGL(){
+  if(rcG!==null)return rcG;
+  const gl=LANES[4].cv.getContext('webgl2',{antialias:false,depth:false,preserveDrawingBuffer:true});
+  if(!gl){rcG=false;return rcG;}
+  const fs1=`#version 300 es
+precision highp float;precision highp int;
+uniform float ux0;uniform float uy0;uniform float uds;uniform int uK;uniform float uHS;uniform vec2 uC;
+layout(location=0) out uvec4 o;
+void main(){
+  float zr=ux0+(floor(gl_FragCoord.x)+0.5)*uds,zi=uy0-(uHS-1.0-floor(gl_FragCoord.y)+0.5)*uds;
+  int it=0;
+  for(int i=0;i<4096;i++){if(i>=uK)break;float a=zr*zr,b=zi*zi;bool dentro=a+b<=4.0;it+=dentro?1:0;float nzi=2.0*zr*zi+uC.y,nzr=a-b+uC.x;zi=dentro?nzi:zi;zr=dentro?nzr:zr;}
+  o=uvec4(uint(it),0u,0u,1u);
+}`;
+  const fs2=`#version 300 es
+precision highp float;precision highp int;precision highp usampler2D;
+uniform usampler2D uT;uniform int uS;uniform int uK;uniform float uH;
+out vec4 o;
+vec3 pal(float avg,float K){
+  if(avg>=K-0.5)return vec3(10.0,6.0,20.0)/255.0;
+  float v=clamp(log(1.0+avg)/log(1.0+K),0.0,1.0);
+  float P[8]=float[8](0.0,0.2,0.4,0.55,0.68,0.82,0.95,1.0);
+  vec3 C[8]=vec3[8](vec3(5,8,22),vec3(12,30,70),vec3(25,90,160),vec3(110,200,230),vec3(255,245,210),vec3(255,176,58),vec3(200,60,90),vec3(60,10,60));
+  for(int i=0;i<7;i++){if(v<=P[i+1])return mix(C[i],C[i+1],(v-P[i])/(P[i+1]-P[i]))/255.0;}
+  return C[7]/255.0;
+}
+void main(){
+  int px=int(gl_FragCoord.x),row=int(uH-1.0-floor(gl_FragCoord.y)),HS=int(uH)*uS;uint sum=0u;
+  for(int sy=0;sy<64;sy++){if(sy>=uS)break;
+    for(int sx=0;sx<64;sx++){if(sx>=uS)break;sum+=texelFetch(uT,ivec2(px*uS+sx,HS-1-(row*uS+sy)),0).r;}}
+  o=vec4(pal(float(sum)/float(uS*uS),float(uK)),1.0);
+}`;
+  try{
+    const p1=glProgram(gl,FS_VS,fs1),p2=glProgram(gl,FS_VS,fs2);
+    gl.bindVertexArray(gl.createVertexArray());
+    const U=(p,ks)=>Object.fromEntries(ks.map(k=>[k,gl.getUniformLocation(p,k)]));
+    rcG={gl,p1,p2,u1:U(p1,['ux0','uy0','uds','uK','uHS','uC']),u2:U(p2,['uT','uS','uK','uH']),px:new Uint8Array(4),tex:null,fb:null,tw:0,th:0,
+         max:gl.getParameter(gl.MAX_TEXTURE_SIZE)};
+  }catch(err){rcG=false;}
+  return rcG;
+}
+function rcFBO(G,w,h){
+  const gl=G.gl;
+  if(G.tw===w&&G.th===h)return;
+  if(G.tex){gl.deleteTexture(G.tex);gl.deleteFramebuffer(G.fb);}
+  G.tex=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,G.tex);
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.R32UI,w,h,0,gl.RED_INTEGER,gl.UNSIGNED_INT,null);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
+  G.fb=gl.createFramebuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,G.fb);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,G.tex,0);
+  gl.bindFramebuffer(gl.FRAMEBUFFER,null);G.tw=w;G.th=h;
+}
+async function gpuLane(L){
+  const G=rcGL();if(!G)return null;
+  const S=Math.min(RC.S,Math.floor(G.max/RC.W)),WS=RC.W*S,HS=RC.H*S,{gl,u1,u2}=G;
+  rcFBO(G,WS,HS);
+  /* un bloque: tx, ty, tw, th en píxeles de salida; ty contado desde arriba */
+  const tile=(tx,ty,tw,th)=>{
+    gl.bindFramebuffer(gl.FRAMEBUFFER,G.fb);gl.viewport(0,0,WS,HS);gl.enable(gl.SCISSOR_TEST);gl.scissor(tx*S,(RC.H-ty-th)*S,tw*S,th*S);
+    gl.useProgram(G.p1);gl.uniform1f(u1.ux0,RC.x0);gl.uniform1f(u1.uy0,RC.y0);gl.uniform1f(u1.uds,RC.s/S);gl.uniform1i(u1.uK,RC.K);gl.uniform1f(u1.uHS,HS);gl.uniform2f(u1.uC,RC.jr,RC.ji);
+    gl.drawArrays(gl.TRIANGLES,0,3);
+    gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,RC.W,RC.H);gl.scissor(tx,RC.H-ty-th,tw,th);
+    gl.useProgram(G.p2);gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,G.tex);gl.uniform1i(u2.uT,0);gl.uniform1i(u2.uS,S);gl.uniform1i(u2.uK,RC.K);gl.uniform1f(u2.uH,RC.H);
+    gl.drawArrays(gl.TRIANGLES,0,3);
+  };
+  const sync=()=>gl.readPixels(0,0,1,1,gl.RGBA,gl.UNSIGNED_BYTE,G.px);
+  gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,RC.W,RC.H);gl.disable(gl.SCISSOR_TEST);
+  gl.clearColor(7/255,11/255,22/255,1);gl.clear(gl.COLOR_BUFFER_BIT);
+  tile(0,RC.H-1,1,1);sync();                       /* calentar: compilar los shaders */
+  const TW=60,TH=45,tiles=[];
+  for(let ty=0;ty<RC.H/TH;ty++)for(let tx=0;tx<RC.W/TW;tx++)tiles.push([tx,ty]);
+  for(let i=tiles.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[tiles[i],tiles[j]]=[tiles[j],tiles[i]];}
+  const times=new Float32Array(RC.W*RC.H);let acc=0,wall=performance.now();
+  for(const [tx,ty] of tiles){
+    if(rcAbort)break;
+    const t=performance.now();tile(tx*TW,ty*TH,TW,TH);sync();acc+=performance.now()-t;
+    for(let y=ty*TH;y<(ty+1)*TH;y++)for(let x=tx*TW;x<(tx+1)*TW;x++)times[y*RC.W+x]=acc;
+    $('.ms',L.el).innerHTML=fmtT(acc);
+    if(performance.now()-wall>30){await nextRAF();wall=performance.now();}
+  }
+  const t1=performance.now();tile(0,0,RC.W,RC.H);sync();const single=performance.now()-t1;
+  gl.disable(gl.SCISSOR_TEST);
+  const raw=new Uint8Array(RC.W*RC.H*4);gl.readPixels(0,0,RC.W,RC.H,gl.RGBA,gl.UNSIGNED_BYTE,raw);
+  const rgba=new Uint8ClampedArray(raw.length);
+  for(let y=0;y<RC.H;y++)rgba.set(raw.subarray((RC.H-1-y)*RC.W*4,(RC.H-y)*RC.W*4),y*RC.W*4);
+  $('.note',L.el).textContent=`De una sola vez, sin trocear en bloques: ${fmtT(single)} · ${fmtI(WS*HS)} hilos, uno por muestra.`;
+  return {ms:acc,times,rgba,single};
+}
+function laneShow(L){
+  const r=L.res;if(!r)return;
+  $('.ms',L.el).innerHTML=fmtT(r.ms);
+  const base=LANES[0].res;
+  $('.sp',L.el).innerHTML=base&&L!==LANES[0]?`<b>×${fmt(base.ms/r.ms,base.ms/r.ms<10?1:0)}</b> frente a 1 núcleo`:'';
+}
+function raceSummary(){
+  const done=LANES.filter(L=>L.res);
+  if(!done.length){$('#rc-sum').innerHTML='';return;}
+  const mx=Math.max(...done.map(L=>L.res.ms)),base=LANES[0].res;
+  $('#rc-sum').innerHTML=`<div class="ctl-l">Resultado en este ordenador · ${RC.S*RC.S} muestras por píxel</div>`+done.map(L=>`<div class="r">
+    <span class="lab" style="color:${COL[L.c]}">${L.name}</span>
+    <div class="tr"><span style="width:${Math.max(0.4,L.res.ms/mx*100)}%;background:${COL[L.c]}"></span></div>
+    <span class="v">${fmtT(L.res.ms)}${base&&L!==LANES[0]?` · ×${fmt(base.ms/L.res.ms,base.ms/L.res.ms<10?1:0)}`:''}</span></div>`).join('');
+}
+function rcButtons(dis){$('#rc-go').disabled=dis;$('#rp-go').disabled=dis||!LANES.some(L=>L.res);}
+async function raceGo(){
+  if(rcBusy)return;
+  if(!rcURL){$('#rc-status').textContent='Este navegador no deja lanzar hilos en esta página.';return;}
+  rcBusy=true;rcAbort=false;rpStop();rcButtons(true);
+  try{
+    $('#rc-status').textContent='Preparando WebAssembly…';
+    await rcInit();
+    if(!rcCal)await rcCalibrate();
+    LANES.forEach(L=>{L.res=null;$('.sp',L.el).innerHTML='';$('.note',L.el).textContent='';$('.ms',L.el).innerHTML='–';if(L.kind==='cpu')laneBlank(L,'Esperando su turno');});
+    raceSummary();
+    for(const L of LANES){
+      if(rcAbort)break;
+      L.el.classList.add('run');
+      $('#rc-status').textContent=`Calculando: ${L.name} · ${RC.S*RC.S} muestras por píxel`;
+      if(L.kind==='cpu'){
+        if(L.simd&&!rcSimdOK){$('.ms',L.el).innerHTML='<small>sin WebAssembly SIMD</small>';L.el.classList.remove('run');continue;}
+        laneBlank(L,'');
+        L.res=await cpuLane(L);
+      }else{
+        const r=await gpuLane(L);
+        if(!r){$('.ms',L.el).innerHTML='<small>sin WebGL2</small>';}else if(!rcAbort)L.res=r;
+      }
+      L.el.classList.remove('run');
+      LANES.forEach(laneShow);raceSummary();
+    }
+    $('#rc-status').textContent=rcAbort?'Parado.':'Terminado. Ahora, la repetición: las cinco a la vez con sus tiempos reales.';
+  }catch(err){$('#rc-status').textContent='Algo ha fallado: '+err.message;}
+  rcBusy=false;rcButtons(false);LANES.forEach(L=>L.el.classList.remove('run'));
+}
+let rp=null;
+function rpStop(){if(rp){rp.on=false;rp=null;}}
+function replay(){
+  rpStop();
+  const f=+segVal($('#rp-speed')),list=LANES.filter(L=>L.res);
+  if(!list.length)return;
+  list.forEach(L=>{
+    const r=L.res,N=RC.W*RC.H;
+    if(!r.order){r.order=Uint32Array.from({length:N},(_,i)=>i).sort((a,b)=>r.times[a]-r.times[b]);}
+    L.rp={p:0,buf:new Uint8ClampedArray(N*4),done:false};
+    for(let i=0;i<N;i++){L.rp.buf[i*4]=7;L.rp.buf[i*4+1]=11;L.rp.buf[i*4+2]=22;L.rp.buf[i*4+3]=255;}
+    if(!L.ctx2)L.ctx2=L.kind==='gpu'?null:L.ctx;
+  });
+  const gpuL=LANES[4];
+  if(gpuL.res&&!gpuL.rcv){const c=document.createElement('canvas');c.width=RC.W;c.height=RC.H;c.className=gpuL.cv.className;c.style.cssText=gpuL.cv.style.cssText;gpuL.rcv=c;}
+  if(gpuL.res){gpuL.cv.hidden=true;if(!gpuL.rcv.isConnected)gpuL.cv.after(gpuL.rcv);gpuL.rcv.hidden=false;gpuL.ctx2=gpuL.rcv.getContext('2d');}
+  const t0=performance.now();rp={on:true};const me=rp;
+  $('#rc-status').textContent=f===1?'Repetición a velocidad real':`Repetición ${fmtI(f)} veces más lenta`;
+  const fr=now=>{
+    if(!me.on)return;
+    const t=(now-t0)/f;let all=true;
+    for(const L of list){
+      const r=L.res,s=L.rp,N=RC.W*RC.H;
+      while(s.p<N&&r.times[r.order[s.p]]<=t){const i=r.order[s.p],k=i*4;s.buf[k]=r.rgba[k];s.buf[k+1]=r.rgba[k+1];s.buf[k+2]=r.rgba[k+2];s.p++;}
+      L.ctx2.putImageData(new ImageData(s.buf,RC.W,RC.H),0,0);
+      $('.ms',L.el).innerHTML=fmtT(Math.min(t,r.ms));
+      if(t<r.ms)all=false;
+    }
+    if(!all)requestAnimationFrame(fr);else{me.on=false;LANES.forEach(laneShow);$('#rc-status').textContent='Fin de la repetición.';}
+  };
+  requestAnimationFrame(fr);
+}
+function rcScroll(){const p=$('#race').closest('.panel');window.scrollTo({top:p.getBoundingClientRect().top+window.scrollY-70,behavior:REDUCE?'auto':'smooth'});}
+$('#rc-go').addEventListener('click',()=>{const g=LANES[4];if(g.rcv){g.rcv.hidden=true;g.cv.hidden=false;}rcScroll();raceGo();});
+$('#rc-stop').addEventListener('click',()=>{rpStop();if(rcBusy){rcAbort=true;rcKill();}});
+$('#rp-go').addEventListener('click',()=>{rcScroll();replay();});
+segInit($('#rp-speed'));
+
+/* ---------- arranque ---------- */
+buildRace();
+selectQ('SISD');
+go(location.hash.slice(1)||'flynn');
+</script>
+<script data-goatcounter="https://juanjoual.goatcounter.com/count"
+        async src="//gc.zgo.at/count.js"></script>
+</body>
+</html>
