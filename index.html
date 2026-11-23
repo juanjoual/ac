@@ -347,12 +347,6 @@
         titulo: "Superescalar de doble emisión",
         descripcion: "Ejecuta un código en el segmentado y en tres superescalares con el mismo hardware: en orden, fuera de orden y con renombramiento. Avanza ciclo a ciclo, pulsa una instrucción para saber por qué espera y sigue el renombramiento paso a paso, como en la transparencia 119.",
         color: "i1"
-      },
-      {
-        carpeta: "arquitecturas-avanzadas",
-        titulo: "Arquitecturas avanzadas",
-        descripcion: "Cuando un solo núcleo no da más de sí, el trabajo se reparte. Recorre el mapa de Flynn, los multinúcleo, las unidades vectoriales y la GPU, y termina con una carrera entre todos. Los experimentos marcados como medidos se ejecutan de verdad en tu ordenador.",
-        color: "i3"
       }
         ]
       },
@@ -361,7 +355,14 @@
         titulo: "Memoria",
         prefijo: "4.",
         vacia: "Las demos de jerarquía de memoria irán apareciendo aquí a lo largo del tema.",
-        demos: []
+        demos: [
+      {
+        carpeta: "latencia-dram",
+        titulo: "La memoria no contesta en 1 ciclo",
+        descripcion: "Mira por dentro un banco de una DDR5-5600 real mientras sirve una línea de caché: se cierra una fila, se abre la nueva y sale la ráfaga de 64 B. La línea de tiempo cuenta a la vez ciclos del procesador y de la memoria, con página abierta o cerrada, conflictos y refrescos.",
+        color: "i6"
+      }
+        ]
       },
       {
         antetitulo: "Para seguir explorando",
@@ -385,6 +386,12 @@
         titulo: "Supersegmentación de 5 a 50 etapas",
         descripcion: "Elige cuántas etapas tiene el cauce y mira qué les pasa al camino de datos, al reloj, a los riesgos y al tiempo real por instrucción. Parte del segmentado de 5 etapas a 1000 MHz y muestra por qué el ciclo baja pero nunca a 1/k, como en las transparencias 103 y 104.",
         color: "i2"
+      },
+      {
+        carpeta: "arquitecturas-avanzadas",
+        titulo: "Arquitecturas avanzadas",
+        descripcion: "Cuando un solo núcleo no da más de sí, el trabajo se reparte. Recorre el mapa de Flynn, los multinúcleo, las unidades vectoriales y la GPU, y termina con una carrera entre todos. Los experimentos marcados como medidos se ejecutan de verdad en tu ordenador.",
+        color: "i3"
       }
         ]
       }

@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>La memoria no contesta en 1 ciclo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@400;600&family=Source+Sans+3:wght@400;600;700&display=swap">
+<style>
+/* Misma familia visual que «Superescalar de doble emisión», «Riesgos del segmentado» y «Predicción de saltos» */
+:root{
+  --paper:#f2f4f8; --panel:#ffffff; --sunk:#f7f8fb; --ink:#152033; --muted:#566377; --line:#d6dce5; --line-strong:#9aa6b8;
+  --accent:#2148c9; --accent-ink:#ffffff;
+  --ok:#0a8273; --over:#b47600; --bad:#c0392b; --ctl:#7a3fc0; --war:#b47600;
+  --r0:#2563c4; --r1:#cf5f1c; --r2:#2c8a4d; --r3:#c02f80; --r4:#6a4bd0; --r5:#a67a0e; --r6:#0a8273; --r7:#b03a3a;
+  --f-display:"Barlow Condensed","Arial Narrow",sans-serif;
+  --f-body:"Source Sans 3","Segoe UI",system-ui,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme=light]){
+  --paper:#0e131b; --panel:#151c27; --sunk:#111821; --ink:#e2e8f1; --muted:#95a2b6; --line:#273244; --line-strong:#56637a;
+  --accent:#7d9fff; --accent-ink:#0b1224;
+  --ok:#35c4b2; --over:#f0b42a; --bad:#ff6e62; --ctl:#b590ff; --war:#f0b42a;
+  --r0:#6aa2ec; --r1:#f2935c; --r2:#5fc187; --r3:#ea72b8; --r4:#a38bf2; --r5:#e2b24b; --r6:#35c4b2; --r7:#ff7f7f;
+  color-scheme:dark;
+}}
+:root[data-theme=dark]{
+  --paper:#0e131b; --panel:#151c27; --sunk:#111821; --ink:#e2e8f1; --muted:#95a2b6; --line:#273244; --line-strong:#56637a;
+  --accent:#7d9fff; --accent-ink:#0b1224;
+  --ok:#35c4b2; --over:#f0b42a; --bad:#ff6e62; --ctl:#b590ff; --war:#f0b42a;
+  --r0:#6aa2ec; --r1:#f2935c; --r2:#5fc187; --r3:#ea72b8; --r4:#a38bf2; --r5:#e2b24b; --r6:#35c4b2; --r7:#ff7f7f;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.5 var(--f-body);-webkit-font-smoothing:antialiased;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+.wrap{max-width:1380px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0}
+h2{font-size:26px;font-weight:700;letter-spacing:.01em;line-height:1.1}
+h3{font-size:19px;font-weight:700;letter-spacing:.01em}
+p{margin:0}
+code,.mono{font-family:var(--f-mono);font-size:.88em}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+a{color:var(--accent)}
+
+.top{border-bottom:1px solid var(--line);background:var(--panel)}
+.top .wrap{padding-block:24px 18px;display:flex;flex-wrap:wrap;gap:18px 40px;align-items:flex-end;justify-content:space-between}
+.top .intro{min-width:0;flex:1 1 560px}
+.eyebrow{font:600 12.5px var(--f-display);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+h1{font-size:clamp(32px,4.4vw,50px);line-height:1;font-weight:700;margin-top:6px}
+.lede{margin-top:10px;max-width:80ch;color:var(--muted)}
+.lede b{color:var(--ink)}
+.hstat{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap}
+.hstat .lab{width:100%;font:600 12.5px var(--f-display);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.hstat .big{font:700 44px/1 var(--f-display);font-variant-numeric:tabular-nums;display:flex;flex-direction:column;align-items:center;gap:2px}
+.hstat .big small{font:600 11.5px var(--f-display);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.hstat .big.ref{color:var(--muted)}
+.hstat .big.on{color:var(--bad)}
+.hstat .arrow{font:600 26px/1 var(--f-display);color:var(--muted);padding-bottom:20px}
+
+main.wrap{padding-block:16px 48px;display:flex;flex-direction:column;gap:16px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:16px;min-width:0}
+.head{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:flex-end;justify-content:space-between;margin-bottom:12px}
+.head .ti{min-width:0;flex:1 1 380px}
+.head .k{font:600 12.5px var(--f-display);letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+.head .fig{font-size:14px;color:var(--muted);margin-top:3px;max-width:86ch}
+.btn{border:1px solid var(--line-strong);background:var(--panel);border-radius:5px;padding:6px 12px;font-weight:600;font-size:13.5px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{filter:brightness(1.08);color:var(--accent-ink)}
+.btn:disabled{opacity:.4;cursor:default;pointer-events:none}
+.btn svg{width:14px;height:14px;fill:currentColor}
+.seg{display:inline-flex;border:1px solid var(--line-strong);border-radius:5px;overflow:hidden;background:var(--sunk);flex-wrap:wrap}
+.seg button{border:0;background:none;padding:6px 12px;font-weight:600;font-size:13.5px;cursor:pointer;border-right:1px solid var(--line)}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed=true]{background:var(--accent);color:var(--accent-ink)}
+.fld{display:flex;flex-direction:column;gap:3px}
+.fld>.seg{align-self:flex-start}
+.fld>span{font:600 12px var(--f-display);letter-spacing:.11em;text-transform:uppercase;color:var(--muted)}
+select{border:1px solid var(--line-strong);border-radius:5px;background:var(--panel);padding:6px 8px;font-weight:600;font-size:13.5px;max-width:100%}
+.ctl{display:flex;gap:12px 20px;flex-wrap:wrap;align-items:flex-end}
+
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:12px}
+.tile{padding:9px 12px;border-radius:5px;background:var(--sunk);border:1px solid var(--line);border-top:3px solid var(--tc,var(--line-strong))}
+.tile .tv{font:700 28px/1.05 var(--f-display);font-variant-numeric:tabular-nums}
+.tile .tl{font-size:12.5px;color:var(--muted);margin-top:2px}
+.tile.cpu{--tc:var(--accent)} .tile.mem{--tc:var(--ctl)} .tile.dat{--tc:var(--ok)}
+.tile.bad{--tc:var(--bad)} .tile.bad .tv,.tile.bad .tv2{color:var(--bad)}
+.tile .tv2{font:700 19px/1.15 var(--f-display);font-variant-numeric:tabular-nums;margin-top:2px}
+
+.req{display:flex;gap:8px 10px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.req .lb{font:600 12px var(--f-display);letter-spacing:.11em;text-transform:uppercase;color:var(--muted);margin-right:4px}
+.req .hint{font-size:13px;color:var(--muted)}
+.stepper{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.stepper .cyc{font:700 19px var(--f-display);font-variant-numeric:tabular-nums;min-width:30ch}
+.stepper .cyc small{font:600 14px var(--f-display);color:var(--muted)}
+.khint{font-size:13px;color:var(--muted);display:inline-flex;align-items:center;gap:6px}
+kbd{font:600 11.5px var(--f-mono);padding:1px 6px;border:1px solid var(--line-strong);border-bottom-width:2px;border-radius:4px;background:var(--panel);color:var(--ink)}
+input[type=range]{width:100%;accent-color:var(--accent);margin:2px 0 10px}
+.note{margin:0 0 10px;padding:10px 12px;border-radius:5px;background:var(--sunk);border:1px solid var(--line);border-left:4px solid var(--nc,var(--accent));font-size:14.5px;min-height:4.6em}
+.note b{font-weight:700}
+.tg{font:700 11px var(--f-display);letter-spacing:.07em;text-transform:uppercase;padding:1px 6px;border-radius:3px;margin-right:6px;color:var(--c);background:color-mix(in srgb,var(--c) 14%,var(--panel))}
+
+.dw{overflow-x:auto;border:1px solid var(--line);border-radius:5px;background:var(--sunk);overscroll-behavior-x:contain}
+svg.dg{display:block;width:100%;min-width:860px;height:auto;user-select:none;-webkit-user-select:none}
+svg text{font-family:var(--f-body)}
+.dg .box{fill:var(--panel);stroke:var(--line-strong);stroke-width:1.3}
+.dg .frame{fill:none;stroke:var(--line-strong);stroke-width:1.3}
+.dg .nm{font:700 15px var(--f-display);letter-spacing:.02em;fill:var(--ink)}
+.dg .sb{font:500 12px var(--f-body);fill:var(--muted)}
+.dg .sm{font:600 11px var(--f-body);fill:var(--muted)}
+.dg .cmdt{font:700 24px var(--f-display);letter-spacing:.03em}
+.dg .wr{fill:none;stroke:var(--line-strong);stroke-width:1.4}
+.dg .ahd{fill:var(--line-strong)}
+.dg .mc{cursor:pointer}
+.dg .mc:hover{stroke:var(--ink);stroke-width:1.5}
+.dg .bl{stroke:var(--line);stroke-width:1}
+
+.tw{overflow-x:auto;margin-top:12px;border:1px solid var(--line);border-radius:5px;background:var(--panel)}
+svg.tl{display:block;width:100%;min-width:860px;height:auto}
+.tl .ax{font:600 11px var(--f-body);fill:var(--muted);text-anchor:middle}
+.tl .gr{stroke:var(--line);stroke-width:1}
+.tl .ln{font:700 13.5px var(--f-display);letter-spacing:.03em;fill:var(--ink)}
+.tl .ls{font:600 11.5px var(--f-body);fill:var(--muted)}
+.tl .pl{font:600 11.5px var(--f-body);fill:var(--ink)}
+.tl .ph{cursor:pointer}
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:10px;font-size:13px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.legend i{display:inline-block;width:22px;height:12px;border-radius:2px;border:1.5px solid var(--c);background:color-mix(in srgb,var(--c) 22%,transparent)}
+
+.hist{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px}
+.hc{font:700 12px var(--f-display);letter-spacing:.05em;padding:3px 8px;border-radius:4px;border:1.5px solid var(--c);color:var(--c);background:color-mix(in srgb,var(--c) 10%,var(--panel));font-variant-numeric:tabular-nums}
+.hsum{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:12px}
+
+.two{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:1000px){.two{grid-template-columns:minmax(0,1fr)}}
+.cmpw{overflow-x:auto}
+.cmpt{border-collapse:collapse;font-size:14.5px;width:100%;min-width:720px}
+.cmpt th,.cmpt td{border-bottom:1px solid var(--line);padding:7px 10px;white-space:nowrap;text-align:right;font-variant-numeric:tabular-nums}
+.cmpt th:first-child,.cmpt td:first-child{text-align:left}
+.cmpt thead th{font:600 12px var(--f-display);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.cmpt td small,.cmpt th small{display:block;color:var(--muted);font-size:12px}
+.cmpt th small{font:500 11px var(--f-body);letter-spacing:0;text-transform:none}
+.cmpt tr.cur td{background:color-mix(in srgb,var(--accent) 8%,var(--panel));font-weight:700}
+.cmpt tbody tr{cursor:pointer}
+#latt th:nth-child(2),#latt td:nth-child(2),#latt th:nth-child(3),#latt td:nth-child(3){text-align:left}
+.cmpt tbody tr:hover td{background:color-mix(in srgb,var(--accent) 4%,var(--panel))}
+.explain{display:flex;flex-direction:column;gap:10px;font-size:15px}
+.explain .aside{font-size:14px;color:var(--muted);padding:10px 12px;border:1px dashed var(--line-strong);border-radius:5px}
+.explain .aside b{color:var(--ink)}
+.rules{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;font-size:15px;max-width:104ch}
+.foot{color:var(--muted);font-size:13px;padding-top:4px}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <div class="intro">
+      <div class="eyebrow">Tema 4 · Memoria · Introducción</div>
+      <h1>La memoria no contesta en 1 ciclo</h1>
+      <p class="lede">En el tema 3 suponíamos que la memoria contestaba en <b>1 ciclo</b>. Aquí ves por dentro un banco de una <b>DDR5-5600</b> real (Kingston FURY KF556C40BB-32) mientras sirve una línea de caché: cómo se cierra una fila, cómo se copia la nueva al buffer y cómo sale la ráfaga de 64 B. Debajo, la línea de tiempo cuenta a la vez los ciclos del procesador y los de la memoria. Pulsa cualquier casilla de la matriz para pedir esa línea.</p>
+    </div>
+    <div class="hstat" id="hstat" aria-label="Ciclos de CPU de este acceso"></div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="panel" aria-labelledby="accT">
+    <div class="head">
+      <div class="ti">
+        <div class="k">Acceso a memoria</div>
+        <h2 id="accT">Un fallo de caché, paso a paso</h2>
+        <div class="fig" id="accFig"></div>
+      </div>
+      <div class="ctl">
+        <label class="fld"><span>Memoria</span><select id="mem"></select></label>
+        <div class="fld"><span>Procesador</span>
+          <div class="seg" id="ghzSeg" role="group" aria-label="Frecuencia del procesador">
+            <button type="button" data-v="2">2 GHz</button><button type="button" data-v="3">3 GHz</button><button type="button" data-v="4">4 GHz</button><button type="button" data-v="5">5 GHz</button>
+          </div></div>
+        <div class="fld"><span>Política de página</span>
+          <div class="seg" id="polSeg" role="group" aria-label="Política de página">
+            <button type="button" data-v="open">Abierta</button><button type="button" data-v="closed">Cerrada</button>
+          </div></div>
+        <div class="fld"><span>Velocidad</span>
+          <div class="seg" id="spdSeg" role="group" aria-label="Velocidad de la animación">
+            <button type="button" data-v="slow">Lenta</button><button type="button" data-v="normal">Normal</button><button type="button" data-v="fast">Rápida</button>
+          </div></div>
+      </div>
+    </div>
+
+    <div class="tiles" id="tiles"></div>
+
+    <div class="req">
+      <span class="lb">Nueva petición</span>
+      <div class="seg" id="rqSeg" role="group" aria-label="Caso de acceso">
+        <button type="button" data-k="hit">Misma fila, línea siguiente</button><button type="button" data-k="closed">Banco cerrado</button><button type="button" data-k="conflict">Otra fila (conflicto)</button><button type="button" data-k="refresh">Durante un refresco</button>
+      </div>
+      <span class="hint">o pulsa una casilla de la matriz</span>
+    </div>
+
+    <div class="stepper">
+      <button class="btn" id="first" type="button" aria-label="Al principio"><svg viewBox="0 0 16 16"><path d="M3 2h2v12H3zM14 2v12L6 8z"/></svg></button>
+      <button class="btn" id="prev" type="button" aria-label="Paso anterior"><svg viewBox="0 0 16 16"><path d="M11 2v12L3 8z"/></svg></button>
+      <button class="btn primary" id="play" type="button"></button>
+      <button class="btn" id="next" type="button" aria-label="Paso siguiente"><svg viewBox="0 0 16 16"><path d="M5 2v12l8-6z"/></svg></button>
+      <button class="btn" id="all" type="button">Ver todo</button>
+      <span class="cyc" id="cyc" aria-live="off"></span>
+      <span class="khint"><kbd>←</kbd><kbd>→</kbd> paso a paso · <kbd>espacio</kbd> reproducir</span>
+    </div>
+    <input type="range" id="scrub" min="0" max="1000" value="0" aria-label="Tiempo">
+    <div class="note" id="note" role="status" aria-live="polite"></div>
+    <div class="dw" id="dw"></div>
+    <div class="tw" id="tw"></div>
+    <div class="legend" id="legend"></div>
+  </section>
+
+
+
+  <section class="panel" aria-labelledby="latT">
+    <div class="head">
+      <div class="ti">
+        <div class="k">Apartado 3 del ejercicio</div>
+        <h2 id="latT">Latencia hasta el primer dato</h2>
+        <div class="fig" id="latFig"></div>
+      </div>
+    </div>
+    <div class="cmpw"><table class="cmpt" id="latt"></table></div>
+    <p class="foot" style="margin-top:8px">Pulsa una fila para verla arriba paso a paso. El primer dato llega al terminar CL; la línea completa, al terminar la ráfaga.</p>
+  </section>
+
+  <section class="panel" aria-labelledby="rulT">
+    <div class="head"><div class="ti"><div class="k">Reglas del juego</div><h2 id="rulT">Cómo se calcula</h2>
+      <div class="fig">Las mismas cuentas que en el documento del ejercicio.</div></div></div>
+    <ol class="rules">
+      <li><b>MT/s frente a MHz.</b> «5600» son millones de transferencias por segundo. DDR transfiere en los dos flancos, así que el reloj va a 2800 MHz y <b>tCK = 1 / 2800 MHz = 0,357 ns</b>. El tiempo por transferencia es 1 / 5600 MT/s = 0,179 ns.</li>
+      <li><b>CL, tRCD y tRP vienen en ciclos de reloj</b> (la notación de la hoja es CL-tRCD-tRP). Para pasarlos a nanosegundos se multiplican por tCK. La <b>latencia hasta el primer dato</b> es la suma de las esperas de cada caso; la línea completa añade la ráfaga.</li>
+      <li><b>Fila abierta</b>: la fila pedida ya está en el buffer, solo hace falta READ y esperar CL. <b>Banco cerrado</b>: ACTIVATE (tRCD) y READ (CL). <b>Conflicto</b>: hay otra fila abierta, así que PRECHARGE (tRP), ACTIVATE (tRCD) y READ (CL).</li>
+      <li><b>Ráfaga</b>: 16 transferencias de 4 B por un subcanal de 32 bits (BL16): 64 B, una línea de caché. Durante la ráfaga, la animación va 8 veces más lenta para que se vean los datos; la línea de tiempo sigue en nanosegundos reales.</li>
+      <li><b>Ciclos de CPU</b> = nanosegundos × frecuencia en GHz, redondeado. Los <b>huecos de emisión</b> son esos ciclos por 4, como en el superescalar de 4 vías del tema 3.</li>
+      <li><b>Política de página.</b> Con página <b>abierta</b>, la fila se queda en el buffer tras el acceso: el siguiente acierta si va a la misma fila, pero paga tRP si va a otra. Con página <b>cerrada</b>, el controlador cierra la fila nada más terminar (sin que cuente en este acceso) y el siguiente siempre encuentra el banco cerrado.</li>
+      <li><b>Refresco</b>: peor caso, la petición llega justo cuando empieza. Se cierra la fila abierta, el rango queda ocupado tRFC y después todos los bancos están cerrados.</li>
+      <li><b>Simplificaciones</b>: un solo banco, y la fila anterior lleva abierta al menos tRAS, así que tRAS y tRC no añaden espera. No se cuentan el controlador, el bus ni las cachés: en un PC real, un fallo hasta memoria tarda unos 70–100 ns.</li>
+    </ol>
+  </section>
+  <p class="foot">Datos de la hoja de características Kingston FURY KF556C40BB-32 (DDR5). Ráfagas, subcanales y número de bancos según el estándar JEDEC DDR5.</p>
+</main>
+
+<script>
+/* ===== Datos ===== */
+const MEMS = {
+  d5_5600: { name: 'DDR5-5600 CL40-40-40', prof: 'XMP #1', fam: 5, mt: 5600, cl: 40, rcd: 40, rp: 40, bl: 16, bus: 32, trfc: 295, kit: 'KF556C40BB-32' },
+  d5_4800: { name: 'DDR5-4800 CL40-39-39', prof: 'JEDEC', fam: 5, mt: 4800, cl: 40, rcd: 39, rp: 39, bl: 16, bus: 32, trfc: 295, kit: 'KF556C40BB-32' },
+};
+const PH = {
+  PRE:   { cmd: 'PRE',   par: 'tRP',  n: 'Precarga',        col: 'var(--war)' },
+  ACT:   { cmd: 'ACT',   par: 'tRCD', n: 'Activar fila',    col: 'var(--accent)' },
+  CL:    { cmd: 'RD',    par: 'CL',   n: 'Esperar el dato', col: 'var(--ctl)' },
+  BURST: { cmd: 'Datos', par: 'BL',   n: 'Ráfaga',          col: 'var(--ok)' },
+  REF:   { cmd: 'REF',   par: 'tRFC', n: 'Refresco',        col: 'var(--bad)' },
+};
+const KIND = {
+  hit:      { n: 'Fila abierta',      c: 'var(--ok)' },
+  closed:   { n: 'Banco cerrado',     c: 'var(--accent)' },
+  conflict: { n: 'Conflicto de fila', c: 'var(--war)' },
+  refresh:  { n: 'Con refresco',      c: 'var(--bad)' },
+};
+const NR = 8, NC = 16;
+const RC = r => `var(--r${r})`;
+
+/* ===== Estado ===== */
+const st = { mem: 'd5_5600', ghz: 3, policy: 'open', speed: 'normal', open: 2, acc: null, t: 0, playing: false, hist: [] };
+const M = () => MEMS[st.mem];
+const tck = m => 2000 / m.mt;       // ns por ciclo de reloj
+const ttr = m => 1000 / m.mt;       // ns por transferencia
+const tcpu = () => 1 / st.ghz;      // ns por ciclo de CPU
+const $ = id => document.getElementById(id);
+const fmt = (x, d = 1) => x.toLocaleString('es-ES', { minimumFractionDigits: d, maximumFractionDigits: d });
+const fi = x => Math.round(x).toLocaleString('es-ES');
+const cpuC = ns => ns * st.ghz;
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+const ease = p => p < .5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ===== Simulación ===== */
+function build(row, col, refresh, prev, m = M()) {
+  const ph = []; let t = 0, cur = prev;
+  const add = (k, cyc, ns) => { ph.push({ k, cyc, t0: t, t1: t + ns }); t += ns; };
+  if (refresh) { if (cur !== null) add('PRE', m.rp, m.rp * tck(m)); add('REF', null, m.trfc); cur = null; }
+  const kind = refresh ? 'refresh' : cur === row ? 'hit' : cur === null ? 'closed' : 'conflict';
+  if (cur !== null && cur !== row) add('PRE', m.rp, m.rp * tck(m));
+  if (cur !== row) add('ACT', m.rcd, m.rcd * tck(m));
+  add('CL', m.cl, m.cl * tck(m));
+  add('BURST', m.bl / 2, m.bl * ttr(m));
+  return { row, col, refresh, prev, kind, ph, total: t };
+}
+const caseNs = (m, k, burst = true) => {
+  const T = tck(m), b = burst ? m.bl * ttr(m) : 0;
+  return k === 'hit' ? m.cl * T + b : k === 'closed' ? (m.rcd + m.cl) * T + b : (m.rp + m.rcd + m.cl) * T + b;
+};
+const scaleMax = () => Math.max(st.acc.total, caseNs(M(), 'conflict'));
+function request(row, col, refresh = false) {
+  stop();
+  const prev = st.open;
+  st.acc = build(row, col, refresh, prev);
+  st.open = st.policy === 'open' ? row : null;
+  st.t = 0;
+  renderAll();
+}
+function rebuild() {
+  const a = st.acc, done = st.t >= a.total - 1e-9;
+  st.acc = build(a.row, a.col, a.refresh, a.prev);
+  st.t = done ? st.acc.total : Math.min(st.t, st.acc.total);
+}
+function requestCase(k) {
+  const r = st.acc.row;
+  let row, prev, col, refresh = false;
+  if (k === 'hit') { row = r; prev = r; col = (st.acc.col + 1) % NC; }
+  else { row = otherRow(r); col = Math.floor(Math.random() * NC); prev = k === 'closed' ? null : r; refresh = k === 'refresh'; }
+  stop();
+  st.acc = build(row, col, refresh, prev);
+  st.open = st.policy === 'open' ? row : null;
+  st.t = 0;
+  renderAll();
+}
+const firstNs = a => a.ph.find(q => q.k === 'CL').t1;
+const otherRow = avoid => { let r; do { r = Math.floor(Math.random() * NR); } while (r === avoid); return r; };
+
+function phaseAt(t) {
+  const a = st.acc;
+  if (t <= 1e-9) return { i: -1, ph: null, p: 0, start: true };
+  if (t >= a.total - 1e-9) return { i: a.ph.length, ph: null, p: 1, done: true };
+  for (let i = 0; i < a.ph.length; i++) { const q = a.ph[i]; if (t <= q.t1 + 1e-9) return { i, ph: q, p: clamp((t - q.t0) / (q.t1 - q.t0), 0, 1) }; }
+  return { i: a.ph.length, ph: null, p: 1, done: true };
+}
+
+/* ===== Diagrama del banco ===== */
+const MX = 340, MY = 50, CW = 24, RH = 19, BY = 248, BH = 26, BUSY = 322, CPUX = 830;
+const MB = MY + NR * RH;
+function slotPos(k, m) {
+  const perRow = 8, s = 22, g = 3, x0 = 850, y0 = 298;
+  return { x: x0 + (k % perRow) * (s + g), y: y0 + Math.floor(k / perRow) * (s + g), s };
+}
+function pathPt(pts, p) {
+  let L = 0; const seg = [];
+  for (let i = 1; i < pts.length; i++) { const d = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); seg.push(d); L += d; }
+  let r = p * L;
+  for (let i = 0; i < seg.length; i++) {
+    if (r <= seg[i] || i === seg.length - 1) { const q = seg[i] ? clamp(r / seg[i], 0, 1) : 1; return [pts[i][0] + (pts[i + 1][0] - pts[i][0]) * q, pts[i][1] + (pts[i + 1][1] - pts[i][1]) * q]; }
+    r -= seg[i];
+  }
+  return pts[pts.length - 1];
+}
+function renderDiagram() {
+  const a = st.acc, m = M(), pa = phaseAt(st.t);
+  // Contenido del buffer y fila abierta en el instante t
+  let bufRow = a.prev, bufA = a.prev !== null ? 1 : 0, ghost = null, refP = null;
+  for (let i = 0; i < a.ph.length; i++) {
+    const q = a.ph[i];
+    if (i < pa.i || pa.done) {
+      if (q.k === 'PRE' || q.k === 'REF') { bufRow = null; bufA = 0; }
+      if (q.k === 'ACT') { bufRow = a.row; bufA = 1; }
+    } else if (i === pa.i) {
+      if (q.k === 'PRE') bufA = 1 - pa.p;
+      if (q.k === 'REF') { bufRow = null; bufA = 0; refP = pa.p; }
+      if (q.k === 'ACT') { bufRow = null; bufA = 0; ghost = pa.p; }
+    }
+  }
+  const k = pa.ph ? pa.ph.k : null;
+  const phc = k ? PH[k].col : 'var(--line-strong)';
+  let o = '';
+  o += `<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="ahd"/></marker>
+  <marker id="ahc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="${phc}"/></marker></defs>`;
+
+  // Jerarquía
+  const H = m.fam === 5
+    ? [['Módulo (DIMM)', '32 GB · 2 rangos', 'Kingston ' + m.kit], ['Rango', '8 chips x8 = 64 bits', '2 subcanales de 32 bits'], ['Chip DRAM', '32 bancos en 8 grupos', '16 Gbit por chip'], ['Banco', 'una sola fila abierta', 'el de la derecha']]
+    : [['Módulo (DIMM)', '8 GB · 1 rango', 'Kingston ' + m.kit], ['Rango', '8 chips x8 = 64 bits', 'un canal de 64 bits'], ['Chip DRAM', '16 bancos en 4 grupos', '8 Gbit por chip'], ['Banco', 'una sola fila abierta', 'el de la derecha']];
+  H.forEach((h, i) => {
+    const y = 28 + i * 82;
+    o += `<rect class="box" x="20" y="${y}" width="212" height="62" rx="7" ${i === 3 ? 'style="stroke:var(--accent);stroke-width:2"' : ''}/>
+      <text class="nm" x="126" y="${y + 22}" text-anchor="middle">${h[0]}</text>
+      <text class="sb" x="126" y="${y + 39}" text-anchor="middle">${h[1]}</text>
+      <text class="sb" x="126" y="${y + 54}" text-anchor="middle">${h[2]}</text>`;
+    if (i < 3) o += `<path class="wr" d="M126 ${y + 62}V${y + 80}" marker-end="url(#ah)"/>`;
+  });
+  o += `<path class="wr" d="M232 305H260" marker-end="url(#ah)"/>`;
+
+  // Marco del banco
+  o += `<rect class="frame" x="262" y="16" width="528" height="336" rx="8"/>`;
+  o += `<text class="sm" x="${MX + NC * CW / 2}" y="38" text-anchor="middle">Matriz de celdas · 8 de sus miles de filas · cada casilla, una línea de 64 B</text>`;
+
+  // Matriz
+  const openRow = bufA > 0 ? bufRow : null;
+  for (let r = 0; r < NR; r++) {
+    o += `<text class="sm" x="${MX - 8}" y="${MY + r * RH + 13}" text-anchor="end">fila ${r}</text>`;
+    for (let c = 0; c < NC; c++) {
+      let op = .14;
+      if (openRow === r) op = .14 + .3 * bufA;
+      if (refP !== null && Math.floor(refP * NR * 3) % NR === r) op = .6;
+      o += `<rect class="mc" data-r="${r}" data-c="${c}" x="${MX + c * CW + 1}" y="${MY + r * RH + 1}" width="${CW - 2}" height="${RH - 2}" rx="2" fill="${refP !== null && Math.floor(refP * NR * 3) % NR === r ? 'var(--bad)' : RC(r)}" fill-opacity="${op}" stroke="none"><title>Fila ${r}, línea ${c}</title></rect>`;
+    }
+  }
+  if (openRow !== null) o += `<rect x="${MX - 1}" y="${MY + openRow * RH - 1}" width="${NC * CW + 2}" height="${RH + 2}" rx="3" fill="none" stroke="${RC(openRow)}" stroke-width="2.2" opacity="${bufA}" pointer-events="none"/>`;
+  // Petición: la fila pedida y la línea pedida, siempre marcadas
+  if (openRow !== a.row) o += `<rect x="${MX - 2}" y="${MY + a.row * RH - 2}" width="${NC * CW + 4}" height="${RH + 4}" rx="3" fill="none" stroke="var(--ink)" stroke-width="1.5" stroke-dasharray="5 3" pointer-events="none"/>`;
+  o += `<rect x="${MX + a.col * CW}" y="${MY + a.row * RH}" width="${CW}" height="${RH}" rx="3" fill="none" stroke="var(--ink)" stroke-width="2.2" stroke-dasharray="3 2" pointer-events="none"/>`;
+  const tagX = MX + NC * CW + 8;
+  o += `<text class="sm" x="${tagX}" y="${MY + a.row * RH + 13}" style="fill:var(--ink);font-weight:700">← pedida</text>`;
+  if (openRow !== null && openRow !== a.row) o += `<text class="sm" x="${tagX}" y="${MY + openRow * RH + 13}" style="fill:${RC(openRow)};font-weight:700">abierta</text>`;
+
+  // Bitlines
+  const blCol = k === 'ACT' ? RC(a.row) : k === 'PRE' ? 'var(--war)' : null;
+  for (let c = 0; c < NC; c++) {
+    const x = MX + c * CW + CW / 2;
+    o += `<line class="bl" x1="${x}" y1="${MB + 2}" x2="${x}" y2="${BY - 2}" ${blCol ? `style="stroke:${blCol};stroke-width:1.6;opacity:.75"` : ''}/>`;
+  }
+  o += `<text class="sm" x="${MX + NC * CW + 8}" y="${(MB + BY) / 2 + 4}">bitlines</text>`;
+  if (k === 'PRE') o += `<text class="sm" x="${MX - 8}" y="${(MB + BY) / 2 + 4}" text-anchor="end" style="fill:var(--war)">a VDD/2</text>`;
+
+  // Buffer de fila
+  for (let c = 0; c < NC; c++) {
+    let fill = 'none', fo = 0;
+    if (bufRow !== null && bufA > 0) { fill = RC(bufRow); fo = .55 * bufA; }
+    if (ghost !== null) { const pj = clamp((ghost - c * .02) / (1 - .02 * (NC - 1)), 0, 1); if (pj >= 1) { fill = RC(a.row); fo = .55; } }
+    if (refP !== null) { fill = 'var(--bad)'; fo = .15 + .15 * Math.abs(Math.sin(refP * 40)); }
+    o += `<rect x="${MX + c * CW + 1}" y="${BY + 1}" width="${CW - 2}" height="${BH - 2}" rx="2" fill="${fill}" fill-opacity="${fo}" stroke="var(--line-strong)" stroke-width="1"/>`;
+  }
+  o += `<rect x="${MX - 2}" y="${BY - 2}" width="${NC * CW + 4}" height="${BH + 4}" rx="4" fill="none" stroke="var(--ink)" stroke-width="1.4"/>`;
+  // (la etiqueta del buffer se dibuja después del bus, con halo)
+  let bl = 'Buffer de fila (amplificadores)';
+  const shown = ghost !== null ? null : (bufA > 0 ? bufRow : null);
+  bl += refP !== null ? ' · refrescando' : shown !== null ? ` · contiene la fila ${shown}` : ghost !== null ? ` · copiando la fila ${a.row}` : ' · vacío';
+  const bufLabel = `<text class="sb" x="${MX + NC * CW / 2}" y="${BY + BH + 18}" text-anchor="middle" style="font-weight:600;fill:var(--ink);paint-order:stroke;stroke:var(--sunk);stroke-width:9px;stroke-linejoin:round">${bl}</text>`;
+
+  // Fantasmas: la fila baja al buffer
+  if (ghost !== null) {
+    for (let c = 0; c < NC; c++) {
+      const pj = ease(clamp((ghost - c * .02) / (1 - .02 * (NC - 1)), 0, 1));
+      if (pj <= 0 || pj >= 1) continue;
+      const y = MY + a.row * RH + (BY - MY - a.row * RH) * pj;
+      o += `<rect x="${MX + c * CW + 2}" y="${y + 1}" width="${CW - 4}" height="${RH - 3}" rx="2" fill="${RC(a.row)}" fill-opacity=".85" pointer-events="none"/>`;
+    }
+  }
+
+  // Columna elegida y bus de datos
+  const xc = MX + a.col * CW + CW / 2;
+  const busOn = k === 'CL' || k === 'BURST' || pa.done;
+  const bc = k === 'CL' ? 'var(--ctl)' : k === 'BURST' ? 'var(--ok)' : 'var(--line-strong)';
+  o += `<path d="M${xc} ${BY + BH + 2}V${BUSY}H${CPUX}" fill="none" stroke="${busOn ? bc : 'var(--line-strong)'}" stroke-width="${busOn ? 2.4 : 1.4}" ${k === 'CL' ? 'stroke-dasharray="5 4"' : ''} marker-end="url(#ah)"/>`;
+  o += bufLabel;
+  o += `<text class="sm" x="${MX}" y="${BUSY + 18}">bus de datos · ${m.bus} bits${m.fam === 5 ? ' (un subcanal)' : ''}</text>`;
+  if (k === 'CL' || k === 'BURST') {
+    const pulse = k === 'CL' ? .5 + .5 * Math.abs(Math.sin(st.t * 1.2)) : 1;
+    o += `<rect x="${MX + a.col * CW - 1}" y="${BY - 1}" width="${CW + 2}" height="${BH + 2}" rx="3" fill="none" stroke="${bc}" stroke-width="3" opacity="${pulse}"/>`;
+  }
+
+  // Controlador
+  o += `<rect class="box" x="${CPUX}" y="16" width="230" height="146" rx="7"/>
+    <text class="nm" x="${CPUX + 14}" y="38">Controlador de memoria</text>
+    <text class="sb" x="${CPUX + 14}" y="58">Petición: fila ${a.row} · línea ${a.col}</text>
+    <text class="sb" x="${CPUX + 14}" y="76">Fila abierta en el banco: ${openRow !== null && bufA >= .5 ? openRow : 'ninguna'}</text>`;
+  let cmd = '—', cc = 'var(--muted)';
+  if (pa.start) { cmd = 'nueva petición'; cc = 'var(--ink)'; }
+  else if (pa.done) { cmd = 'línea servida'; cc = 'var(--ok)'; }
+  else { cc = PH[k].col; cmd = k === 'PRE' ? 'PRE  cierra fila ' + (a.prev ?? '') : k === 'ACT' ? 'ACT  fila ' + a.row : k === 'CL' ? 'RD  línea ' + a.col : k === 'REF' ? 'REF  refresco' : 'datos →'; }
+  o += `<text class="cmdt" x="${CPUX + 14}" y="140" fill="${cc}">${cmd}</text>`;
+  const cmdOn = k && k !== 'BURST';
+  o += `<path d="M${CPUX} 112H794" fill="none" stroke="${cmdOn ? phc : 'var(--line-strong)'}" stroke-width="${cmdOn ? 2.4 : 1.4}" marker-end="url(#${cmdOn ? 'ahc' : 'ah'})"/>`;
+  o += `<text class="sm" x="812" y="104" text-anchor="middle">órdenes</text>`;
+
+  // Procesador
+  o += `<rect class="box" x="${CPUX}" y="236" width="230" height="164" rx="7"/>
+    <text class="nm" x="${CPUX + 14}" y="258">Procesador</text>
+    <text class="sb" x="${CPUX + 14}" y="276">falla en caché y pide una línea</text>`;
+  o += `<path d="M${CPUX + 200} 236V164" fill="none" stroke="${pa.start ? 'var(--ink)' : 'var(--line-strong)'}" stroke-width="${pa.start ? 2.4 : 1.4}" marker-end="url(#ah)"/>`;
+  o += `<text class="sm" x="${CPUX + 192}" y="204" text-anchor="end">pide la línea</text>`;
+  // Huecos de la línea y datos en vuelo
+  let arrived = 0;
+  const bi = a.ph.findIndex(q => q.k === 'BURST'), bq = a.ph[bi];
+  const bp = pa.done ? 1 : pa.i > bi ? 1 : pa.i === bi ? pa.p : 0;
+  const BL = m.bl, D = BL + 2;
+  for (let j = 0; j < BL; j++) {
+    const d0 = j / D, d1 = (j + 3) / D, s = slotPos(j, m);
+    const got = bp >= d1 - 1e-9;
+    if (got) arrived++;
+    o += `<rect x="${s.x}" y="${s.y}" width="${s.s}" height="${s.s}" rx="3" fill="${got ? RC(a.row) : 'none'}" fill-opacity="${got ? .75 : 0}" stroke="var(--line-strong)" stroke-width="1" ${got ? '' : 'stroke-dasharray="2 2"'}/>`;
+    if (bp > d0 && bp < d1) {
+      const q = (bp - d0) / (d1 - d0);
+      const [px, py] = pathPt([[xc, BY + BH], [xc, BUSY], [CPUX, BUSY], [s.x + s.s / 2, s.y + s.s / 2]], q);
+      o += `<rect x="${px - 6}" y="${py - 6}" width="12" height="12" rx="2" fill="${RC(a.row)}" stroke="var(--panel)" stroke-width="1"/>`;
+    }
+  }
+  const per = 64 / BL;
+  o += `<text class="sb" x="${CPUX + 14}" y="${m.bl > 8 ? 372 : 346}">línea de 64 B = ${BL} × ${per} B</text>`;
+  o += `<text class="sb" x="${CPUX + 14}" y="${m.bl > 8 ? 390 : 364}" style="font-weight:700;fill:${arrived === BL ? 'var(--ok)' : 'var(--ink)'}">han llegado ${arrived} de ${BL}</text>`;
+
+  $('dw').innerHTML = `<svg class="dg" viewBox="0 0 1080 414" role="img" aria-label="Banco de DRAM: matriz, buffer de fila, controlador y procesador">${o}</svg>`;
+}
+
+/* ===== Línea de tiempo ===== */
+function niceStep(max) { for (const s of [1, 2, 5, 10, 20, 25, 50, 100]) if (max / s <= 12) return s; return 200; }
+function renderTL() {
+  const a = st.acc, m = M(), t = st.t, pa = phaseAt(t);
+  const X0 = 210, X1 = 1060, W = X1 - X0, SM = scaleMax(), sc = W / SM, X = v => X0 + v * sc;
+  const rows = [52, 96, 140, 186, 230], tc = tcpu(), T = tck(m), tt = ttr(m);
+  let o = `<defs><clipPath id="el"><rect x="${X0}" y="0" width="${Math.max(0, t * sc)}" height="260"/></clipPath></defs>`;
+  // Eje
+  const stp = niceStep(SM);
+  for (let v = 0; v <= SM + 1e-9; v += stp) o += `<line class="gr" x1="${X(v)}" x2="${X(v)}" y1="30" y2="248"/><text class="ax" x="${X(v)}" y="22">${v} ns</text>`;
+  const lab = (y, a1, a2) => `<text class="ln" x="16" y="${y - 2}">${a1}</text><text class="ls" x="16" y="${y + 13}">${a2}</text>`;
+  // 1. Procesador
+  const nC = Math.floor(SM / tc), pxC = tc * sc, y1 = rows[0];
+  o += lab(y1, `Procesador · ${st.ghz} GHz`, `${fi(Math.floor(t / tc + 1e-9))} ciclos (${fmt(tc, 3)} ns cada uno)`);
+  const ticks = (cls) => { let s = ''; if (pxC >= 3) { for (let i = 0; i <= nC; i++) s += `M${X(i * tc).toFixed(1)} ${y1 - 10}V${y1 + 10}`; } else { for (let i = 0; i <= nC; i += 10) s += `M${X(i * tc).toFixed(1)} ${y1 - 12}V${y1 + 12}`; } return s; };
+  if (pxC < 3) o += `<rect x="${X0}" y="${y1 - 7}" width="${W}" height="14" fill="var(--sunk)" stroke="var(--line)"/><rect x="${X0}" y="${y1 - 7}" width="${t * sc}" height="14" fill="var(--accent)" fill-opacity=".3"/>`;
+  o += `<path d="${ticks()}" stroke="var(--line-strong)" stroke-width="1"/>`;
+  o += `<path d="${ticks()}" stroke="var(--accent)" stroke-width="1.6" clip-path="url(#el)"/>`;
+  // 2. Lo que suponíamos
+  const y2 = rows[1], w1 = Math.max(2, tc * sc);
+  o += lab(y2, 'Lo que suponíamos', 'tema 3: memoria en 1 ciclo');
+  o += `<rect x="${X0}" y="${y2 - 8}" width="${w1}" height="16" fill="var(--accent)" rx="1"/><text class="pl" x="${X0 + w1 + 8}" y="${y2 + 4}">1 ciclo = ${fmt(tc, 3)} ns: aquí ya habría terminado</text>`;
+  // 3. Reloj de memoria
+  const y3 = rows[2], pxM = T * sc, nM = Math.floor(SM / T);
+  o += lab(y3, `Reloj de memoria · ${fi(m.mt / 2)} MHz`, `${fi(Math.floor(t / T + 1e-9))} ciclos (tCK = ${fmt(T, 3)} ns)`);
+  if (pxM >= 5) {
+    let d = `M${X0} ${y3 + 9}`;
+    for (let i = 0; i < nM; i++) { const xa = X(i * T), xb = X(i * T + T / 2), xe = X((i + 1) * T); d += `L${xa.toFixed(1)} ${y3 - 9}L${xb.toFixed(1)} ${y3 - 9}L${xb.toFixed(1)} ${y3 + 9}L${xe.toFixed(1)} ${y3 + 9}`; }
+    o += `<path d="${d}" fill="none" stroke="var(--line-strong)" stroke-width="1.1"/><path d="${d}" fill="none" stroke="var(--ctl)" stroke-width="1.6" clip-path="url(#el)"/>`;
+  } else {
+    o += `<rect x="${X0}" y="${y3 - 8}" width="${W}" height="16" fill="var(--sunk)" stroke="var(--line)"/><rect x="${X0}" y="${y3 - 8}" width="${t * sc}" height="16" fill="var(--ctl)" fill-opacity=".3"/>`;
+  }
+  // 4. Órdenes
+  const y4 = rows[3];
+  o += lab(y4, 'Órdenes del controlador', pa.ph ? `${PH[pa.ph.k].n}` : pa.done ? 'terminado' : 'esperando');
+  a.ph.forEach(q => {
+    const P = PH[q.k], x0 = X(q.t0), w = (q.t1 - q.t0) * sc, ns = q.t1 - q.t0;
+    const full = q.cyc !== null ? `${P.cmd} · ${P.par} = ${q.cyc} ciclos · ${fmt(ns)} ns` : `${P.cmd} · ${P.par} = ${fmt(ns, 0)} ns`;
+    const shortL = q.k === 'BURST' ? 'BL' : P.cmd;
+    const lb = w > full.length * 6.4 + 12 ? full : w > shortL.length * 7 + 8 ? shortL : '';
+    o += `<g class="ph" data-t="${q.t1}"><rect x="${x0}" y="${y4 - 15}" width="${Math.max(1, w)}" height="30" rx="3" fill="${P.col}" fill-opacity=".14" stroke="${P.col}" stroke-width="1.4"/>`;
+    o += `<rect x="${x0}" y="${y4 - 15}" width="${clamp(t - q.t0, 0, ns) * sc}" height="30" rx="3" fill="${P.col}" fill-opacity=".32"/>`;
+    if (lb) o += `<text class="pl" x="${x0 + w / 2}" y="${y4 + 4}" text-anchor="middle">${lb}</text>`;
+    o += `<title>${P.n}: ${full}</title></g>`;
+  });
+  // 5. Datos
+  const y5 = rows[4], bq = a.ph.find(q => q.k === 'BURST');
+  let nd = 0;
+  for (let j = 0; j < m.bl; j++) {
+    const s0 = bq.t0 + j * tt, s1 = s0 + tt, done = t >= s1 - 1e-9;
+    if (done) nd++;
+    o += `<rect x="${X(s0) + .4}" y="${y5 - 8}" width="${Math.max(.8, tt * sc - .8)}" height="16" fill="${done ? 'var(--ok)' : 'none'}" stroke="var(--ok)" stroke-width=".8"/>`;
+  }
+  o += lab(y5, `Datos · ${fi(m.mt)} MT/s`, `${nd} de ${m.bl} transferencias (${fmt(tt, 3)} ns cada una)`);
+  const bx = X(bq.t1);
+  if (bx < X1 - 200) o += `<text class="ls" x="${bx + 8}" y="${y5 + 4}">una línea de 64 B en ${fmt(bq.t1 - bq.t0, 2)} ns</text>`;
+  // Primer dato
+  const fx = X(firstNs(a)), fns = firstNs(a);
+  o += `<line x1="${fx}" x2="${fx}" y1="30" y2="248" stroke="var(--ctl)" stroke-width="1.6" stroke-dasharray="5 4"/>`;
+  o += `<text class="pl" x="${fx - 8}" y="${y5 + 4}" text-anchor="end" style="fill:var(--ctl);font-weight:700;paint-order:stroke;stroke:var(--panel);stroke-width:5px">primer dato: ${fmt(fns)} ns ≈ ${fi(cpuC(fns))} ciclos de CPU</text>`;
+  // Cabezal
+  const hx = X(t);
+  o += `<line x1="${hx}" x2="${hx}" y1="30" y2="248" stroke="var(--bad)" stroke-width="2"/>`;
+  if (st.playing && pa.ph && pa.ph.k === 'BURST') o += `<text class="pl" x="${hx + 6}" y="${y4 - 20}" style="fill:var(--ok);font-weight:700">cámara lenta ×8</text>`;
+  $('tw').innerHTML = `<svg class="tl" viewBox="0 0 1080 258" role="img" aria-label="Línea de tiempo del acceso">${o}</svg>`;
+}
+
+/* ===== Textos ===== */
+function renderNote() {
+  const a = st.acc, m = M(), pa = phaseAt(st.t), T = tck(m), tt = ttr(m);
+  const K = KIND[a.kind];
+  const prevTxt = a.prev === null ? 'ninguna fila' : `la fila ${a.prev}`;
+  let h = '', nc = 'var(--accent)';
+  const q = pa.ph;
+  if (pa.start) {
+    const what = a.kind === 'hit' ? 'Basta con leer: solo hay que esperar CL.'
+      : a.kind === 'closed' ? 'Hay que abrir la fila (tRCD) y luego leer (CL).'
+      : a.kind === 'conflict' ? 'Hay que cerrar la fila abierta (tRP), abrir la nueva (tRCD) y leer (CL).'
+      : `Pero llega justo cuando empieza un refresco: hay que esperar tRFC = ${m.trfc} ns.`;
+    h = `<span class="tg" style="--c:${K.c}">${K.n}</span><b>Nueva petición.</b> La caché ha fallado y el procesador pide la línea ${a.col} de la fila ${a.row}. El banco tiene abierta ${prevTxt}. ${what}`;
+    nc = K.c;
+  } else if (pa.done) {
+    const n = Math.round(cpuC(a.total));
+    const pol = st.policy === 'open' ? `Con página abierta, la fila ${a.row} se queda en el buffer: si el siguiente acceso va a la misma fila, será un acierto.` : 'Con página cerrada, el controlador cierra ahora la fila (no cuenta en este acceso): el siguiente encontrará el banco cerrado.';
+    const f = firstNs(a);
+    h = `<span class="tg" style="--c:${K.c}">${K.n}</span><b>Primer dato a los ${fmt(f)} ns ≈ ${fi(cpuC(f))} ciclos de CPU; línea completa a los ${fmt(a.total)} ns ≈ ${fi(n)} ciclos.</b> En el tema 3 suponíamos 1 ciclo. Un superescalar de 4 vías habría podido emitir unas ${fi(4 * n)} instrucciones en este tiempo. ${pol}`;
+    nc = 'var(--bad)';
+  } else {
+    const P = PH[q.k]; nc = P.col;
+    const done = q.cyc !== null ? Math.min(q.cyc, Math.floor(pa.p * q.cyc + 1e-9)) : null;
+    const prog = done !== null ? ` Van ${done} de ${q.cyc} ciclos.` : '';
+    if (q.k === 'PRE') h = `<b>PRECHARGE · tRP = ${q.cyc} ciclos × ${fmt(T, 3)} ns = ${fmt(q.t1 - q.t0)} ns.</b> ${a.refresh ? 'Antes de refrescar hay que cerrar la fila abierta.' : `El banco tiene abierta otra fila, la ${a.prev}, y solo cabe una.`} Los amplificadores devuelven su contenido a la matriz y las <i>bitlines</i> vuelven a la tensión de reposo.${prog}`;
+    if (q.k === 'REF') h = `<b>REFRESH · tRFC = ${m.trfc} ns ≈ ${fi(cpuC(m.trfc))} ciclos de CPU.</b> Las celdas pierden su carga y hay que reescribirlas periódicamente. Mientras dura el refresco, el rango no atiende ninguna petición. Al terminar, todos los bancos quedan cerrados.`;
+    if (q.k === 'ACT') h = `<b>ACTIVATE · tRCD = ${q.cyc} ciclos × ${fmt(T, 3)} ns = ${fmt(q.t1 - q.t0)} ns.</b> Se abre la fila ${a.row}: todas sus celdas vuelcan su carga en las <i>bitlines</i> y los amplificadores la detectan y la copian al buffer. Se copia la fila entera, aunque solo queramos una línea.${prog}`;
+    if (q.k === 'CL') h = `<b>READ · CL = ${q.cyc} ciclos × ${fmt(T, 3)} ns = ${fmt(q.t1 - q.t0)} ns.</b> Con la fila ya en el buffer, se elige la línea ${a.col}. Desde la orden hasta el primer dato pasan CL ciclos: es tiempo de espera, por el bus aún no sale nada. El primer dato llegará a los ${fmt(q.t1)} ns ≈ ${fi(cpuC(q.t1))} ciclos de CPU.${prog}`;
+    if (q.k === 'BURST') { const n = Math.min(m.bl, Math.floor(pa.p * m.bl + 1e-9)); h = `<b>Ráfaga · ${m.bl} transferencias × ${fmt(tt, 3)} ns = ${fmt(q.t1 - q.t0, 2)} ns.</b> Sale un dato de ${64 / m.bl} B en cada flanco del reloj por el bus de ${m.bus} bits: ${m.bl} × ${64 / m.bl} B = 64 B, una línea de caché. Comparado con la espera, transferir es muy rápido. Van ${n} de ${m.bl}.`; }
+  }
+  $('note').innerHTML = h;
+  $('note').style.setProperty('--nc', nc);
+}
+function renderStepper() {
+  const a = st.acc, m = M(), t = st.t;
+  $('cyc').innerHTML = `t = ${fmt(t, 2)} ns <small>· ${fi(Math.floor(t / tck(m) + 1e-9))} ciclos de memoria · ${fi(Math.floor(t / tcpu() + 1e-9))} ciclos de CPU</small>`;
+  $('play').innerHTML = st.playing ? '<svg viewBox="0 0 16 16"><path d="M3 2h4v12H3zM9 2h4v12H9z"/></svg>Pausa' : '<svg viewBox="0 0 16 16"><path d="M4 2v12l10-6z"/></svg>Reproducir';
+  $('scrub').value = Math.round(1000 * t / a.total);
+  $('first').disabled = $('prev').disabled = t <= 1e-9;
+  $('next').disabled = $('all').disabled = t >= a.total - 1e-9;
+}
+function renderDyn() { renderDiagram(); renderTL(); renderNote(); renderStepper(); }
+
+function renderHead() {
+  const a = st.acc, m = M(), n = Math.round(cpuC(a.total));
+  $('hstat').innerHTML = `<div class="lab">Este acceso · ${KIND[a.kind].n.toLowerCase()}</div>
+    <div class="big ref">1<small>ciclo · tema 3</small></div><span class="arrow">→</span>
+    <div class="big on">${fi(n)}<small>ciclos de CPU de verdad</small></div>`;
+  const T = tck(m), tt = ttr(m), tc = tcpu();
+  const f = firstNs(a), cnt = { hit: 'CL', closed: 'tRCD + CL', conflict: 'tRP + tRCD + CL', refresh: 'tRP + tRFC + tRCD + CL' }[a.kind];
+  $('tiles').innerHTML = [
+    ['cpu', fmt(tc, 3) + ' ns', `Ciclo de CPU · 1 / ${st.ghz} GHz`],
+    ['mem', fmt(T, 3) + ' ns', `Ciclo de memoria (tCK) · 1 / ${fi(m.mt / 2)} MHz`],
+    ['dat', fmt(tt, 3) + ' ns', `Por transferencia · 1 / ${fi(m.mt)} MT/s`],
+    ['bad', fmt(f) + ' ns', `Hasta el primer dato · ${cnt}`, `≈ ${fi(cpuC(f))} ciclos de CPU`],
+    ['bad', fmt(a.total) + ' ns', `Con la ráfaga · ${cnt} + BL${m.bl}`, `≈ ${fi(n)} ciclos de CPU`],
+  ].map(([c, v, l, v2]) => `<div class="tile ${c}"><div class="tv">${v}</div>${v2 ? `<div class="tv2">${v2}</div>` : ''}<div class="tl">${l}</div></div>`).join('');
+  $('accFig').textContent = `Kingston FURY ${m.kit}, ${m.name} (${m.prof}), con un procesador a ${st.ghz} GHz. El recuadro discontinuo marca la línea pedida; el color indica de qué fila viene cada dato.`;
+  $('rqSeg').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.k === a.kind)));
+  $('legend').innerHTML = Object.entries(PH).map(([k, P]) => `<span><i style="--c:${P.col}"></i>${P.cmd} · ${P.n} (${P.par})</span>`).join('') + '<span><svg width="22" height="12"><line x1="11" x2="11" y1="0" y2="12" stroke="var(--bad)" stroke-width="2"/></svg>instante actual</span>';
+}
+function renderLat() {
+  const m = M(), T = tck(m), b = m.bl * ttr(m), cur = st.acc.kind;
+  const C = [
+    ['hit', 'RD', 'CL', `${m.cl} ciclos`, m.cl, m.cl * T],
+    ['closed', 'ACT → RD', 'tRCD + CL', `${m.rcd} + ${m.cl} = ${m.rcd + m.cl} ciclos`, m.rcd + m.cl, (m.rcd + m.cl) * T],
+    ['conflict', 'PRE → ACT → RD', 'tRP + tRCD + CL', `${m.rp} + ${m.rcd} + ${m.cl} = ${m.rp + m.rcd + m.cl} ciclos`, m.rp + m.rcd + m.cl, (m.rp + m.rcd + m.cl) * T],
+    ['refresh', 'PRE → REF → ACT → RD', 'tRP + tRFC + tRCD + CL', `${m.rp + m.rcd + m.cl} ciclos + ${m.trfc} ns`, null, (m.rp + m.rcd + m.cl) * T + m.trfc],
+  ];
+  $('latFig').textContent = `${m.name} (${m.prof}): tCK = 1 / ${fi(m.mt / 2)} MHz = ${fmt(T, 3)} ns. Procesador a ${st.ghz} GHz: ${fmt(tcpu(), 3)} ns por ciclo. Ciclos de memoria × tCK = nanosegundos; nanosegundos ÷ ciclo de CPU = ciclos de CPU.`;
+  $('latt').innerHTML = `<thead><tr><th>Caso</th><th>Órdenes</th><th>Cuenta</th><th>Ciclos de memoria</th><th>Primer dato</th><th>Ciclos de CPU</th><th>Línea completa<small>+ ráfaga de ${fmt(b, 2)} ns</small></th></tr></thead><tbody>` +
+    C.map(([k, ord, f, cuenta, cyc, ns]) => `<tr data-k="${k}" class="${k === cur ? 'cur' : ''}"><td><span class="tg" style="--c:${KIND[k].c}">${KIND[k].n}</span></td><td>${ord}</td><td>${f}<small>${cuenta}</small></td><td>${cyc === null ? '—' : cyc}<small>${cyc === null ? '' : `× ${fmt(T, 3)} ns`}</small></td><td>${fmt(ns)} ns</td><td>≈ ${fi(cpuC(ns))}<small>${fmt(ns)} ÷ ${fmt(tcpu(), 3)}</small></td><td>${fmt(ns + b)} ns<small>≈ ${fi(cpuC(ns + b))} ciclos</small></td></tr>`).join('') + '</tbody>';
+}
+function renderControls() {
+  const set = (id, v) => $(id).querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === String(v))));
+  set('ghzSeg', st.ghz); set('polSeg', st.policy); set('spdSeg', st.speed);
+  $('mem').value = st.mem;
+}
+function renderAll() { renderControls(); renderHead(); renderLat(); renderDyn(); }
+
+/* ===== Reproducción ===== */
+let raf = null, last = 0;
+function play() {
+  if (st.t >= st.acc.total - 1e-9) st.t = 0;
+  if (reduce) { step(1); return; }
+  st.playing = true; last = performance.now(); raf = requestAnimationFrame(tick); renderStepper();
+}
+function stop() { st.playing = false; if (raf) cancelAnimationFrame(raf); raf = null; }
+function tick(now) {
+  const dt = Math.min(.1, (now - last) / 1000); last = now;
+  const dur = { slow: 16, normal: 8, fast: 3 }[st.speed];
+  let rate = scaleMax() / dur;
+  const pa = phaseAt(st.t);
+  if (pa.ph && pa.ph.k === 'BURST') rate /= 8;
+  st.t = Math.min(st.acc.total, st.t + dt * rate);
+  if (st.t >= st.acc.total - 1e-9) { st.t = st.acc.total; stop(); }
+  renderDyn();
+  if (st.playing) raf = requestAnimationFrame(tick);
+}
+function bounds() { return [0, ...st.acc.ph.map(q => q.t1)]; }
+function step(d) {
+  stop();
+  const b = bounds(), t = st.t;
+  if (d > 0) { const n = b.find(x => x > t + 1e-6); st.t = n ?? st.acc.total; }
+  else { const p = b.filter(x => x < t - 1e-6); st.t = p.length ? p[p.length - 1] : 0; }
+  renderDyn();
+}
+
+/* ===== Arranque ===== */
+function init() {
+  const sel = $('mem');
+  sel.innerHTML = Object.entries(MEMS).map(([id, m]) => `<option value="${id}">${m.name} · ${m.prof}</option>`).join('');
+  sel.addEventListener('change', () => { stop(); st.mem = sel.value; rebuild(); renderAll(); });
+  $('ghzSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; st.ghz = +b.dataset.v; renderAll(); });
+  $('polSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; st.policy = b.dataset.v; st.open = st.policy === 'open' ? st.acc.row : null; renderAll(); });
+  $('spdSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; st.speed = b.dataset.v; renderControls(); });
+  $('rqSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (b) requestCase(b.dataset.k); });
+  $('latt').addEventListener('click', e => { const r = e.target.closest('tr[data-k]'); if (r) requestCase(r.dataset.k); });
+  $('dw').addEventListener('pointerdown', e => { if (e.button !== 0) return; const c = e.target.closest('[data-r]'); if (c) { e.preventDefault(); request(+c.dataset.r, +c.dataset.c); } });
+  $('first').addEventListener('click', () => { stop(); st.t = 0; renderDyn(); });
+  $('prev').addEventListener('click', () => step(-1));
+  $('next').addEventListener('click', () => step(1));
+  $('all').addEventListener('click', () => { stop(); st.t = st.acc.total; renderDyn(); });
+  $('play').addEventListener('click', () => { if (st.playing) { stop(); renderStepper(); } else play(); });
+  $('scrub').addEventListener('input', e => { stop(); st.t = st.acc.total * (+e.target.value) / 1000; renderDyn(); });
+  $('tw').addEventListener('click', e => { const g = e.target.closest('[data-t]'); if (g) { stop(); st.t = +g.dataset.t; renderDyn(); } });
+  document.addEventListener('keydown', e => {
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) && e.target.type !== 'range') return;
+    if (e.key === 'ArrowRight') { e.preventDefault(); step(1); }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); step(-1); }
+    else if (e.key === ' ' && e.target.tagName !== 'BUTTON') { e.preventDefault(); if (st.playing) { stop(); renderStepper(); } else play(); }
+  });
+  request(5, 3);
+}
+init();
+</script>
+<script data-goatcounter="https://juanjoual.goatcounter.com/count"
+        async src="//gc.zgo.at/count.js"></script>
+</body>
+</html>
