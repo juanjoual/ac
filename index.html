@@ -358,9 +358,27 @@
         demos: [
       {
         carpeta: "latencia-dram",
-        titulo: "La memoria no contesta en 1 ciclo",
+        titulo: "La DRAM no contesta en 1 ciclo",
         descripcion: "Mira por dentro un banco de una DDR5-5600 real mientras sirve una línea de caché: se cierra una fila, se abre la nueva y sale la ráfaga de 64 B. La línea de tiempo cuenta a la vez ciclos del procesador y de la memoria, con página abierta o cerrada, conflictos y refrescos.",
         color: "i6"
+      },
+      {
+        carpeta: "jerarquia-memoria",
+        titulo: "Jerarquía de memoria",
+        descripcion: "Los niveles de memoria de un ordenador actual con números reales: cuánto tarda, cuánto cabe y cuánto cuesta cada GB. Una pirámide que se puede pulsar nivel a nivel, una carrera en la que todos reciben la petición a la vez y una tabla editable. Si la L1 tardara un segundo, el disco duro tardaría dos meses.",
+        color: "i0"
+      },
+      {
+        carpeta: "escalera-latencias",
+        titulo: "La escalera de latencias",
+        descripcion: "Mide la jerarquía del ordenador en el que se abre: recorre un vector cada vez más grande y el tiempo por acceso sube de escalón en escalón al dejar de caber en L1, L2 y L3. Coloca sola las cachés, estima la frecuencia y muestra al lado la escalera contraria, la del coste por GB.",
+        color: "i2"
+      },
+      {
+        carpeta: "filas-columnas",
+        titulo: "Filas contra columnas",
+        descripcion: "Dos programas suman la misma matriz cambiando solo el orden de los bucles. Una simulación paso a paso muestra por qué uno aprovecha cada línea de caché y el otro la tira, y luego se mide en tu ordenador cuántas veces más tarda recorrerla por columnas.",
+        color: "i3"
       }
         ]
       },

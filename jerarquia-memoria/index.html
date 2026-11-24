@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Jerarquía de memoria</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@400;600&family=Source+Sans+3:wght@400;600;700&display=swap">
+<style>
+/* Misma familia visual que «La memoria no contesta en 1 ciclo», «Superescalar de doble emisión» y «Predicción de saltos» */
+:root{
+  --paper:#f2f4f8; --panel:#ffffff; --sunk:#f7f8fb; --ink:#152033; --muted:#566377; --line:#d6dce5; --line-strong:#9aa6b8;
+  --accent:#2148c9; --accent-ink:#ffffff;
+  --ok:#0a8273; --over:#b47600; --bad:#c0392b; --ctl:#7a3fc0; --war:#b47600;
+  --r0:#2563c4; --r1:#cf5f1c; --r2:#2c8a4d; --r3:#c02f80; --r4:#6a4bd0; --r5:#a67a0e; --r6:#0a8273; --r7:#b03a3a;
+  --f-display:"Barlow Condensed","Arial Narrow",sans-serif;
+  --f-body:"Source Sans 3","Segoe UI",system-ui,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme=light]){
+  --paper:#0e131b; --panel:#151c27; --sunk:#111821; --ink:#e2e8f1; --muted:#95a2b6; --line:#273244; --line-strong:#56637a;
+  --accent:#7d9fff; --accent-ink:#0b1224;
+  --ok:#35c4b2; --over:#f0b42a; --bad:#ff6e62; --ctl:#b590ff; --war:#f0b42a;
+  --r0:#6aa2ec; --r1:#f2935c; --r2:#5fc187; --r3:#ea72b8; --r4:#a38bf2; --r5:#e2b24b; --r6:#35c4b2; --r7:#ff7f7f;
+  color-scheme:dark;
+}}
+:root[data-theme=dark]{
+  --paper:#0e131b; --panel:#151c27; --sunk:#111821; --ink:#e2e8f1; --muted:#95a2b6; --line:#273244; --line-strong:#56637a;
+  --accent:#7d9fff; --accent-ink:#0b1224;
+  --ok:#35c4b2; --over:#f0b42a; --bad:#ff6e62; --ctl:#b590ff; --war:#f0b42a;
+  --r0:#6aa2ec; --r1:#f2935c; --r2:#5fc187; --r3:#ea72b8; --r4:#a38bf2; --r5:#e2b24b; --r6:#35c4b2; --r7:#ff7f7f;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.5 var(--f-body);-webkit-font-smoothing:antialiased;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);overflow-x:clip}
+.wrap{max-width:1380px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0}
+h2{font-size:26px;font-weight:700;letter-spacing:.01em;line-height:1.1}
+h3{font-size:19px;font-weight:700;letter-spacing:.01em}
+p{margin:0}
+code,.mono{font-family:var(--f-mono);font-size:.88em}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+a{color:var(--accent)}
+
+.top{border-bottom:1px solid var(--line);background:var(--panel)}
+.top .wrap{padding-block:24px 18px;display:flex;flex-wrap:wrap;gap:18px 40px;align-items:flex-end;justify-content:space-between}
+.top .intro{min-width:0;flex:1 1 560px}
+.eyebrow{font:600 12.5px var(--f-display);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+h1{font-size:clamp(32px,4.4vw,50px);line-height:1;font-weight:700;margin-top:6px}
+.lede{margin-top:10px;max-width:80ch;color:var(--muted)}
+.lede b{color:var(--ink)}
+.hstat{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap}
+.hstat .lab{width:100%;font:600 12.5px var(--f-display);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.hstat .big{font:700 44px/1 var(--f-display);font-variant-numeric:tabular-nums;display:flex;flex-direction:column;align-items:center;gap:2px}
+.hstat .big small{font:600 11.5px var(--f-display);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.hstat .big.ref{color:var(--muted)}
+.hstat .big.on{color:var(--bad)}
+.hstat .big.good{color:var(--ok)}
+.hstat .arrow{font:600 26px/1 var(--f-display);color:var(--muted);padding-bottom:20px}
+
+main.wrap{padding-block:16px 48px;display:flex;flex-direction:column;gap:16px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:16px;min-width:0}
+.head{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:flex-end;justify-content:space-between;margin-bottom:12px}
+.head .ti{min-width:0;flex:1 1 380px}
+.head .k{font:600 12.5px var(--f-display);letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+.head .fig{font-size:14px;color:var(--muted);margin-top:3px;max-width:86ch}
+.btn{border:1px solid var(--line-strong);background:var(--panel);border-radius:5px;padding:6px 12px;font-weight:600;font-size:13.5px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{filter:brightness(1.08);color:var(--accent-ink)}
+.btn:disabled{opacity:.4;cursor:default;pointer-events:none}
+.btn svg{width:14px;height:14px;fill:currentColor}
+.seg{display:inline-flex;border:1px solid var(--line-strong);border-radius:5px;overflow:hidden;background:var(--sunk);flex-wrap:wrap}
+.seg button{border:0;background:none;padding:6px 12px;font-weight:600;font-size:13.5px;cursor:pointer;border-right:1px solid var(--line)}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed=true]{background:var(--accent);color:var(--accent-ink)}
+.seg button:disabled{opacity:.45;cursor:default}
+.fld{display:flex;flex-direction:column;gap:3px}
+.fld>.seg{align-self:flex-start}
+.fld>span{font:600 12px var(--f-display);letter-spacing:.11em;text-transform:uppercase;color:var(--muted)}
+select,input.num{border:1px solid var(--line-strong);border-radius:5px;background:var(--panel);padding:6px 8px;font-weight:600;font-size:13.5px;max-width:100%}
+input.num{width:8ch;font-variant-numeric:tabular-nums;text-align:right}
+.ctl{display:flex;gap:12px 20px;flex-wrap:wrap;align-items:flex-end}
+
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:12px}
+.tile{padding:9px 12px;border-radius:5px;background:var(--sunk);border:1px solid var(--line);border-top:3px solid var(--tc,var(--line-strong))}
+.tile .tv{font:700 28px/1.05 var(--f-display);font-variant-numeric:tabular-nums}
+.tile .tv2{font:700 19px/1.15 var(--f-display);font-variant-numeric:tabular-nums;margin-top:2px}
+.tile .tl{font-size:12.5px;color:var(--muted);margin-top:2px}
+.tile.cpu{--tc:var(--accent)} .tile.mem{--tc:var(--ctl)} .tile.dat{--tc:var(--ok)}
+.tile.bad{--tc:var(--bad)} .tile.bad .tv,.tile.bad .tv2{color:var(--bad)}
+.tile.ok{--tc:var(--ok)} .tile.ok .tv{color:var(--ok)}
+
+.stepper{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.stepper .cyc{font:700 19px var(--f-display);font-variant-numeric:tabular-nums}
+.stepper .cyc small{font:600 14px var(--f-display);color:var(--muted)}
+.khint{font-size:13px;color:var(--muted);display:inline-flex;align-items:center;gap:6px}
+kbd{font:600 11.5px var(--f-mono);padding:1px 6px;border:1px solid var(--line-strong);border-bottom-width:2px;border-radius:4px;background:var(--panel);color:var(--ink)}
+.note{margin:0 0 10px;padding:10px 12px;border-radius:5px;background:var(--sunk);border:1px solid var(--line);border-left:4px solid var(--nc,var(--accent));font-size:14.5px;min-height:4.6em}
+.note b{font-weight:700}
+.tg{font:700 11px var(--f-display);letter-spacing:.07em;text-transform:uppercase;padding:1px 6px;border-radius:3px;margin-right:6px;color:var(--c);background:color-mix(in srgb,var(--c) 14%,var(--panel))}
+
+.dw{overflow-x:auto;border:1px solid var(--line);border-radius:5px;background:var(--sunk);overscroll-behavior-x:contain}
+svg.dg{display:block;width:100%;height:auto;user-select:none;-webkit-user-select:none}
+svg text{font-family:var(--f-body)}
+.dg .nm{font:700 15px var(--f-display);letter-spacing:.02em;fill:var(--ink)}
+.dg .sb{font:500 12px var(--f-body);fill:var(--muted)}
+.dg .sm{font:600 11px var(--f-body);fill:var(--muted)}
+.dg .gr{stroke:var(--line);stroke-width:1}
+.dg .ax{font:600 11px var(--f-body);fill:var(--muted)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:10px;font-size:13px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.legend i{display:inline-block;width:22px;height:12px;border-radius:2px;border:1.5px solid var(--c);background:color-mix(in srgb,var(--c) 22%,transparent)}
+
+.two{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:1000px){.two{grid-template-columns:minmax(0,1fr)}}
+.cmpw{overflow-x:auto}
+.cmpt{border-collapse:collapse;font-size:14.5px;width:100%}
+.cmpt th,.cmpt td{border-bottom:1px solid var(--line);padding:7px 10px;white-space:nowrap;text-align:right;font-variant-numeric:tabular-nums}
+.cmpt th:first-child,.cmpt td:first-child{text-align:left}
+.cmpt thead th{font:600 12px var(--f-display);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.cmpt td small,.cmpt th small{display:block;color:var(--muted);font-size:12px}
+.cmpt th small{font:500 11px var(--f-body);letter-spacing:0;text-transform:none}
+.cmpt tr.cur td{background:color-mix(in srgb,var(--accent) 8%,var(--panel));font-weight:700}
+.explain{display:flex;flex-direction:column;gap:10px;font-size:15px}
+.explain .aside{font-size:14px;color:var(--muted);padding:10px 12px;border:1px dashed var(--line-strong);border-radius:5px}
+.explain .aside b{color:var(--ink)}
+.rules{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;font-size:15px;max-width:104ch}
+.foot{color:var(--muted);font-size:13px;padding-top:4px}
+pre.code{margin:0;padding:10px 12px;border-radius:5px;background:var(--sunk);border:1px solid var(--line);font:13px/1.55 var(--f-mono);overflow-x:auto;white-space:pre}
+pre.code .hl{background:color-mix(in srgb,var(--accent) 16%,transparent);border-radius:3px;display:inline-block;min-width:100%}
+pre.code .cm{color:var(--muted)}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+svg.dg{min-width:1000px}
+.dg .band{cursor:pointer}
+.dg .band:hover path{stroke:var(--ink)}
+.race{display:flex;flex-direction:column;gap:6px}
+.lane{display:grid;grid-template-columns:150px minmax(0,1fr) 220px;gap:12px;align-items:center}
+.lane .nm{font:700 15px var(--f-display);letter-spacing:.02em}
+.lane .nm small{display:block;font:500 12px var(--f-body);color:var(--muted);letter-spacing:0}
+.lane .trk{height:22px;border-radius:4px;background:var(--sunk);border:1px solid var(--line);overflow:hidden;position:relative}
+.lane .fil{position:absolute;inset:0 auto 0 0;background:color-mix(in srgb,var(--c) 55%,transparent);border-right:2px solid var(--c)}
+.lane .st{font-size:13.5px;font-variant-numeric:tabular-nums;color:var(--muted)}
+.lane .st b{color:var(--ink)}
+.lane.done .st b{color:var(--ok)}
+@media (max-width:640px){.lane{grid-template-columns:minmax(0,1fr)}.lane .st{margin-top:-2px}}
+.cmpt td input{border:1px solid var(--line-strong);border-radius:4px;background:var(--panel);padding:3px 6px;width:9ch;text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
+.cmpt td input.err{border-color:var(--bad);color:var(--bad)}
+.cmpt td.l{text-align:left;white-space:normal;min-width:16ch}
+.os{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+.os .card{border:1px solid var(--line);border-radius:5px;padding:12px;background:var(--sunk);display:flex;flex-direction:column;gap:8px}
+.os .card p{font-size:14px;color:var(--muted)}
+.os .card p b{color:var(--ink)}
+.cbar{display:flex;justify-content:space-between;align-items:center;gap:8px}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <div class="intro">
+      <div class="eyebrow">Tema 4 · Memoria · Diapositivas 3–6</div>
+      <h1>Jerarquía de memoria</h1>
+      <p class="lede">Los niveles de memoria de un ordenador actual, con números reales: cuánto tarda, cuánto cabe y cuánto cuesta cada uno. Cada escalón es <b>más grande, más barato por bit y mucho más lento</b> que el anterior. Para sentir los tiempos, la escala humana: si la L1 tardara un segundo, la DRAM tardaría minuto y medio y el disco duro, dos meses. Elige la unidad (nanosegundos, ciclos de CPU o escala humana), pulsa un nivel de la pirámide para ver de qué está hecho y lanza la carrera para ver cuánto tarda cada uno en entregar un dato.</p>
+    </div>
+    <div class="hstat" id="hstat" aria-label="La jerarquía a escala humana"></div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="panel" aria-labelledby="pyT">
+    <div class="head">
+      <div class="ti">
+        <div class="k">Diapositiva 5</div>
+        <h2 id="pyT">La pirámide, con sus números</h2>
+        <div class="fig" id="pyFig"></div>
+      </div>
+      <div class="ctl">
+        <div class="fld"><span>Unidad</span>
+          <div class="seg" id="unitSeg" role="group" aria-label="Unidad de tiempo">
+            <button type="button" data-v="ns">Nanosegundos</button><button type="button" data-v="cyc">Ciclos de CPU</button><button type="button" data-v="human">Escala humana</button>
+          </div></div>
+        <div class="fld"><span>Procesador</span>
+          <div class="seg" id="ghzSeg" role="group" aria-label="Frecuencia del procesador">
+            <button type="button" data-v="3">3 GHz</button><button type="button" data-v="4">4 GHz</button><button type="button" data-v="5">5 GHz</button>
+          </div></div>
+      </div>
+    </div>
+    <div class="note" id="note" role="status" aria-live="polite"></div>
+    <div class="dw" id="dw"></div>
+    <p class="foot" style="margin-top:8px">La barra de la derecha usa escala logarítmica: cada marca es 10 veces más lenta que la anterior. Con escala lineal, todo lo que está por encima de la DRAM ocuparía menos de un píxel.</p>
+  </section>
+
+  <section class="panel" aria-labelledby="rcT">
+    <div class="head">
+      <div class="ti">
+        <div class="k">La carrera</div>
+        <h2 id="rcT">Todos los niveles reciben la petición a la vez</h2>
+        <div class="fig">El procesador pide un dato a cada nivel en el mismo instante. Las barras avanzan en tiempo real, con el tiempo estirado: escala lineal, sin trucos.</div>
+      </div>
+      <div class="ctl">
+        <div class="fld"><span>Cámara lenta</span>
+          <div class="seg" id="slowSeg" role="group" aria-label="Cámara lenta">
+            <button type="button" data-v="0.1">1 ns = 0,1 s</button><button type="button" data-v="1">1 ns = 1 s</button>
+          </div></div>
+        <button class="btn primary" id="go" type="button"></button>
+        <button class="btn" id="reset" type="button">Reiniciar</button>
+      </div>
+    </div>
+    <div class="tiles" id="rtiles"></div>
+    <div class="race" id="race"></div>
+    <div class="note" id="rnote" style="margin-top:12px;min-height:3.2em" aria-live="polite"></div>
+  </section>
+
+  <section class="panel" aria-labelledby="tbT">
+    <div class="head">
+      <div class="ti">
+        <div class="k">Diapositiva 6 · Algunos datos de ejemplo</div>
+        <h2 id="tbT">Los números, nivel a nivel</h2>
+        <div class="fig">Valores orientativos de un portátil o sobremesa de 2026. Puedes cambiar la capacidad y la latencia de cualquier fila (por ejemplo, con lo que diga <code>lscpu</code> en el ordenador del aula) y todo lo demás se recalcula.</div>
+      </div>
+      <button class="btn" id="def" type="button">Volver a los valores de ejemplo</button>
+    </div>
+    <div class="cmpw"><table class="cmpt" id="tbl"></table></div>
+    <p class="foot" style="margin-top:8px" id="eurNote"></p>
+  </section>
+
+  <section class="panel" aria-labelledby="osT">
+    <div class="head">
+      <div class="ti">
+        <div class="k">Tu ordenador por dentro</div>
+        <h2 id="osT">Cómo ver la jerarquía de cualquier equipo</h2>
+        <div class="fig">Dos minutos en clase: ejecútalo en el ordenador del aula y pide a los alumnos que lo hagan en el suyo. Compara con la tabla de arriba.</div>
+      </div>
+    </div>
+    <div class="os" id="os"></div>
+  </section>
+
+  <section class="panel" aria-labelledby="rulT">
+    <div class="head"><div class="ti"><div class="k">Reglas del juego</div><h2 id="rulT">Cómo se calcula</h2></div></div>
+    <ol class="rules">
+      <li><b>Ciclos de CPU</b> = nanosegundos × frecuencia en GHz. A 4 GHz un ciclo dura 0,25 ns, así que 90 ns de DRAM son 360 ciclos.</li>
+      <li><b>Escala humana</b>: se multiplica todo por el mismo factor para que la L1 dure 1 segundo. Los cocientes entre niveles no cambian; solo cambia la unidad.</li>
+      <li><b>Latencia</b> es el tiempo hasta el primer dato de un acceso aislado que falla en todos los niveles anteriores. Las cachés y la DRAM se miden con cargas dependientes; el SSD, con una lectura aleatoria de 4 KB; el disco duro incluye buscar la pista y esperar a que gire el plato.</li>
+      <li><b>Registros</b>: el banco de registros visible al programador (16 de 64 bits más los vectoriales) ronda 1 KB. Se lee en el mismo ciclo, sin espera.</li>
+      <li><b>Coste de la L3</b> (precio de mercado): el Ryzen 7 9800X3D y el 9700X son el mismo procesador salvo 64 MB más de L3 apilada; en 2026 se diferencian en unos 150 €, así que ≈ 2.400 € por GB.</li>
+      <li><b>Coste de la L2</b> (estimado por área): en el chip de Zen 5, 1 MB de L2 ocupa 1,05 mm² y 1 MB de L3, 0,49 mm². Si cada mm² cuesta lo mismo, la L2 sale unas 2,1 veces más cara por GB: ≈ 5.100 €.</li>
+      <li><b>Coste de la L1</b> (estimación gruesa): nadie ha publicado su área por separado. Sus celdas son más grandes y tiene más puertos, así que se supone que cada bit ocupa de 2 a 4 veces lo de la L2: entre 10.000 y 20.000 € por GB. Los registros, aún más; no tienen cifra.</li>
+      <li><b>DRAM, SSD y disco duro</b> (precio de mercado): un kit de 32 GB DDR5-5600 por unos 430 €; SSD y discos duros según los comparadores de precios por TB. Todas las cifras son de 2026 y orientativas.</li>
+      <li><b>Lo que no se ve</b>: los niveles no trabajan de uno en uno. En un fallo de L1 se pregunta a L2, después a L3 y después a la DRAM, así que los tiempos reales se acumulan algo más de lo que muestra la carrera.</li>
+    </ol>
+  </section>
+  <p class="foot">Latencias orientativas de procesadores actuales de portátil y sobremesa. Coste de las cachés estimado como en la demo «La escalera de latencias» (precios del Ryzen 7 9800X3D y 9700X en Amazon España y áreas medidas sobre las fotos del chip Zen 5). Precios de noviembre de 2026: DRAM según el índice de 3DCenter (un kit de 32 GB DDR5-5600 pasó de unos 75 € en julio de 2025 a unos 430 € en septiembre de 2026); SSD y discos duros según los rastreadores de precios por TB de noviembre de 2026.</p>
+</main>
+
+<script>
+{
+/* ===== Datos ===== */
+const DEF = [
+  { id: 'reg',  n: 'Registros',         sh: 'Reg.',  tech: 'Biestables dentro del núcleo', where: 'en cada núcleo, al lado de la ALU', who: 'el compilador, que decide qué variable va en cada registro', cap: 1024, lat: 0.25, eur: null, how: 'sin precio: aún más caro que la L1', c: 'var(--r4)' },
+  { id: 'l1',   n: 'Caché L1',          sh: 'L1',    tech: 'SRAM, 6 transistores por bit', where: 'una por núcleo, separada en instrucciones y datos', who: 'el hardware, sin que el programa se entere', cap: 48 * 1024, lat: 1, eur: 15000, lo: 10000, hi: 20000, how: 'estimación gruesa', c: 'var(--r0)' },
+  { id: 'l2',   n: 'Caché L2',          sh: 'L2',    tech: 'SRAM, 6 transistores por bit', where: 'una por núcleo', who: 'el hardware', cap: 2 * 1024 ** 2, lat: 4, eur: 5100, how: 'estimado por área', c: 'var(--r6)' },
+  { id: 'l3',   n: 'Caché L3',          sh: 'L3',    tech: 'SRAM, 6 transistores por bit', where: 'una sola, compartida por todos los núcleos del chip', who: 'el hardware', cap: 24 * 1024 ** 2, lat: 15, eur: 2400, how: 'precio de mercado', c: 'var(--r2)' },
+  { id: 'dram', n: 'Memoria principal', sh: 'DRAM',  tech: 'DRAM, 1 transistor y 1 condensador por bit', where: 'en módulos DIMM o soldada a la placa, fuera del procesador', who: 'el sistema operativo, por páginas (memoria virtual)', cap: 32 * 1024 ** 3, lat: 90, eur: 13, how: 'precio de mercado', c: 'var(--r5)' },
+  { id: 'ssd',  n: 'SSD NVMe',          sh: 'SSD',   tech: 'Flash NAND, sin partes móviles', where: 'conectado por PCIe', who: 'el sistema operativo: ficheros y área de intercambio', cap: 1024 ** 4, lat: 60e3, eur: 0.10, how: 'precio de mercado', c: 'var(--r1)' },
+  { id: 'hdd',  n: 'Disco duro',        sh: 'HDD',   tech: 'Platos magnéticos girando a 7200 rpm', where: 'conectado por SATA', who: 'el sistema operativo', cap: 4 * 1024 ** 4, lat: 5e6, eur: 0.04, how: 'precio de mercado', c: 'var(--r3)' },
+];
+const st = { L: DEF.map(o => ({ ...o })), unit: 'human', ghz: 4, sel: 4, slow: 0.1, t: 0, run: false };
+const $ = id => document.getElementById(id);
+const fmt = (x, d = 1) => x.toLocaleString('es-ES', { minimumFractionDigits: d, maximumFractionDigits: d });
+const fi = x => Math.round(x).toLocaleString('es-ES');
+const nice = x => x < 10 ? fmt(x, x < 1 ? 2 : 1).replace(/,0+$/, '') : fi(x);
+
+/* ===== Formatos ===== */
+function fCap(b) {
+  const u = ['B', 'KB', 'MB', 'GB', 'TB']; let i = 0;
+  while (b >= 1024 && i < u.length - 1) { b /= 1024; i++; }
+  return `${nice(b)} ${u[i]}`;
+}
+function fNs(ns) {
+  if (ns < 1e3) return `${nice(ns)} ns`;
+  if (ns < 1e6) return `${nice(ns / 1e3)} µs`;
+  return `${nice(ns / 1e6)} ms`;
+}
+function fDur(s) {
+  if (s < 60) return `${nice(s)} s`;
+  if (s < 3600) { const m = Math.floor(s / 60), r = Math.round(s % 60); return r ? `${m} min ${r} s` : `${m} min`; }
+  if (s < 86400) { const h = Math.floor(s / 3600), m = Math.round((s % 3600) / 60); return m ? `${h} h ${m} min` : `${h} h`; }
+  if (s < 86400 * 365) return `${nice(s / 86400)} días`;
+  return `${nice(s / 86400 / 365)} años`;
+}
+function fEur(x) { return x < 1 ? `${fmt(x, 2)} €` : x < 10000 ? `${fi(x)} €` : `${nice(x / 1000)} mil €`; }
+const eurTxt = l => l.eur === null ? '—' : l.lo ? `${fi(l.lo / 1000)}–${fi(l.hi / 1000)} mil €` : fEur(l.eur);
+const human = ns => ns / st.L[1].lat;            // segundos si L1 = 1 s
+const cyc = ns => Math.max(1, Math.round(ns * st.ghz));
+function fUnit(ns) {
+  if (st.unit === 'ns') return fNs(ns);
+  if (st.unit === 'cyc') { const c = cyc(ns); return `${fi(c)} ciclo${c === 1 ? '' : 's'}`; }
+  return fDur(human(ns));
+}
+function pCap(s) {
+  const m = String(s).trim().replace(',', '.').match(/^([\d.]+)\s*([kmgt]?)i?b?$/i);
+  if (!m || !(+m[1] > 0)) return null;
+  return +m[1] * 1024 ** ' kmgt'.indexOf((m[2] || ' ').toLowerCase());
+}
+function pNs(s) {
+  const m = String(s).trim().replace(',', '.').match(/^([\d.]+)\s*(ns|us|µs|ms|s)?$/i);
+  if (!m || !(+m[1] > 0)) return null;
+  return +m[1] * { ns: 1, us: 1e3, 'µs': 1e3, ms: 1e6, s: 1e9 }[(m[2] || 'ns').toLowerCase()];
+}
+
+/* ===== Pirámide ===== */
+function renderPyr() {
+  const L = st.L, N = L.length, top = 30, bh = 54, cx = 320, w0 = 70, w1 = 480;
+  const W = k => w0 + (w1 - w0) * k / N;
+  const lx0 = 782, lx1 = 985, dmin = -1, dmax = 7, LX = ns => lx0 + (Math.log10(ns) - dmin) / (dmax - dmin) * (lx1 - lx0);
+  const ex0 = 1112, ex1 = 1290, emin = -2, emax = 5, EX = e => ex0 + (Math.log10(e) - emin) / (emax - emin) * (ex1 - ex0);
+  let o = `<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--line-strong)"/></marker>
+    <pattern id="hatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="7" stroke="var(--muted)" stroke-width="1.4" opacity=".5"/></pattern></defs>`;
+  // Flechas laterales
+  const yb = top + N * bh;
+  o += `<path d="M38 ${yb - 6}V${top + 8}" stroke="var(--line-strong)" stroke-width="2" fill="none" marker-end="url(#ah)"/>`;
+  o += `<text class="sm" transform="translate(28 ${(top + yb) / 2}) rotate(-90)" text-anchor="middle">más rápido · más caro por bit</text>`;
+  o += `<path d="M62 ${top + 8}V${yb - 6}" stroke="var(--line-strong)" stroke-width="2" fill="none" marker-end="url(#ah)"/>`;
+  o += `<text class="sm" transform="translate(78 ${(top + yb) / 2}) rotate(90)" text-anchor="middle">más capacidad</text>`;
+  // Cabeceras de la derecha
+  o += `<text class="nm" x="660" y="12" text-anchor="end">Capacidad</text><text class="nm" x="770" y="12" text-anchor="end">Latencia</text><text class="nm" x="1100" y="12" text-anchor="end">€ por GB</text>`;
+  for (let d = dmin; d <= dmax; d++) {
+    o += `<line class="gr" x1="${LX(10 ** d)}" x2="${LX(10 ** d)}" y1="${top - 4}" y2="${yb}"/>`;
+    if (d % 2 === 0) o += `<text class="ax" x="${LX(10 ** d)}" y="${top - 8}" text-anchor="middle">${fNs(10 ** d)}</text>`;
+  }
+  for (let d = emin; d <= emax; d++) {
+    o += `<line class="gr" x1="${EX(10 ** d)}" x2="${EX(10 ** d)}" y1="${top - 4}" y2="${yb}"/>`;
+    if (d % 2 === 0) o += `<text class="ax" x="${EX(10 ** d)}" y="${top - 8}" text-anchor="middle">${d < 0 ? '0,01' : fi(10 ** d)} €</text>`;
+  }
+  L.forEach((l, i) => {
+    const y = top + i * bh, a = W(i), b = W(i + 1), sel = i === st.sel, ym = y + bh / 2;
+    o += `<g class="band" data-i="${i}" role="button" tabindex="0" aria-label="${l.n}">
+      <path d="M${cx - a / 2} ${y + 2}H${cx + a / 2}L${cx + b / 2} ${y + bh - 2}H${cx - b / 2}Z" fill="${l.c}" fill-opacity="${sel ? .42 : .2}" stroke="${sel ? 'var(--ink)' : l.c}" stroke-width="${sel ? 2.4 : 1.4}" stroke-linejoin="round"/>
+      <text class="nm" x="${cx}" y="${ym + 5}" text-anchor="middle">${a < 140 ? l.sh : l.n}</text>`;
+    const re = cx + (a + b) / 4;
+    o += `<path d="M${re + 8} ${ym}H572" stroke="var(--line)" stroke-dasharray="2 3"/>`;
+    o += `<text class="nm" x="660" y="${ym + 5}" text-anchor="end">${fCap(l.cap)}</text>`;
+    o += `<text class="nm" x="770" y="${ym + 5}" text-anchor="end" style="fill:${l.c}">${fUnit(l.lat)}</text>`;
+    o += `<rect x="${lx0}" y="${ym - 9}" width="${Math.max(2, LX(l.lat) - lx0)}" height="18" rx="3" fill="${l.c}" fill-opacity=".7"/>`;
+    // Coste por GB
+    o += `<text class="nm" x="1100" y="${ym + 1}" text-anchor="end" style="fill:${l.c}">${eurTxt(l)}</text><text class="sm" x="1100" y="${ym + 15}" text-anchor="end">${l.how}</text>`;
+    if (l.eur === null) o += `<rect x="${ex0}" y="${ym - 9}" width="${ex1 - ex0}" height="18" rx="3" fill="url(#hatch)" stroke="${l.c}" stroke-dasharray="4 3"/>`;
+    else {
+      const base = l.lo || l.eur, est = l.how !== 'precio de mercado';
+      o += `<rect x="${ex0}" y="${ym - 9}" width="${Math.max(2, EX(base) - ex0)}" height="18" rx="3" fill="${l.c}" fill-opacity="${est ? .4 : .7}" stroke="${l.c}" ${est ? 'stroke-dasharray="4 3"' : 'stroke-width="0"'}/>`;
+      if (l.hi) o += `<rect x="${EX(base)}" y="${ym - 9}" width="${EX(l.hi) - EX(base)}" height="18" rx="3" fill="url(#hatch)" stroke="${l.c}" stroke-dasharray="4 3"/>`;
+    }
+    o += '</g>';
+  });
+  $('dw').innerHTML = `<svg class="dg" viewBox="0 0 1300 ${yb + 10}" role="img" aria-label="Pirámide de la jerarquía de memoria con capacidad, latencia y coste por GB">${o}</svg>`;
+}
+function renderNote() {
+  const L = st.L, l = L[st.sel], i = st.sel;
+  let h = `<span class="tg" style="--c:${l.c}">${l.n}</span><b>${l.tech}</b>, ${l.where}. Decide qué hay dentro ${l.who}. `;
+  h += `Guarda ${fCap(l.cap)} y tarda ${fNs(l.lat)} = ${fi(cyc(l.lat))} ciclos a ${st.ghz} GHz; a escala humana, <b>${fDur(human(l.lat))}</b>.`;
+  if (i > 0) {
+    const p = L[i - 1], r = l.lat / p.lat, k = l.cap / p.cap;
+    h += ` Frente a ${p.sh}: <b>${nice(k)} veces más grande</b> y <b>${nice(r)} veces más lento</b>`;
+    h += l.eur !== null && p.eur !== null ? `, pero cada GB es <b>${nice(p.eur / l.eur)} veces más barato</b>.` : '.';
+  }
+  h += l.eur === null ? ' No tiene precio por GB: es aún más caro que la L1.' : ` Cada GB cuesta ≈ ${eurTxt(l)} (${l.how}); ${fCap(l.cap)} salen por ≈ ${fEur(l.cap / 1024 ** 3 * l.eur)}.`;
+  $('note').innerHTML = h; $('note').style.setProperty('--nc', l.c);
+}
+
+/* ===== Carrera ===== */
+let raf = null, last = 0;
+function renderRace() {
+  const L = st.L, tns = st.t / st.slow; // ns reales
+  $('race').innerHTML = L.map((l, i) => {
+    const p = Math.min(1, tns / l.lat), done = p >= 1, rem = (l.lat - tns) * st.slow;
+    const s = done ? `llegó a los <b>${fDur(l.lat * st.slow)}</b>` : st.t > 0 ? `faltan <b>${fDur(rem)}</b> · ${fmt(100 * p, p < .01 ? 3 : 1)} %` : `tardará <b>${fDur(l.lat * st.slow)}</b>`;
+    return `<div class="lane${done ? ' done' : ''}" style="--c:${l.c}"><div class="nm">${l.n}<small>${fNs(l.lat)} reales</small></div><div class="trk"><div class="fil" style="width:${100 * p}%"></div></div><div class="st">${s}</div></div>`;
+  }).join('');
+  $('rtiles').innerHTML = [
+    ['cpu', fDur(Math.max(st.t, 0)), 'Tiempo de animación'],
+    ['mem', fNs(tns || 0), 'Tiempo real equivalente'],
+    ['dat', fi(Math.floor(tns * st.ghz)), `Ciclos de CPU a ${st.ghz} GHz`],
+    ['bad', fi(Math.floor(tns * st.ghz * 4)), 'Instrucciones que podría haber emitido un superescalar de 4 vías'],
+  ].map(([c, v, l]) => `<div class="tile ${c}"><div class="tv">${v}</div><div class="tl">${l}</div></div>`).join('');
+  $('go').innerHTML = st.run ? '<svg viewBox="0 0 16 16"><path d="M3 2h4v12H3zM9 2h4v12H9z"/></svg>Pausa' : `<svg viewBox="0 0 16 16"><path d="M4 2v12l10-6z"/></svg>${st.t > 0 ? 'Continuar' : 'Pedir el dato'}`;
+  const arrived = L.filter(l => tns >= l.lat), dram = L.find(l => l.id === 'dram'), ssd = L.find(l => l.id === 'ssd'), hdd = L.find(l => l.id === 'hdd');
+  let h;
+  if (st.t === 0) h = `Con «1 ns = ${st.slow === 1 ? '1 s' : '0,1 s'}» la DRAM tardará ${fDur(dram.lat * st.slow)}. Los discos no van a llegar durante la clase: esa es la lección.`;
+  else if (arrived.length < L.length - 2) h = `<b>Han llegado ${arrived.length} de ${L.length}.</b> Las cachés ya han contestado; la DRAM, que es la que de verdad espera el procesador en un fallo, va por el ${fmt(100 * Math.min(1, tns / dram.lat), 0)} %.`;
+  else h = `<b>Ha llegado la DRAM; los discos siguen buscando.</b> En lo que tarda el SSD caben <b>${fi(ssd.lat / dram.lat)} accesos a DRAM</b>, y en lo que tarda el disco duro, <b>${fi(hdd.lat / dram.lat)}</b>. Por eso un fallo de página (tema 4, apartado 3) lo gestiona el sistema operativo y no el hardware: hay tiempo de sobra para cambiar de proceso.`;
+  $('rnote').innerHTML = h;
+}
+function tick(now) {
+  const dt = Math.min(.1, (now - last) / 1000); last = now;
+  st.t += dt;
+  renderRace();
+  if (st.run) raf = requestAnimationFrame(tick);
+}
+function play() { st.run = true; last = performance.now(); raf = requestAnimationFrame(tick); renderRace(); }
+function stop() { st.run = false; if (raf) cancelAnimationFrame(raf); raf = null; renderRace(); }
+
+/* ===== Tabla ===== */
+function renderTbl() {
+  const L = st.L;
+  $('tbl').innerHTML = `<thead><tr><th>Nivel</th><th style="text-align:left">Tecnología</th><th>Capacidad</th><th>Latencia</th><th>Ciclos<small>a ${st.ghz} GHz</small></th><th>Si L1 = 1 s</th><th>Más lento que el anterior</th><th>€ por GB<small>2026</small></th><th>El nivel entero<small>capacidad × €/GB</small></th></tr></thead><tbody>` +
+    L.map((l, i) => `<tr data-i="${i}" class="${i === st.sel ? 'cur' : ''}"><td><span class="tg" style="--c:${l.c}">${l.sh}</span>${l.n}</td><td class="l">${l.tech}</td>
+      <td><input data-f="cap" data-i="${i}" value="${fCap(l.cap)}" aria-label="Capacidad de ${l.n}"></td>
+      <td><input data-f="lat" data-i="${i}" value="${fNs(l.lat)}" aria-label="Latencia de ${l.n}"></td>
+      <td>${fi(cyc(l.lat))}</td><td>${fDur(human(l.lat))}</td><td>${i ? '× ' + nice(l.lat / L[i - 1].lat) : '—'}</td>
+      <td>${l.eur === null ? '<small>sin precio</small>' : `≈ ${eurTxt(l)}<small>${l.how}</small>`}</td>
+      <td>${l.eur === null ? '—' : '≈ ' + (l.lo ? `${fEur(l.cap / 1024 ** 3 * l.lo)}–${fEur(l.cap / 1024 ** 3 * l.hi)}` : fEur(l.cap / 1024 ** 3 * l.eur))}</td></tr>`).join('') + '</tbody>';
+  const d = L.find(l => l.id === 'dram'), s = L.find(l => l.id === 'ssd'), h = L.find(l => l.id === 'hdd');
+  const l1 = L.find(l => l.id === 'l1'), l3 = L.find(l => l.id === 'l3');
+  $('eurNote').innerHTML = `Por GB, la L1 cuesta del orden de ${fi(l1.eur / h.eur / 1000)} mil veces lo que el disco duro. Paso a paso: la L3 unas ${fi(l3.eur / d.eur)} veces más que la DRAM, la DRAM unas ${fi(d.eur / s.eur)} veces más que el SSD y el SSD unas ${fi(s.eur / h.eur)} veces más que el disco duro. Dato curioso para clase: la DRAM se ha multiplicado por más de 5 en un año por la demanda de los centros de datos de IA.`;
+}
+
+/* ===== Comandos ===== */
+const OS = [
+  { n: 'Linux', cmds: ['lscpu --caches', 'free -h', 'lsblk -d -o NAME,ROTA,SIZE,MODEL'],
+    p: '<b>lscpu --caches</b> da cada caché con su tamaño, sus vías (WAYS), sus conjuntos (SETS) y el tamaño de línea (LINE-SIZE): todo lo del apartado 2. <b>ONE-SIZE</b> es la de un núcleo; <b>ALL-SIZE</b>, la suma de todos. En <b>lsblk</b>, ROTA = 1 es un disco que gira.' },
+  { n: 'Windows', cmds: ['Get-CimInstance Win32_Processor | Select-Object Name, L2CacheSize, L3CacheSize', 'Get-PhysicalDisk | Select-Object FriendlyName, MediaType, Size'],
+    p: 'Sin teclear nada: <b>Administrador de tareas → Rendimiento → CPU</b> muestra L1, L2 y L3 abajo a la derecha, y la pestaña <b>Memoria</b> da la velocidad y las ranuras usadas. Los comandos son de PowerShell; los tamaños de caché salen en KB.' },
+  { n: 'macOS', cmds: ['sysctl hw.l1dcachesize hw.l2cachesize hw.cachelinesize hw.memsize'],
+    p: 'Devuelve los tamaños en bytes. En los procesadores Apple, la línea de caché es de <b>128 B</b>, el doble que en x86: buena pregunta para clase.' },
+];
+function renderOS() {
+  $('os').innerHTML = OS.map((o, k) => `<div class="card"><div class="cbar"><h3>${o.n}</h3><button class="btn" type="button" data-copy="${k}">Copiar</button></div>
+    <pre class="code">${o.cmds.map(c => c.replace(/&/g, '&amp;').replace(/</g, '&lt;')).join('\n')}</pre><p>${o.p}</p></div>`).join('');
+}
+
+/* ===== Cabecera ===== */
+function renderHead() {
+  const L = st.L, h = L[L.length - 1], d = L.find(l => l.id === 'dram');
+  $('hstat').innerHTML = `<div class="lab">A escala humana</div>
+    <div class="big ref">1 s<small>caché L1</small></div><span class="arrow">→</span>
+    <div class="big" style="color:var(--r5)">${fDur(human(d.lat))}<small>DRAM</small></div><span class="arrow">→</span>
+    <div class="big on">${fDur(human(h.lat))}<small>disco duro</small></div>`;
+  const u = { ns: 'en nanosegundos reales', cyc: `en ciclos de un procesador a ${st.ghz} GHz`, human: 'a escala humana: todo multiplicado para que la L1 tarde 1 segundo' }[st.unit];
+  $('pyFig').textContent = `Latencias ${u}. Pulsa un nivel para ver de qué está hecho y cuánto se aleja del anterior.`;
+}
+function renderControls() {
+  const set = (id, v) => $(id).querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === String(v))));
+  set('unitSeg', st.unit); set('ghzSeg', st.ghz); set('slowSeg', st.slow);
+}
+function renderAll() { renderControls(); renderHead(); renderPyr(); renderNote(); renderRace(); renderTbl(); }
+
+/* ===== Eventos ===== */
+const seg = (id, f) => $(id).addEventListener('click', e => { const b = e.target.closest('button'); if (b) f(b.dataset.v); });
+seg('unitSeg', v => { st.unit = v; renderAll(); });
+seg('ghzSeg', v => { st.ghz = +v; renderAll(); });
+seg('slowSeg', v => { st.t = st.t / st.slow * +v; st.slow = +v; renderControls(); renderRace(); });
+const pick = i => { st.sel = i; renderPyr(); renderNote(); renderTbl(); };
+$('dw').addEventListener('click', e => { const g = e.target.closest('[data-i]'); if (g) pick(+g.dataset.i); });
+$('dw').addEventListener('keydown', e => { const g = e.target.closest('[data-i]'); if (g && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); pick(+g.dataset.i); } });
+$('go').addEventListener('click', () => st.run ? stop() : play());
+$('reset').addEventListener('click', () => { stop(); st.t = 0; renderRace(); });
+$('def').addEventListener('click', () => { st.L = DEF.map(o => ({ ...o })); renderAll(); });
+$('tbl').addEventListener('change', e => {
+  const inp = e.target.closest('input[data-f]'); if (!inp) return;
+  const l = st.L[+inp.dataset.i], v = inp.dataset.f === 'cap' ? pCap(inp.value) : pNs(inp.value);
+  if (v === null) { inp.classList.add('err'); return; }
+  l[inp.dataset.f] = v; renderAll();
+});
+$('tbl').addEventListener('click', e => { const r = e.target.closest('tr[data-i]'); if (r && !e.target.closest('input')) pick(+r.dataset.i); });
+$('os').addEventListener('click', e => {
+  const b = e.target.closest('[data-copy]'); if (!b) return;
+  const txt = OS[+b.dataset.copy].cmds.join('\n');
+  const ok = () => { b.textContent = 'Copiado'; setTimeout(() => b.textContent = 'Copiar', 1400); };
+  try { navigator.clipboard.writeText(txt).then(ok, () => { b.textContent = 'Selecciona y copia'; }); } catch (_) { b.textContent = 'Selecciona y copia'; }
+});
+renderOS();
+renderAll();
+}
+</script>
+<script data-goatcounter="https://juanjoual.goatcounter.com/count"
+        async src="//gc.zgo.at/count.js"></script>
+</body>
+</html>
